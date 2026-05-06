@@ -1,0 +1,44 @@
+El Prompt Maestro (Full Rust: Axum + Leptos/Dioxus + Estética iSAMS)
+
+    "Actúa como un Ingeniero de Software Principal especializado en el ecosistema Full Rust (Backend y Frontend Wasm) y Diseñador de Interfaces para sistemas ERP de misión crítica. Mi meta final es construir el 'Core' de una plataforma escolar para Chile que replique la experiencia de usuario de iSAMS: granular, modular y potente, pero extremadamente intuitiva.
+
+    Especificaciones Técnicas (Full Rust Stack):
+
+        Backend: Diseña una API basada en Axum con soporte para WebSockets (para actualizaciones en tiempo real tipo iSAMS) y persistencia asíncrona usando SQLx con PostgreSQL.
+
+        Frontend (Elige Leptos o Dioxus): Desarrolla una Single Page Application (SPA) responsiva y reactiva usando [Leptos / Dioxus]. Debe enfocarse en la reactividad de grano fino para que la interfaz se sienta instantánea.
+
+        Conectividad: Define cómo se manejará la comunicación entre el frontend (Wasm) y el backend (REST/GraphQL), considerando la serialización eficiente de datos con serde.
+
+    Requerimientos de Dominio (Chile):
+
+        Implementa tipos de datos robustos para la validación de RUT, gestión de Asistencia diaria/mensual (según normativas SIGE) y cálculo de Calificaciones (respetando el Decreto 67).
+
+    Interfaz de Usuario (Inspiración iSAMS en Rust):
+
+        Diseño de Paneles (Dashboards): La pantalla de inicio debe ser una cuadrícula de componentes reactivos (widgets/mosaicos). Cada mosaico (ej. 'Asistencia Hoy', 'Alertas de Alumnos', 'Agenda') debe ser un componente independiente que se actualice sin recargar la página.
+
+        Estilo iSAMS: Prioriza una barra de navegación lateral colapsable, una barra de búsqueda global superior siempre presente y el uso de tarjetas (cards) para organizar la información con una jerarquía visual clara, tipografía profesional y una paleta de colores corporativa.
+
+        Reactividad: Los cambios en un panel (ej. marcar una asistencia) deben reflejarse instantáneamente en otros paneles relacionados (ej. KPIs de asistencia global) sin latencia perceptible.
+
+    Entregable:
+    Genera la arquitectura del proyecto 'Full Rust', incluyendo la estructura de directorios (workspace) sugerida para separar backend y frontend, y define los primeros tres componentes reactivos del dashboard para un perfil Administrador, detallando qué datos del 'Core' escolar chileno visualizarán."
+
+## ¿Qué significa esto para tu desarrollo?
+
+    Leptos vs Dioxus: El prompt te pide decidir.
+
+        Leptos: Es increíblemente rápido debido a su reactividad basada en "signals" (señales). Es ideal para dashboards complejos donde solo quieres actualizar la pequeña porción de la pantalla que cambió.
+
+        Dioxus: Tiene una sintaxis muy amigable (similar a React) y es más versátil si en el futuro quieres hacer apps nativas de escritorio o móviles con el mismo código.
+
+    Rendimiento iSAMS: La carga de paneles masivos que iSAMS suele tener se beneficiará enormemente de Rust. Donde otras apps tardan segundos en renderizar todos los mosaicos, tu app lo hará en milisegundos.
+
+    Compartir Código: Al ser Full Rust, puedes compartir estructuras de datos (structs) entre el backend y el frontend. Por ejemplo, la estructura Alumno con las validaciones de RUT chileno se define una sola vez y la usan ambos lados, garantizando consistencia total.
+
+¿Cuál es el siguiente paso para este proyecto Full Rust?
+
+    ¿Definimos la estructura de la base de datos (PostgreSQL) para este Core?
+
+    ¿Prefieres un ejemplo de código básico de cómo conectar el backend Axum con un frontend Leptos/Dioxus?
