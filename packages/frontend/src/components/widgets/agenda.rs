@@ -76,6 +76,7 @@ fn EventItem(title: String, date_str: String, event_type: String) -> Element {
     }
 }
 
+#[allow(dead_code)]
 fn parse_date(date_str: &str) -> (String, String) {
     let parts: Vec<&str> = date_str.split('-').collect();
     if parts.len() == 3 {
