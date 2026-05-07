@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: schoolcbb
+      POSTGRES_PASSWORD: schoolcbb
+      POSTGRES_DB: schoolcbb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./packages/backend/src/db/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schoolcbb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      HOST: 0.0.0.0
+      PORT: 3001
+      RUST_LOG: info
+      FRONTEND_URL: http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
