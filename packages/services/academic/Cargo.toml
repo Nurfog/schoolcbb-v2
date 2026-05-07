@@ -17,3 +17,6 @@ dotenvy = "0.15"
 thiserror = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+jsonwebtoken = "9"
+schoolcbb-proto = { path = "../../proto" }
+tonic = "0.12"

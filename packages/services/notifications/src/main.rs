@@ -1,14 +1,21 @@
+mod config;
+mod error;
 mod ws;
 
+use std::sync::Arc;
+
 use axum::Router;
+use sqlx::PgPool;
 use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
-use std::sync::Arc;
+use config::Config;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub pool: PgPool,
+    pub config: Arc<Config>,
     pub ws_hub: Arc<ws::hub::WsHub>,
 }
 
@@ -19,21 +26,32 @@ async fn main() {
         .init();
 
     dotenvy::dotenv().ok();
+    let config = Arc::new(Config::from_env());
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(10)
+        .connect(&config.database_url)
+        .await
+        .expect("Failed to connect to PostgreSQL");
+
+    tracing::info!("Notifications Service connected to database");
+    schoolcbb_common::db_schema::run(&pool).await;
 
     let (ws_tx, _) = broadcast::channel::<String>(100);
     let ws_hub = Arc::new(ws::hub::WsHub::new(ws_tx.clone()));
 
-    let state = AppState { ws_hub };
+    let state = AppState {
+        pool,
+        config: config.clone(),
+        ws_hub,
+    };
+
+    let addr = config.addr();
 
     let app = Router::new()
         .merge(ws::routes::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
-
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3005".into());
-    let addr = format!("{host}:{port}");
-
     tracing::info!("Notifications Service starting on {addr}");
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

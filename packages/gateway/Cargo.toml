@@ -16,3 +16,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenvy = "0.15"
 thiserror = "1"
 http-body-util = "0.1"
+futures-util = "0.3"
+tokio-tungstenite = "0.24"
+tungstenite = "0.24"
+async-graphql = "6"
+async-graphql-axum = "6"

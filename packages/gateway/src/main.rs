@@ -1,12 +1,18 @@
+mod graphql;
+
 use std::env;
 
 use axum::{
-    extract::{Request, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Extension, Json, Request, State,
+    },
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::any,
+    routing::{any, get},
     Router,
 };
+use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -20,6 +26,8 @@ struct AppState {
     academic_url: String,
     attendance_url: String,
     notifications_url: String,
+    finance_url: String,
+    reporting_url: String,
     frontend_url: String,
 }
 
@@ -39,20 +47,30 @@ async fn main() {
         attendance_url: env::var("ATTENDANCE_URL").unwrap_or_else(|_| "http://localhost:3004".into()),
         notifications_url: env::var("NOTIFICATIONS_URL").unwrap_or_else(|_| "http://localhost:3005".into()),
         frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:8080".into()),
+        finance_url: env::var("FINANCE_URL").unwrap_or_else(|_| "http://localhost:3006".into()),
+        reporting_url: env::var("REPORTING_URL").unwrap_or_else(|_| "http://localhost:3007".into()),
     };
-
     let cors = CorsLayer::new()
         .allow_origin(state.frontend_url.parse::<axum::http::HeaderValue>().unwrap())
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any);
 
+    let schema = graphql::build_schema();
+
     let app = Router::new()
+        .route("/health", get(|| async { (StatusCode::OK, axum::Json(serde_json::json!({"status": "ok", "service": "gateway"}))) }))
         .route("/api/auth/*path", any(proxy_identity))
+        .route("/api/user/*path", any(proxy_identity))
         .route("/api/students/*path", any(proxy_sis))
         .route("/api/dashboard/*path", any(proxy_sis))
         .route("/api/grades/*path", any(proxy_academic))
         .route("/api/attendance/*path", any(proxy_attendance))
-        .route("/ws", any(proxy_notifications))
+        .route("/api/communications/*path", any(proxy_notifications))
+        .route("/api/finance/*path", any(proxy_finance))
+        .route("/api/reports/*path", any(proxy_reporting))
+        .route("/graphql", get(graphql_playground).post(graphql_handler))
+        .layer(Extension(schema))
+        .route("/ws", any(ws_proxy))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state);
@@ -64,6 +82,87 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn ws_proxy(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let upstream = state.notifications_url.clone();
+    ws.on_upgrade(move |socket| handle_ws_proxy(socket, upstream))
+}
+
+async fn graphql_playground() -> impl IntoResponse {
+    axum::response::Html(
+        r#"<!DOCTYPE html>
+<html><head><title>SchoolCBB GraphQL</title>
+<script src="https://cdn.jsdelivr.net/npm/graphql-playground-react/build/static/js/middleware.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/graphql-playground-react/build/static/css/index.css"/>
+</head><body><div id="root"></div>
+<script>window.addEventListener('load',function(){GraphQLPlayground.init(document.getElementById('root'),{endpoint:'/graphql'})})</script>
+</body></html>"#,
+    )
+}
+
+async fn graphql_handler(
+    Extension(schema): Extension<graphql::AppSchema>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let query = body.get("query").and_then(|v| v.as_str()).unwrap_or("");
+    let vars = body.get("variables");
+
+    let mut req = async_graphql::Request::new(query);
+    if let Some(v) = vars {
+        if let Some(obj) = v.as_object() {
+            let vars = async_graphql::Variables::from_json(serde_json::Value::Object(obj.clone()));
+            req = req.variables(vars);
+        }
+    }
+    if let Some(auth) = headers.get("Authorization").and_then(|v| v.to_str().ok()) {
+        req = req.data(auth.to_string());
+    }
+
+    let resp = schema.execute(req).await;
+    Json(serde_json::json!(resp.data))
+}
+
+async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
+    let ws_url = upstream_url.replace("http://", "ws://").replace("https://", "wss://");
+    let ws_url = format!("{}/ws", ws_url.trim_end_matches('/'));
+
+    match tokio_tungstenite::connect_async(&ws_url).await {
+        Ok((upstream_ws, _)) => {
+            let (mut client_sender, mut client_receiver) = client_ws.split();
+            let (mut upstream_sender, mut upstream_receiver) = upstream_ws.split();
+
+            let c2u = tokio::spawn(async move {
+                while let Some(Ok(msg)) = client_receiver.next().await {
+                    let data = msg.into_data();
+                    if upstream_sender.send(tungstenite::Message::Binary(data)).await.is_err() {
+                        break;
+                    }
+                }
+            });
+
+            let u2c = tokio::spawn(async move {
+                while let Some(Ok(msg)) = upstream_receiver.next().await {
+                    let data = msg.into_data();
+                    if client_sender.send(Message::Binary(data)).await.is_err() {
+                        break;
+                    }
+                }
+            });
+
+            tokio::select! {
+                _ = c2u => {},
+                _ = u2c => {},
+            }
+        }
+        Err(e) => {
+            tracing::error!("WebSocket proxy: failed to connect to upstream {ws_url}: {e}");
+        }
+    }
 }
 
 macro_rules! proxy_handler {
@@ -79,6 +178,8 @@ proxy_handler!(proxy_sis, "sis");
 proxy_handler!(proxy_academic, "academic");
 proxy_handler!(proxy_attendance, "attendance");
 proxy_handler!(proxy_notifications, "notifications");
+proxy_handler!(proxy_finance, "finance");
+proxy_handler!(proxy_reporting, "reporting");
 
 async fn proxy_request(state: &AppState, service: &str, req: Request) -> Response {
     let base_url = match service {
@@ -87,6 +188,8 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
         "academic" => &state.academic_url,
         "attendance" => &state.attendance_url,
         "notifications" => &state.notifications_url,
+        "finance" => &state.finance_url,
+        "reporting" => &state.reporting_url,
         _ => return (StatusCode::BAD_REQUEST, "Unknown service").into_response(),
     };
 

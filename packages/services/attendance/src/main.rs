@@ -2,6 +2,8 @@ mod config;
 mod error;
 mod routes;
 
+use std::sync::Arc;
+
 use axum::Router;
 use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
@@ -12,6 +14,7 @@ use config::Config;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub config: Arc<Config>,
 }
 
 #[tokio::main]
@@ -21,7 +24,7 @@ async fn main() {
         .init();
 
     dotenvy::dotenv().ok();
-    let config = Config::from_env();
+    let config = Arc::new(Config::from_env());
 
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(10)
@@ -32,7 +35,10 @@ async fn main() {
     tracing::info!("Attendance Service connected to database");
     schoolcbb_common::db_schema::run(&pool).await;
 
-    let state = AppState { pool };
+    let state = AppState {
+        pool,
+        config: config.clone(),
+    };
 
     let app = Router::new()
         .merge(routes::router())

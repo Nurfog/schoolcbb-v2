@@ -23,6 +23,27 @@ impl AttendanceStatus {
     pub fn es_justificado(&self) -> bool {
         matches!(self, AttendanceStatus::Justificado | AttendanceStatus::Licencia)
     }
+
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "Ausente" => AttendanceStatus::Ausente,
+            "Atraso" => AttendanceStatus::Atraso,
+            "Justificado" => AttendanceStatus::Justificado,
+            "Licencia" => AttendanceStatus::Licencia,
+            _ => AttendanceStatus::Presente,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AttendanceStatus::Presente => "Presente",
+            AttendanceStatus::Ausente => "Ausente",
+            AttendanceStatus::Atraso => "Atraso",
+            AttendanceStatus::Justificado => "Justificado",
+            AttendanceStatus::Licencia => "Licencia",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +56,42 @@ pub struct DailyAttendance {
     pub status: AttendanceStatus,
     pub subject: String,
     pub teacher_id: Uuid,
+    pub observation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAttendancePayload {
+    pub student_id: Uuid,
+    pub course_id: Uuid,
+    pub date: NaiveDate,
+    pub time: Option<NaiveTime>,
+    pub status: String,
+    pub subject: String,
+    pub teacher_id: Uuid,
+    pub observation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAttendancePayload {
+    pub status: Option<String>,
+    pub time: Option<NaiveTime>,
+    pub observation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BulkAttendanceEntry {
+    pub course_id: Uuid,
+    pub date: NaiveDate,
+    pub time: Option<NaiveTime>,
+    pub subject: String,
+    pub teacher_id: Uuid,
+    pub records: Vec<StudentAttendanceRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudentAttendanceRecord {
+    pub student_id: Uuid,
+    pub status: String,
     pub observation: Option<String>,
 }
 
@@ -85,4 +142,49 @@ pub enum AlertSeverity {
     Bajo,
     Medio,
     Alto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YearlyAttendanceSummary {
+    pub student_id: Uuid,
+    pub student_name: String,
+    pub rut: String,
+    pub year: i32,
+    pub months: Vec<MonthlyAttendanceSummary>,
+    pub total_days: i32,
+    pub present: i32,
+    pub absent: i32,
+    pub late: i32,
+    pub justified: i32,
+    pub attendance_percentage: f64,
+    pub is_below_general_threshold: bool,
+    pub is_below_nee_threshold: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CourseAttendanceReport {
+    pub course_id: Uuid,
+    pub course_name: String,
+    pub date: NaiveDate,
+    pub subject: String,
+    pub total_students: i32,
+    pub present_count: i32,
+    pub absent_count: i32,
+    pub late_count: i32,
+    pub justified_count: i32,
+    pub records: Vec<StudentAttendanceRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupereducExportRow {
+    pub rut: String,
+    pub student_name: String,
+    pub grade_level: String,
+    pub section: String,
+    pub total_days: i32,
+    pub present: i32,
+    pub absent: i32,
+    pub late: i32,
+    pub justified: i32,
+    pub attendance_percentage: f64,
 }

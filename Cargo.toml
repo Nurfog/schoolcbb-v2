@@ -2,11 +2,14 @@
 resolver = "2"
 members = [
     "packages/common",
+    "packages/proto",
     "packages/gateway",
     "packages/services/identity",
     "packages/services/sis",
     "packages/services/academic",
     "packages/services/attendance",
     "packages/services/notifications",
+    "packages/services/finance",
+    "packages/services/reporting",
     "packages/frontend",
 ]

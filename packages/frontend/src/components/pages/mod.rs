@@ -1,0 +1,11 @@
+pub mod students_page;
+pub mod attendance_page;
+pub mod grades_page;
+pub mod student_detail_page;
+pub mod notifications_page;
+pub mod agenda_page;
+pub mod reports_page;
+pub mod finance_page;
+pub mod users_page;
+pub mod module_manager;
+pub mod login_page;

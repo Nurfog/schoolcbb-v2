@@ -71,3 +71,49 @@ Para lograr la estética de **iSAMS**, el frontend debe seguir estas reglas:
 ---
 
 > **Nota Técnica**: Al ser un desarrollo **Full Rust**, se recomienda crear un crate `common` dentro del workspace para definir las estructuras (`structs`) de Alumno, Curso y Nota que serán serializadas por `serde` tanto en el servidor como en el cliente Wasm.
+
+### ✅ Etapa 5: Module Manager (Completada)
+
+   ## usar la foto ManagerModulos.png como referencia para la UI
+
+    "Actúa como un Desarrollador Senior de Frontend en Rust utilizando Dioxus y Tailwind CSS. Necesito crear el componente 'Module Manager' que aparece tras el inicio de sesión, inspirado en la estética de iSAMS.
+    1. Estructura del Layout (Grid System):
+        Sidebar Izquierdo: Un panel fijo de 280px con fondo oscuro. Debe incluir:
+            Un 'Quick Search' superior para filtrar módulos.
+            Sección de 'Favoritos' (que se actualiza dinámicamente).
+            Lista de categorías (Administración, Académico, Comunicaciones, etc.) con recuento de módulos.
+        Main Content: Una cuadrícula (CSS Grid) que muestre 'Tiles' (mosaicos) cuadrados.
+    2. Diseño del 'Module Tile' (Mosaico):
+        Cada mosaico debe tener un borde suave, fondo claro y un icono central representativo.
+        Interactividad de Favoritos: Incluye un icono de estrella en la esquina superior derecha de cada mosaico. Al hacer clic (toggle), el módulo debe aparecer/desaparecer de la sección de 'Favoritos' de la Sidebar instantáneamente.
+        Usa Signals (Leptos) o State (Dioxus) para manejar esta reactividad sin recargar la página.
+    3. Módulos Específicos (Contexto Chile):
+        Genera mosaicos para: 'Libro de Clases Digital', 'Gestión de Matrícula (SIS)', 'Configuración SIGE', 'Evaluación Decreto 67', 'Asistencia Real-time', y 'Centro de Mensajería'.
+    4. Lógica de Backend (Rust/Axum):
+        Define una estructura Module en Rust con campos: id, name, icon, category y is_favorite: bool.
+        Explica cómo el frontend debe enviar una petición asíncrona al backend en Axum para persistir la preferencia del usuario cuando marque una estrella.
+    5. Estética Visual:
+        Usa una paleta de colores profesional: Azules profundos para la sidebar (#1a2b3c), blancos limpios para el área de trabajo y un dorado brillante para las estrellas de favoritos. La fuente debe ser 'Inter' o 'Urbanist'."
+
+
+   ## Consideraciones Técnicas para tu Implementación
+
+      Para que esta UI funcione realmente como iSAMS, debes considerar estos tres puntos clave en tu código Rust:
+      1. El Crate common (Estructuras Compartidas)
+      En tu workspace de Rust, crea un archivo donde definas el módulo. Esto asegura que el Backend y el Frontend hablen el mismo idioma:
+      Rust
+      #[derive(Serialize, Deserialize, Clone, Debug)]
+      pub struct Module {
+         pub id: String,
+         pub name: String,
+         pub icon: String,
+         pub category: String,
+         pub is_favorite: bool,
+      }
+
+      2. Persistencia de Configuración por Usuario
+
+      En tu base de datos PostgreSQL, no guardes los favoritos en la tabla de módulos. Crea una tabla relacional:
+         user_favorites: user_id | module_id
+         Cuando el usuario presione la estrella, el frontend llama a un endpoint de Axum: POST /api/user/favorites/{module_id}.
+         Crear la lógica del buscador global que filtra los módulos mientras escribes

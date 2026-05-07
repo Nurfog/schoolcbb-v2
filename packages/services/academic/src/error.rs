@@ -12,6 +12,18 @@ pub enum AcademicError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
+    #[error("Unauthorized")]
+    Unauthorized,
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
@@ -21,9 +33,13 @@ impl IntoResponse for AcademicError {
         let (status, message) = match &self {
             AcademicError::Database(e) => {
                 tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error".into())
+                (StatusCode::INTERNAL_SERVER_ERROR, "Error interno del servidor".into())
             }
             AcademicError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
+            AcademicError::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),
+            AcademicError::Conflict(m) => (StatusCode::CONFLICT, m.clone()),
+            AcademicError::Unauthorized => (StatusCode::UNAUTHORIZED, "No autorizado".into()),
+            AcademicError::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
             AcademicError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
         };
         (status, Json(json!({"error": message}))).into_response()

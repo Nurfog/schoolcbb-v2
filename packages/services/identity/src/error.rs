@@ -17,6 +17,9 @@ pub enum AuthError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Token expired")]
     TokenExpired,
 
@@ -39,6 +42,7 @@ impl IntoResponse for AuthError {
             }
             AuthError::UserNotFound => (StatusCode::NOT_FOUND, "Usuario no encontrado".into()),
             AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, "No autorizado".into()),
+            AuthError::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
             AuthError::TokenExpired => (StatusCode::UNAUTHORIZED, "Sesión expirada".into()),
             AuthError::TokenInvalid(m) => (StatusCode::UNAUTHORIZED, m.clone()),
             AuthError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),

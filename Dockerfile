@@ -1,10 +1,12 @@
 FROM rust:slim-bookworm AS builder
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
+COPY protos protos
 COPY packages/common packages/common
+COPY packages/proto packages/proto
 COPY packages/gateway packages/gateway
 COPY packages/services packages/services
 COPY packages/frontend/Cargo.toml packages/frontend/Cargo.toml
@@ -20,3 +22,5 @@ COPY --from=builder /app/target/release/schoolcbb-sis /usr/local/bin/
 COPY --from=builder /app/target/release/schoolcbb-academic /usr/local/bin/
 COPY --from=builder /app/target/release/schoolcbb-attendance /usr/local/bin/
 COPY --from=builder /app/target/release/schoolcbb-notifications /usr/local/bin/
+COPY --from=builder /app/target/release/schoolcbb-finance /usr/local/bin/
+COPY --from=builder /app/target/release/schoolcbb-reporting /usr/local/bin/

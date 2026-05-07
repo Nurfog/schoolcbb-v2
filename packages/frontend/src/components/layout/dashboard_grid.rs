@@ -4,6 +4,7 @@ use crate::components::widgets::{
     attendance_today::AttendanceTodayWidget,
     student_alerts::StudentAlertsWidget,
     agenda::AgendaWidget,
+    academic_performance::AcademicPerformanceWidget,
 };
 
 #[component]
@@ -15,6 +16,7 @@ pub fn DashboardGrid() -> Element {
         }
         div { class: "dashboard-grid",
             AttendanceTodayWidget {}
+            AcademicPerformanceWidget {}
             StudentAlertsWidget {}
             AgendaWidget {}
         }

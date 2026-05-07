@@ -65,6 +65,7 @@ services:
       PORT: 3002
       RUST_LOG: info
       DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
         condition: service_healthy
@@ -80,6 +81,7 @@ services:
       PORT: 3003
       RUST_LOG: info
       DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
         condition: service_healthy
@@ -95,6 +97,7 @@ services:
       PORT: 3004
       RUST_LOG: info
       DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
         condition: service_healthy
@@ -109,8 +112,43 @@ services:
       HOST: 0.0.0.0
       PORT: 3005
       RUST_LOG: info
+      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
+  finance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolcbb-finance
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3006
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+
+  reporting:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolcbb-reporting
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3007
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build:

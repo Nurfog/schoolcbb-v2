@@ -6,11 +6,12 @@ use crate::route::Route;
 #[component]
 pub fn App() -> Element {
     rsx! {
+        a { class: "skip-link", href: "#main-content", "Saltar al contenido" }
         div { class: "app-layout",
             Sidebar {}
             div { class: "main-area",
                 Topbar {}
-                div { class: "dashboard-content",
+                div { id: "main-content", class: "dashboard-content",
                     Router::<Route> {}
                 }
             }

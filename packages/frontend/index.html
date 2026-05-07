@@ -3,13 +3,77 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SchoolCBB - Plataforma Escolar</title>
+
+  <!-- SEO básico -->
+  <title>SchoolCBB - Plataforma de Gestión Escolar</title>
+  <meta name="description" content="Plataforma escolar integral para administración de colegios en Chile. Gestión de alumnos, notas, asistencia, finanzas y reportes MINEDUC." />
+  <meta name="keywords" content="gestión escolar, colegio, plataforma educativa, notas, asistencia, MINEDUC, SIGE, Chile" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://schoolcbb.cl/" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="SchoolCBB - Plataforma de Gestión Escolar" />
+  <meta property="og:description" content="Sistema integral para la administración de establecimientos educacionales en Chile." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://schoolcbb.cl/" />
+  <meta property="og:locale" content="es_CL" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SchoolCBB - Gestión Escolar" />
+  <meta name="twitter:description" content="Plataforma integral para colegios chilenos." />
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%231A2B3C'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='18' font-weight='bold'>SC</text></svg>" />
+
+  <!-- Styles -->
   <link rel="stylesheet" href="/assets/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Structured Data: Organización -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "EducationalOrganization",
+    "name": "SchoolCBB",
+    "description": "Plataforma de gestión escolar integral para establecimientos educacionales chilenos.",
+    "url": "https://schoolcbb.cl",
+    "areaServed": { "@type": "Country", "name": "Chile" },
+    "applicationCategory": "EducationalApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "CLP",
+      "availability": "https://schema.org/InStock"
+    }
+  }
+  </script>
+
+  <!-- Structured Data: WebApplication -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "SchoolCBB",
+    "operatingSystem": "Web",
+    "browserRequirements": "Requiere JavaScript. Navegador moderno.",
+    "applicationCategory": "EducationalApplication",
+    "description": "Sistema de gestión escolar con soporte para currículum chileno, Decreto 67 y exportación SIGE.",
+    "url": "https://schoolcbb.cl"
+  }
+  </script>
 </head>
 <body>
   <div id="main"></div>
+  <noscript>
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#F8F9FA;color:#1A2B3C;">
+      <div style="text-align:center;">
+        <h1>SchoolCBB</h1>
+        <p>Habilite JavaScript para utilizar la plataforma.</p>
+      </div>
+    </div>
+  </noscript>
 </body>
 </html>

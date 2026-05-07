@@ -12,6 +12,18 @@ pub enum AttendanceError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
+    #[error("Unauthorized")]
+    Unauthorized,
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
@@ -21,9 +33,13 @@ impl IntoResponse for AttendanceError {
         let (status, message) = match &self {
             AttendanceError::Database(e) => {
                 tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error".into())
+                (StatusCode::INTERNAL_SERVER_ERROR, "Error interno del servidor".into())
             }
             AttendanceError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
+            AttendanceError::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),
+            AttendanceError::Conflict(m) => (StatusCode::CONFLICT, m.clone()),
+            AttendanceError::Unauthorized => (StatusCode::UNAUTHORIZED, "No autorizado".into()),
+            AttendanceError::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
             AttendanceError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
         };
         (status, Json(json!({"error": message}))).into_response()
