@@ -49,6 +49,7 @@ services:
       PORT: 3001
       RUST_LOG: info
       DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
         condition: service_healthy

@@ -4,13 +4,24 @@ use axum::Json;
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
 pub enum AuthError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
+    #[error("Invalid credentials")]
+    InvalidCredentials,
+
+    #[error("User not found")]
+    UserNotFound,
+
     #[error("Unauthorized")]
     Unauthorized,
+
+    #[error("Token expired")]
+    TokenExpired,
+
+    #[error("Token invalid: {0}")]
+    TokenInvalid(String),
 
     #[error("Internal error: {0}")]
     Internal(String),
@@ -21,9 +32,15 @@ impl IntoResponse for AuthError {
         let (status, message) = match &self {
             AuthError::Database(e) => {
                 tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error".into())
+                (StatusCode::INTERNAL_SERVER_ERROR, "Error interno del servidor".into())
             }
-            AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".into()),
+            AuthError::InvalidCredentials => {
+                (StatusCode::UNAUTHORIZED, "Credenciales inválidas".into())
+            }
+            AuthError::UserNotFound => (StatusCode::NOT_FOUND, "Usuario no encontrado".into()),
+            AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, "No autorizado".into()),
+            AuthError::TokenExpired => (StatusCode::UNAUTHORIZED, "Sesión expirada".into()),
+            AuthError::TokenInvalid(m) => (StatusCode::UNAUTHORIZED, m.clone()),
             AuthError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
         };
         (status, Json(json!({"error": message}))).into_response()

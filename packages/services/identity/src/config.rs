@@ -5,6 +5,7 @@ pub struct Config {
     pub database_url: String,
     pub host: String,
     pub port: u16,
+    pub jwt_secret: String,
 }
 
 impl Config {
@@ -16,6 +17,8 @@ impl Config {
                 .unwrap_or_else(|_| "3001".into())
                 .parse()
                 .expect("PORT must be a valid number"),
+            jwt_secret: env::var("JWT_SECRET")
+                .unwrap_or_else(|_| "cambio-en-produccion".into()),
         }
     }
 

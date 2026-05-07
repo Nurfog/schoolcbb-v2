@@ -1,6 +1,9 @@
 mod config;
 mod error;
+mod models;
 mod routes;
+
+use std::sync::Arc;
 
 use axum::Router;
 use sqlx::PgPool;
@@ -12,6 +15,7 @@ use config::Config;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub config: Arc<Config>,
 }
 
 #[tokio::main]
@@ -21,7 +25,7 @@ async fn main() {
         .init();
 
     dotenvy::dotenv().ok();
-    let config = Config::from_env();
+    let config = Arc::new(Config::from_env());
 
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(10)
@@ -32,7 +36,13 @@ async fn main() {
     tracing::info!("Identity Service connected to database");
     schoolcbb_common::db_schema::run(&pool).await;
 
-    let state = AppState { pool };
+    models::seed_admin(&pool).await.expect("Failed to seed admin user");
+    tracing::info!("Admin user: admin@colegio.cl / admin123");
+
+    let state = AppState {
+        pool,
+        config: config.clone(),
+    };
 
     let app = Router::new()
         .merge(routes::router())
