@@ -6,3 +6,7 @@ default_platform = "web"
 title = "SchoolCBB - Plataforma Escolar"
 base_path = "/"
 out_dir = "dist"
+
+[web.proxy]
+route = "/api/"
+url = "http://localhost:3000"

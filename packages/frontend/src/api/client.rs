@@ -2,9 +2,7 @@ use serde_json::Value;
 use std::sync::OnceLock;
 
 fn base_url() -> String {
-    web_sys::window()
-        .and_then(|w| w.location().origin().ok())
-        .unwrap_or_else(|| "http://localhost:8080".to_string())
+    String::new()
 }
 
 fn abs_url(endpoint: &str) -> String {
