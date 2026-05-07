@@ -37,6 +37,8 @@ pub enum Route {
     Login {},
     #[route("/")]
     ModuleManagerRoot {},
+    #[route("/dashboard")]
+    Dashboard {},
     #[route("/students")]
     Students {},
     #[route("/students/{student_id}")]

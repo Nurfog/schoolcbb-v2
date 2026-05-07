@@ -51,15 +51,6 @@ pub fn Sidebar() -> Element {
         client::fetch_json("/api/user/modules").await
     });
 
-    let unread = use_resource(|| async {
-        client::fetch_json("/api/communications/messages/unread-count").await
-    });
-
-    let unread_count: i64 = match unread() {
-        Some(Ok(data)) => data["unread"].as_i64().unwrap_or(0),
-        _ => 0,
-    };
-
     rsx! {
         nav { class: "sidebar", role: "navigation", aria_label: "Navegación principal",
             div { class: "sidebar-header",
@@ -76,60 +67,16 @@ pub fn Sidebar() -> Element {
                     }
                 }
 
-                div { class: "nav-section-label", "Resumen"}
-                div { class: "kpi-sidebar-grid",
-                    a { class: "kpi-sidebar", href: "/attendance",
-                        span { class: "kpi-sidebar-icon",
-                            svg { role: "presentation", view_box: "0 0 24 24",
-                                path { d: "M12 20h9" }
-                                path { d: "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" }
-                            }
-                        }
-                        div { class: "kpi-sidebar-info",
-                            span { class: "kpi-sidebar-value", "Hoy" }
-                            span { class: "kpi-sidebar-label", "Asistencia" }
+                a { class: "nav-item", href: "/dashboard",
+                    span { class: "icon",
+                        svg { role: "presentation", view_box: "0 0 24 24",
+                            rect { x: "3", y: "3", width: "7", height: "7", rx: "1" }
+                            rect { x: "14", y: "3", width: "7", height: "7", rx: "1" }
+                            rect { x: "3", y: "14", width: "7", height: "7", rx: "1" }
+                            rect { x: "14", y: "14", width: "7", height: "7", rx: "1" }
                         }
                     }
-                    a { class: "kpi-sidebar", href: "/notifications",
-                        span { class: "kpi-sidebar-icon",
-                            svg { role: "presentation", view_box: "0 0 24 24",
-                                path { d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }
-                                path { d: "M13.73 21a2 2 0 0 1-3.46 0" }
-                            }
-                        }
-                        div { class: "kpi-sidebar-info",
-                            span { class: "kpi-sidebar-value", "{unread_count}" }
-                            span { class: "kpi-sidebar-label", "Mensajes" }
-                        }
-                    }
-                    a { class: "kpi-sidebar", href: "/students",
-                        span { class: "kpi-sidebar-icon",
-                            svg { role: "presentation", view_box: "0 0 24 24",
-                                path { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }
-                                circle { cx: "9", cy: "7", r: "4" }
-                                path { d: "M23 21v-2a4 4 0 0 0-3-3.87" }
-                                path { d: "M16 3.13a4 4 0 0 1 0 7.75" }
-                            }
-                        }
-                        div { class: "kpi-sidebar-info",
-                            span { class: "kpi-sidebar-value", "Alumnos" }
-                            span { class: "kpi-sidebar-label", "Gestión" }
-                        }
-                    }
-                    a { class: "kpi-sidebar", href: "/grades",
-                        span { class: "kpi-sidebar-icon",
-                            svg { role: "presentation", view_box: "0 0 24 24",
-                                path { d: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20" }
-                                path { d: "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" }
-                                path { d: "M8 7h8" }
-                                path { d: "M8 11h6" }
-                            }
-                        }
-                        div { class: "kpi-sidebar-info",
-                            span { class: "kpi-sidebar-value", "Notas" }
-                            span { class: "kpi-sidebar-label", "Calificaciones" }
-                        }
-                    }
+                    span { class: "label", "Dashboard" }
                 }
 
                 div { class: "nav-section-label", "Acceso Rápido"}
