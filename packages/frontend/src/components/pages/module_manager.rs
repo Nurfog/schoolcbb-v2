@@ -5,7 +5,11 @@ use crate::api::client;
 
 #[component]
 pub fn ModuleManager() -> Element {
-    let mut modules = use_resource(|| client::fetch_json("/api/user/modules"));
+    let fav_ver = use_context::<Signal<u32>>();
+    let modules = use_resource(move || async move {
+        let _ = fav_ver();
+        client::fetch_json("/api/user/modules").await
+    });
     let mut search = use_signal(String::new);
 
     rsx! {
@@ -18,7 +22,7 @@ pub fn ModuleManager() -> Element {
                     oninput: move |e| search.set(e.value()),
                 }
             }
-            div { class: "module-grid",
+            div { class: "module-list",
                 match modules() {
                     Some(Ok(data)) => {
                         let list: Vec<Value> = data["modules"].as_array().cloned().unwrap_or_default()
@@ -28,7 +32,7 @@ pub fn ModuleManager() -> Element {
                             }).collect();
                         rsx! {
                             for m in list {
-                                ModuleTile { module: m, on_toggle: move || modules.restart() }
+                                ModuleTile { module: m }
                             }
                         }
                     }
@@ -41,13 +45,15 @@ pub fn ModuleManager() -> Element {
 }
 
 #[component]
-fn ModuleTile(module: Value, on_toggle: EventHandler) -> Element {
+fn ModuleTile(module: Value) -> Element {
     let id = module["id"].as_str().unwrap_or("").to_string();
     let name = module["name"].as_str().unwrap_or("").to_string();
     let icon = module["icon"].as_str().unwrap_or("dashboard").to_string();
     let route = module["route"].as_str().unwrap_or("/").to_string();
     let is_fav = module["is_favorite"].as_bool().unwrap_or(false);
+    let mut fav_ver = use_context::<Signal<u32>>();
 
+    let tile_cls = format!("tile-icon {}", icon);
     let star_cls = if is_fav { "active" } else { "" };
 
     let do_toggle = move |evt: Event<MouseData>| {
@@ -56,23 +62,23 @@ fn ModuleTile(module: Value, on_toggle: EventHandler) -> Element {
         let new_fav = !is_fav;
         spawn(async move {
             let _ = client::post_json(&format!("/api/user/favorites/{}", mid), &serde_json::json!({ "module_id": mid, "favorite": new_fav })).await;
-            on_toggle.call(());
+            fav_ver += 1;
         });
     };
 
     rsx! {
         a { class: "module-tile", href: "{route}",
-            div { class: "tile-star {star_cls}", onclick: do_toggle,
-                svg { role: "presentation", view_box: "0 0 24 24",
-                    polygon { points: "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" }
-                }
-            }
-            div { class: "tile-icon {icon}",
+            div { class: "{tile_cls}",
                 svg { role: "presentation", view_box: "0 0 24 24",
                     { module_icon(icon.clone()) }
                 }
             }
             span { class: "tile-name", "{name}" }
+            div { class: "tile-star {star_cls}", onclick: do_toggle,
+                svg { role: "presentation", view_box: "0 0 24 24",
+                    polygon { points: "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" }
+                }
+            }
         }
     }
 }

@@ -1465,87 +1465,87 @@ tr.unread td {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-light);
 }
-.module-grid {
+.module-list {
     flex: 1;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 12px;
-    align-content: start;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     overflow-y: auto;
-    padding: 4px 0;
+    padding: 2px 0;
 }
 .module-tile {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 16px 8px 12px;
+    gap: 12px;
+    padding: 12px 16px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     text-decoration: none;
-    transition: box-shadow 0.2s;
-    position: relative;
+    transition: box-shadow 0.15s, border-color 0.15s;
 }
 .module-tile:hover {
-    box-shadow: var(--shadow-md);
-}
-.module-tile .tile-star {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    cursor: pointer;
-    color: var(--text-muted);
-    stroke: var(--text-muted);
-    fill: none;
-    width: 14px;
-    height: 14px;
-    z-index: 1;
-}
-.module-tile .tile-star.active {
-    color: #eab308;
-    stroke: #eab308;
-    fill: #eab308;
+    border-color: var(--primary);
+    box-shadow: var(--shadow);
+    text-decoration: none;
 }
 .module-tile .tile-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 .module-tile .tile-icon svg {
-    width: 28px;
-    height: 28px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: white;
     stroke-width: 1.5;
 }
 .module-tile .tile-icon.dashboard { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
 .module-tile .tile-icon.students { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.module-tile .tile-icon.users { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
 .module-tile .tile-icon.attendance { background: linear-gradient(135deg, #10b981, #059669); }
 .module-tile .tile-icon.grades { background: linear-gradient(135deg, #f97316, #ea580c); }
 .module-tile .tile-icon.agenda { background: linear-gradient(135deg, #ec4899, #db2777); }
 .module-tile .tile-icon.notifications { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.module-tile .tile-icon.megaphone { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .module-tile .tile-icon.reports { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+.module-tile .tile-icon.chart { background: linear-gradient(135deg, #06b6d4, #0891b2); }
 .module-tile .tile-icon.book { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
 .module-tile .tile-icon.clipboard { background: linear-gradient(135deg, #10b981, #059669); }
 .module-tile .tile-icon.money { background: linear-gradient(135deg, #06b6d4, #0891b2); }
-.module-tile .tile-icon.users { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
-.module-tile .tile-icon.megaphone { background: linear-gradient(135deg, #f59e0b, #d97706); }
-.module-tile .tile-icon.chart { background: linear-gradient(135deg, #06b6d4, #0891b2); }
-.module-tile .tile-icon.calendar { background: linear-gradient(135deg, #ec4899, #db2777); }
-.module-tile .tile-icon.gear { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .module-tile .tile-icon.config { background: linear-gradient(135deg, #6b7280, #4b5563); }
+.module-tile .tile-icon.gear { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .module-tile .tile-name {
-    font-size: 11px;
-    font-weight: 600;
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
     color: var(--text-primary);
-    text-align: center;
-    line-height: 1.3;
-    max-width: 100%;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.module-tile .tile-star {
+    cursor: pointer;
+    color: var(--text-muted);
+    stroke: var(--text-muted);
+    fill: none;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+.module-tile .tile-star:hover {
+    color: #eab308;
+    stroke: #eab308;
+}
+.module-tile .tile-star.active {
+    color: #eab308;
+    stroke: #eab308;
+    fill: #eab308;
 }

@@ -5,6 +5,9 @@ use crate::route::Route;
 
 #[component]
 pub fn App() -> Element {
+    let fav_ver = use_signal(|| 0u32);
+    use_context_provider(|| fav_ver);
+
     rsx! {
         a { class: "skip-link", href: "#main-content", "Saltar al contenido" }
         div { class: "app-layout",

@@ -45,7 +45,9 @@ pub fn Sidebar() -> Element {
     let user_role = claims().as_ref().and_then(|c| c["role"].as_str()).unwrap_or("").to_string();
     let user_initials = initials(&user_name);
 
-    let modules = use_resource(|| async {
+    let fav_ver = use_context::<Signal<u32>>();
+    let modules = use_resource(move || async move {
+        let _ = fav_ver();
         client::fetch_json("/api/user/modules").await
     });
 
