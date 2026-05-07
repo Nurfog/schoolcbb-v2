@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-const API_BASE: &str = "http://localhost:3001";
+const API_BASE: &str = "http://localhost:3000";
 
 pub async fn fetch_json(endpoint: &str) -> Result<Value, String> {
     let url = format!("{}{}", API_BASE, endpoint);
