@@ -31,7 +31,7 @@ El Prompt Maestro (Full Rust: Axum + Leptos/Dioxus + Estética iSAMS)
 
         Leptos: Es increíblemente rápido debido a su reactividad basada en "signals" (señales). Es ideal para dashboards complejos donde solo quieres actualizar la pequeña porción de la pantalla que cambió.
 
-        Dioxus: Tiene una sintaxis muy amigable (similar a React) y es más versátil si en el futuro quieres hacer apps nativas de escritorio o móviles con el mismo código.
+        usar esta opcion Dioxus: Tiene una sintaxis muy amigable (similar a React) y es más versátil si en el futuro quieres hacer apps nativas de escritorio o móviles con el mismo código.
 
     Rendimiento iSAMS: La carga de paneles masivos que iSAMS suele tener se beneficiará enormemente de Rust. Donde otras apps tardan segundos en renderizar todos los mosaicos, tu app lo hará en milisegundos.
 
@@ -42,3 +42,58 @@ El Prompt Maestro (Full Rust: Axum + Leptos/Dioxus + Estética iSAMS)
     ¿Definimos la estructura de la base de datos (PostgreSQL) para este Core?
 
     ¿Prefieres un ejemplo de código básico de cómo conectar el backend Axum con un frontend Leptos/Dioxus?
+
+1. Arquitectura de Microservicios estilo iSAMS
+Para que tu aplicación sea escalable y robusta, dividiremos la lógica en servicios especializados. En Rust, esto permite que si el módulo de "Finanzas" falla, el de "Asistencia" (crítico para el MINEDUC) siga operando.
+
+## Los Microservicios Core
+Identity Service (Auth): Maneja el login, roles (RBAC) y la sesión única (SSO). Es el guardia de seguridad.
+
+Student Information System (SIS): El corazón. Contiene fichas, RUTs, datos médicos y parentesco.
+
+Academic Service: Gestiona el Libro de Clases Digital, calificaciones (Decreto 67) y horarios.
+
+Attendance Service: Un servicio de alta disponibilidad solo para marcar asistencia, clave para las subvenciones en Chile.
+
+Communication Engine: Maneja correos, circulares y notificaciones push hacia la App de apoderados.
+
+2. Cómo se comunican (El "Pegamento")
+iSAMS se siente como una sola aplicación porque usa una capa de agregación. En tu stack de Rust, tienes dos formas de lograr esto:
+
+A. API Gateway (Recomendado para inicio)
+Un servicio central en Axum que recibe todas las peticiones del frontend (Leptos/Dioxus) y las redirige al microservicio correspondiente.
+
+Ventaja: El frontend solo conoce una URL.
+
+Rust Tool: Tower para el manejo de middleware y balanceo de carga.
+
+B. Event-Driven (El estilo Pro)
+Cuando algo ocurre en un módulo, este "emite un evento". Por ejemplo, si un profesor pone una nota roja (promedio < 4.0), el Academic Service publica un mensaje. El Communication Service escucha ese mensaje y envía automáticamente una alerta al apoderado.
+
+Rust Tool: NATS o RabbitMQ con la librería lapin.
+
+3. Estructura de Directorios (Cargo Workspace)
+Así deberías organizar tu código para que escale como iSAMS:
+
+Plaintext
+escolar-root/
+├── Cargo.toml           # Define el workspace
+├── common/              # Structs compartidos (RUT, Alumno, Errores)
+├── gateway/             # Axum API Gateway
+├── services/
+│   ├── identity/        # Auth y Roles
+│   ├── sis/             # Gestión de Alumnos
+│   └── academic/        # Libro de Clases y Notas
+└── frontend/            # App en Leptos o Dioxus (Wasm)
+4. Prompt para Diseñar un Microservicio Específico
+Usa este prompt para que te ayude a codificar el primer microservicio real después del Core:
+
+"Actúa como un experto en microservicios con Rust. Necesito diseñar el 'Academic Service' para mi aplicación escolar chilena.
+
+Este servicio debe manejar la lógica del Libro de Clases Digital según la normativa de la Supereduc.
+
+Debe incluir un módulo de calificaciones compatible con el Decreto 67 (evaluación formativa y sumativa).
+
+Utiliza Axum para la API y SQLx para las consultas a una base de datos PostgreSQL independiente.
+
+Explica cómo este servicio se comunicará con el 'Identity Service' para verificar que solo el profesor de la asignatura pueda subir notas."
