@@ -26,6 +26,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/grades/bulk", post(bulk_create_grades))
         .route("/api/grades/course-subject/{course_subject_id}", get(grades_by_course_subject))
         .route("/api/grades/student/{student_id}/{semester}/{year}", get(student_grades))
+        .route("/api/grades/by-subject/{subject_id}/{year}", get(grades_by_subject))
 }
 
 async fn list_grades(
@@ -297,6 +298,103 @@ async fn student_grades(
     .await?;
 
     Ok(Json(json!({ "grades": grades, "total": grades.len() })))
+}
+
+async fn grades_by_subject(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path((subject_id, year)): Path<(Uuid, i32)>,
+) -> AcademicResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+
+    let subject_info: (String, String) = sqlx::query_as(
+        "SELECT code, name FROM subjects WHERE id = $1 AND active = true",
+    )
+    .bind(subject_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AcademicError::NotFound("Asignatura no encontrada".into()))?;
+
+    let course_subjects: Vec<(Uuid, Uuid, String)> = sqlx::query_as(
+        r#"
+        SELECT cs.id, cs.course_id, c.name as course_name
+        FROM course_subjects cs
+        JOIN courses c ON c.id = cs.course_id
+        WHERE cs.subject_id = $1 AND cs.academic_year = $2
+        ORDER BY c.name
+        "#,
+    )
+    .bind(subject_id)
+    .bind(year)
+    .fetch_all(&state.pool)
+    .await?;
+
+    let mut courses_data: Vec<Value> = vec![];
+
+    for (cs_id, course_id, course_name) in &course_subjects {
+        let students: Vec<(Uuid, String, String)> = sqlx::query_as(
+            "SELECT s.id, s.first_name || ' ' || s.last_name, s.rut FROM students s
+             JOIN enrollments e ON e.student_id = s.id
+             WHERE e.course_id = $1 AND e.year = $2 AND e.active = true AND s.enrolled = true
+             ORDER BY s.last_name, s.first_name",
+        )
+        .bind(course_id)
+        .bind(year)
+        .fetch_all(&state.pool)
+        .await?;
+
+        let mut students_data: Vec<Value> = vec![];
+
+        for (sid, sname, srut) in &students {
+            let grades_s1: Vec<f64> = sqlx::query_scalar(
+                "SELECT grade FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = 1 AND year = $3 ORDER BY date",
+            )
+            .bind(sid)
+            .bind(cs_id)
+            .bind(year)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let grades_s2: Vec<f64> = sqlx::query_scalar(
+                "SELECT grade FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = 2 AND year = $3 ORDER BY date",
+            )
+            .bind(sid)
+            .bind(cs_id)
+            .bind(year)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let avg_s1 = if grades_s1.is_empty() { 0.0 } else { grades_s1.iter().sum::<f64>() / grades_s1.len() as f64 };
+            let avg_s2 = if grades_s2.is_empty() { 0.0 } else { grades_s2.iter().sum::<f64>() / grades_s2.len() as f64 };
+
+            students_data.push(json!({
+                "student_id": sid,
+                "student_name": sname,
+                "rut": srut,
+                "grades_s1": grades_s1,
+                "average_s1": (avg_s1 * 10.0).round() / 10.0,
+                "grades_s2": grades_s2,
+                "average_s2": (avg_s2 * 10.0).round() / 10.0,
+                "final_average": ((avg_s1 + avg_s2) / 2.0 * 10.0).round() / 10.0,
+            }));
+        }
+
+        courses_data.push(json!({
+            "course_id": course_id,
+            "course_name": course_name,
+            "students": students_data,
+            "total_students": students_data.len(),
+        }));
+    }
+
+    Ok(Json(json!({
+        "subject_id": subject_id,
+        "subject_code": subject_info.0,
+        "subject_name": subject_info.1,
+        "year": year,
+        "courses": courses_data,
+        "total_courses": courses_data.len(),
+    })))
 }
 
 async fn resolve_subject_name(pool: &sqlx::PgPool, course_subject_id: Uuid) -> Result<String, AcademicError> {

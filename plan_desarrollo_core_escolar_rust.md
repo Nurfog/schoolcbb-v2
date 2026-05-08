@@ -73,6 +73,40 @@ Para lograr la estética de **iSAMS**, el frontend debe seguir estas reglas:
 > **Nota Técnica**: Al ser un desarrollo **Full Rust**, se recomienda crear un crate `common` dentro del workspace para definir las estructuras (`structs`) de Alumno, Curso y Nota que serán serializadas por `serde` tanto en el servidor como en el cliente Wasm.
 
 ### ✅ Etapa 5: Module Manager (Completada)
+### 🔄 Etapa 6: Configuración Académica y Admisión (En Progreso)
+
+Foco en la parametrización del motor académico y el pipeline de matrícula.
+
+#### 1. Módulo de Configuración Académica (Asignaturas y Cursos)
+Estructura jerárquica para cumplir con el acta de notas final:
+- **Niveles**: Pre-kinder a 4° Medio
+- **Cursos**: Relacionados a un Nivel y un Profesor Jefe
+- **Asignaturas**: Horas semanales, criterio de evaluación (Decreto 67), Código SIGE
+- **Clonación**: Endpoint para clonar estructura académica del año anterior al actual
+
+**Backend**: Axum + SQLx. CRUD de niveles, cursos, asignaturas + clonación anual.
+
+#### 2. Módulo de Admisión (Pipeline CRM)
+Pipeline de estados del postulante: `Interesado → Evaluación Pendiente → Aceptado → Matriculado`
+- Formulario dinámico con carga de documentos (S3 compatible)
+- Validación automática de vacantes por nivel
+- El postulante no es alumno hasta que se matricula
+
+**Backend**: Axum + PostgreSQL + almacenamiento S3.
+**Frontend**: Pipeline visual en Dioxus con kanban-style.
+
+#### 3. Estructura de Base de Datos
+| Tabla | Función |
+|-------|---------|
+| `academic_years` | Año escolar activo (ej. 2026) |
+| `subjects` | Catálogo maestro de asignaturas |
+| `course_definitions` | Curso + profesor + año académico |
+| `admissions_portal` | Postulantes con documentos y estado |
+
+#### 4. Toque iSAMS en UI
+- **Bulk Import**: Carga masiva vía CSV con validación en Wasm
+- **Inline Editing**: Editar en fila (doble clic) sin abrir modal
+- **Audit Trail**: Registro de quién y cuándo modificó cada asignatura
 
    ## usar la foto ManagerModulos.png como referencia para la UI
 
@@ -117,3 +151,296 @@ Para lograr la estética de **iSAMS**, el frontend debe seguir estas reglas:
          user_favorites: user_id | module_id
          Cuando el usuario presione la estrella, el frontend llama a un endpoint de Axum: POST /api/user/favorites/{module_id}.
          Crear la lógica del buscador global que filtra los módulos mientras escribes
+
+
+#### etapa 6 CRM admision
+
+🏗️ Arquitectura de Microservicios: CRM Educativo
+
+Para mantener la independencia y escalabilidad, dividiremos el CRM en 3 servicios específicos que se conectarán a tu API Gateway.
+1. admission-crm-service (El Motor)
+
+    Función: Gestionar el ciclo de vida del postulante.
+
+    Entidades: Lead (Interesado), Opportunity (Postulante con proceso iniciado), Pipeline (Etapas de admisión).
+
+    Tecnología: Axum + SQLx (PostgreSQL).
+
+2. interaction-service (Línea de Tiempo)
+
+    Función: Registrar cada "Toque". Si un apoderado llama o envía un email, este servicio lo guarda.
+
+    Entidades: Activity (Llamada, Email, Tarea, Nota).
+
+    Sincronización: Usa NATS o Redis Pub/Sub para que, cuando el comm-engine envíe un correo, este servicio lo registre automáticamente.
+
+3. workflow-engine (Automatización)
+
+    Función: El "cerebro". Ejemplo: "Si el postulante pasa a estado 'Aceptado', enviar automáticamente el contrato y el cupón de pago".
+
+    Lógica: Basado en eventos de Rust.
+
+📅 Plan de Implementación por Etapas
+Etapa 1: Definición de Entidades y Pipeline (Mes 1)
+
+Inspirado en Dynamics, crearemos una base de datos relacional flexible.
+
+    Pipeline de Admisión: Configurar etapas: Primer Contacto → Tour Escolar → Evaluación → Documentación → Matriculado.
+
+    Campos Personalizados: Permitir que el colegio defina si necesita saber "Religión", "Colegio de procedencia" o "Alergias" desde la admisión.
+
+    UI (Leptos/Dioxus): Vista de Kanban para arrastrar postulantes entre etapas.
+
+Etapa 2: La Ficha 360° del Postulante (Mes 2)
+
+Esta es la joya de la corona de Dynamics CRM.
+
+    Panel Central: Datos maestros del alumno y apoderados.
+
+    Línea de Tiempo (Timeline): Panel central que muestra en orden cronológico inverso todo lo que ha pasado con esa familia.
+
+    Sub-grillas: Tablas integradas de hermanos (relaciones), documentos cargados y pagos pendientes.
+
+Etapa 3: Gestión de Documentos y Flujos (Mes 3)
+
+    Document Service: Integración con S3 para almacenar Certificados de Nacimiento, IPE/IPA, e informes de personalidad.
+
+    Workflows: Creación de disparadores (Triggers). Si un postulante está "Estancado" en una etapa por más de 5 días, enviar alerta al equipo de Admisión.
+
+🎨 UI/UX: Estilo Dynamics CRM en Rust
+
+Para que se vea como Microsoft Dynamics, el frontend debe ser denso en información pero limpio.
+Elementos Clave en el Frontend (Leptos/Dioxus):
+
+    Business Process Flow: Una barra superior que indica en qué etapa del proceso de admisión está el alumno y qué pasos faltan para completarla.
+
+    Tabbed Interface: Dentro de la ficha, usar pestañas para separar "Datos Personales", "Documentos", "Entrevistas" y "Finanzas".
+
+    Side Panel de Resumen: Un panel derecho persistente que muestra los KPIs del postulante (ej: Probabilidad de cierre, Puntaje en examen de admisión).
+
+🛠️ Prompt para la Implementación Técnica (Copia y Pega)
+
+    "Actúa como un Arquitecto de Software experto en Microsoft Dynamics CRM y Full Rust. Diseña el microservicio de CRM de Admisión para un colegio chileno.
+
+    Requerimientos Técnicos:
+
+        Backend (Axum): Define un modelo de datos Prospect que herede campos de la entidad Alumno del Core, pero con estados de CRM (Lead, Opportunity, Account).
+
+        Timeline Engine: Implementa un sistema de eventos donde cada microservicio (Comunicaciones, Finanzas, Académico) pueda enviar un 'ActivityLog' al CRM para mostrarlo en una línea de tiempo unificada.
+
+        Frontend (Leptos/Dioxus): Diseña un componente de 'Business Process Flow' (barra de progreso de etapas) que sea reactivo y permita cambiar el estado del postulante mediante 'Signals'.
+
+        Lógica de Negocio: Asegura que al marcar un postulante como 'Matriculado', se dispare un evento gRPC que cree automáticamente la ficha oficial en el módulo SIS (Student Information System) y el Libro de Clases, evitando la doble digitación.
+
+    Estética: Utiliza el sistema de diseño de Microsoft Power Apps (Fluent UI) adaptado a Tailwind CSS, priorizando la densidad de datos y la navegación por pestañas."
+
+🚀 Integración con el Core
+
+El secreto de este CRM es que no es una isla.
+
+    Admisión → SIS: Cuando el CRM cierra la "venta", el alumno nace en el Core.
+
+    Admisión → Finanzas: El CRM genera el compromiso de pago de la matrícula.
+
+    Admisión → Académico: El CRM asigna el cupo en el curso correspondiente.
+
+Implementación del Workflow Engine en Rust
+
+El motor de flujos se basa en un patrón de Máquina de Estados y Event-Driven Architecture. Cuando un Prospect cambia de estado, se dispara un evento que el motor procesa para ejecutar acciones automáticas.
+Ejemplo de Estructura en Rust (Axum + Logic)
+Rust
+
+// common/crm_events.rs
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum CrmEvent {
+    StageChanged {
+        prospect_id: uuid::Uuid,
+        from_stage: String,
+        to_stage: String,
+    },
+    DocumentUploaded {
+        prospect_id: uuid::Uuid,
+        doc_type: String,
+    },
+}
+
+// services/workflow_engine/mod.rs
+pub async fn process_workflow(event: CrmEvent) {
+    match event {
+        CrmEvent::StageChanged { prospect_id, to_stage, .. } => {
+            if to_stage == "ACEPTADO" {
+                // Lógica: Notificar a Finanzas para generar cupón de pago
+                send_notification_to_finance(prospect_id).await;
+            }
+            if to_stage == "MATRICULADO" {
+                // Lógica: Promocionar Prospecto a Alumno oficial en el SIS
+                promote_to_official_student(prospect_id).await;
+            }
+        }
+        CrmEvent::DocumentUploaded { prospect_id, doc_type } => {
+            // Lógica: Marcar tarea de verificación para el equipo de admisión
+            create_verification_task(prospect_id, doc_type).await;
+        }
+    }
+}
+
+4. Etapas del Plan de Implementación
+Fase 1: Core del CRM (Semana 1-4)
+
+    Implementación del CRUD de Prospects.
+
+    Creación de la tabla de Activities para la línea de tiempo (Timeline).
+
+    API en Axum para gestionar el cambio de estados en el Pipeline.
+
+Fase 2: Gestión Documental e Integración (Semana 5-8)
+
+    Integración con S3/Minio para carga de certificados.
+
+    Desarrollo del Workflow Engine inicial (Eventos internos en Rust).
+
+    Sincronización vía gRPC entre CRM y el módulo de Finanzas.
+
+Fase 3: UI Avanzada (Semana 9-12)
+
+    Vista de Kanban en Leptos/Dioxus.
+
+    Dashboard de métricas de admisión (Tasa de conversión, tiempo promedio en etapa).
+
+    Buscador global optimizado para postulantes.
+
+5. Consideraciones de Integración con el Core
+
+    Single Source of Truth: Una vez que el estado es 'MATRICULADO', el registro maestro se mueve al servicio SIS-Service.
+
+    RBAC: El equipo de admisión tiene permisos limitados al CRM, mientras que el equipo UTP solo ve alumnos matriculados.
+    """
+
+Plan Técnico: CRM de Admisión Escolar (Estilo Microsoft Dynamics)
+
+Este documento detalla la arquitectura, el modelo de datos y el motor de flujos para el microservicio de CRM integrado al Core de Gestión Escolar.
+1. Visión del Producto
+
+El objetivo es transformar el proceso de admisión en un embudo de conversión (Pipeline) donde cada postulante es una "Oportunidad". Se busca centralizar la comunicación, documentos y estados de matrícula en una sola "Ficha 360°".
+2. Diagrama de Entidad-Relación (ERD) - Mermaid
+Fragmento de código
+
+erDiagram
+    PROSPECT ||--o{ ACTIVITY : "tiene"
+    PROSPECT ||--o{ DOCUMENT : "sube"
+    PROSPECT }|--|| PIPELINE_STAGE : "está en"
+    PROSPECT ||--o{ FAMILY_MEMBER : "relacionado con"
+    
+    PROSPECT {
+        uuid id
+        string first_name
+        string last_name
+        string rut
+        string email
+        enum current_status
+        uuid assigned_user_id
+        timestamp created_at
+    }
+
+    PIPELINE_STAGE {
+        uuid id
+        string name
+        int order
+        bool is_final
+    }
+
+    ACTIVITY {
+        uuid id
+        enum type
+        string subject
+        text description
+        timestamp scheduled_at
+        bool is_completed
+    }
+
+    DOCUMENT {
+        uuid id
+        string file_name
+        string s3_url
+        enum doc_type
+        bool is_verified
+    }
+
+3. Implementación del Workflow Engine en Rust
+
+El motor de flujos se basa en un patrón de Máquina de Estados y Event-Driven Architecture. Cuando un Prospect cambia de estado, se dispara un evento que el motor procesa para ejecutar acciones automáticas.
+Ejemplo de Estructura en Rust (Axum + Logic)
+Rust
+
+// common/crm_events.rs
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum CrmEvent {
+    StageChanged {
+        prospect_id: uuid::Uuid,
+        from_stage: String,
+        to_stage: String,
+    },
+    DocumentUploaded {
+        prospect_id: uuid::Uuid,
+        doc_type: String,
+    },
+}
+
+// services/workflow_engine/mod.rs
+pub async fn process_workflow(event: CrmEvent) {
+    match event {
+        CrmEvent::StageChanged { prospect_id, to_stage, .. } => {
+            if to_stage == "ACEPTADO" {
+                // Lógica: Notificar a Finanzas para generar cupón de pago
+                send_notification_to_finance(prospect_id).await;
+            }
+            if to_stage == "MATRICULADO" {
+                // Lógica: Promocionar Prospecto a Alumno oficial en el SIS
+                promote_to_official_student(prospect_id).await;
+            }
+        }
+        CrmEvent::DocumentUploaded { prospect_id, doc_type } => {
+            // Lógica: Marcar tarea de verificación para el equipo de admisión
+            create_verification_task(prospect_id, doc_type).await;
+        }
+    }
+}
+
+4. Etapas del Plan de Implementación
+Fase 1: Core del CRM (Semana 1-4)
+
+    Implementación del CRUD de Prospects.
+
+    Creación de la tabla de Activities para la línea de tiempo (Timeline).
+
+    API en Axum para gestionar el cambio de estados en el Pipeline.
+
+Fase 2: Gestión Documental e Integración (Semana 5-8)
+
+    Integración con S3/Minio para carga de certificados.
+
+    Desarrollo del Workflow Engine inicial (Eventos internos en Rust).
+
+    Sincronización vía gRPC entre CRM y el módulo de Finanzas.
+
+Fase 3: UI Avanzada (Semana 9-12)
+
+    Vista de Kanban en Leptos/Dioxus.
+
+    Dashboard de métricas de admisión (Tasa de conversión, tiempo promedio en etapa).
+
+    Buscador global optimizado para postulantes.
+
+5. Consideraciones de Integración con el Core
+
+    Single Source of Truth: Una vez que el estado es 'MATRICULADO', el registro maestro se mueve al servicio SIS-Service.
+
+    RBAC: El equipo de admisión tiene permisos limitados al CRM, mientras que el equipo UTP solo ve alumnos matriculados.
+
+¿Cómo avanzar con esto?
+
+Como mencionamos antes, este plan te da la base para que el CRM no sea solo una lista de nombres, sino un sistema vivo. Si ya tienes esto claro, desarrollemos el código para la vista Kanban en el frontend y el microservicio de gestión de archivos en S3 disponible opcionalmente y configurado por variables de entorno

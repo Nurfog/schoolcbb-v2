@@ -71,6 +71,8 @@ pub struct Course {
     pub grade_level: String,
     pub section: String,
     pub teacher_id: Uuid,
+    pub plan: Option<String>,
+    pub classroom_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,4 +142,72 @@ pub struct UpdateStudentPayload {
     pub emergency_contact_name: Option<String>,
     pub emergency_contact_phone: Option<String>,
     pub emergency_contact_relation: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_student(nee: NEE) -> Student {
+        Student {
+            id: Uuid::nil(),
+            rut: Rut("111111111".into()),
+            first_name: "Juan".into(),
+            last_name: "Perez".into(),
+            email: "juan@test.cl".into(),
+            phone: None,
+            grade_level: "1° Básico".into(),
+            section: "A".into(),
+            cod_nivel: None,
+            condicion: CondicionMatricula::AlumnoRegular,
+            prioritario: Prioritario::No,
+            nee,
+            enrolled: true,
+        }
+    }
+
+    #[test]
+    fn test_full_name() {
+        let s = make_student(NEE::No);
+        assert_eq!(s.full_name(), "Juan Perez");
+    }
+
+    #[test]
+    fn test_attendance_threshold_general() {
+        let s = make_student(NEE::No);
+        assert!((s.attendance_threshold() - 85.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_attendance_threshold_nee_transitoria() {
+        let s = make_student(NEE::Transitoria);
+        assert!((s.attendance_threshold() - 75.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_attendance_threshold_nee_permanente() {
+        let s = make_student(NEE::Permanente);
+        assert!((s.attendance_threshold() - 75.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_condicion_matricula_serialization() {
+        assert_eq!(serde_json::to_value(&CondicionMatricula::AlumnoRegular).unwrap(), "AL");
+        assert_eq!(serde_json::to_value(&CondicionMatricula::Repitente).unwrap(), "RE");
+        assert_eq!(serde_json::to_value(&CondicionMatricula::Trasladado).unwrap(), "TR");
+    }
+
+    #[test]
+    fn test_prioritario_serialization() {
+        assert_eq!(serde_json::to_value(&Prioritario::Si).unwrap(), "1");
+        assert_eq!(serde_json::to_value(&Prioritario::Preferente).unwrap(), "2");
+        assert_eq!(serde_json::to_value(&Prioritario::No).unwrap(), "0");
+    }
+
+    #[test]
+    fn test_nee_serialization() {
+        assert_eq!(serde_json::to_value(&NEE::Transitoria).unwrap(), "T");
+        assert_eq!(serde_json::to_value(&NEE::Permanente).unwrap(), "P");
+        assert_eq!(serde_json::to_value(&NEE::No).unwrap(), "N");
+    }
 }

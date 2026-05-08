@@ -42,6 +42,7 @@ pub async fn run(pool: &PgPool) {
             grade_level VARCHAR(20) NOT NULL,
             section VARCHAR(10) NOT NULL,
             teacher_id UUID REFERENCES users(id),
+            plan VARCHAR(2),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
         "CREATE TABLE IF NOT EXISTS enrollments (
@@ -116,6 +117,13 @@ pub async fn run(pool: &PgPool) {
             level VARCHAR(20),
             hours_per_week INTEGER NOT NULL DEFAULT 0,
             active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS academic_years (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            year INTEGER NOT NULL UNIQUE,
+            name VARCHAR(255) NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT false,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
         "CREATE TABLE IF NOT EXISTS academic_periods (
@@ -220,6 +228,111 @@ pub async fn run(pool: &PgPool) {
             PRIMARY KEY (user_id, module_id),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
+        "CREATE TABLE IF NOT EXISTS school_config (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            school_name VARCHAR(255) NOT NULL DEFAULT '',
+            school_logo_url VARCHAR(500) NOT NULL DEFAULT '',
+            primary_color VARCHAR(7) NOT NULL DEFAULT '#1A2B3C',
+            secondary_color VARCHAR(7) NOT NULL DEFAULT '#243B4F',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS user_preferences (
+            user_id UUID PRIMARY KEY REFERENCES users(id),
+            show_module_manager BOOLEAN NOT NULL DEFAULT true,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS subject_hours (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            subject_id UUID NOT NULL REFERENCES subjects(id),
+            level VARCHAR(20) NOT NULL,
+            hours_per_week INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(subject_id, level)
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_subject_hours_subject ON subject_hours(subject_id)",
+        "CREATE TABLE IF NOT EXISTS classrooms (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(255) NOT NULL,
+            capacity INTEGER NOT NULL DEFAULT 30,
+            location VARCHAR(255),
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS classroom_id UUID REFERENCES classrooms(id)",
+        "CREATE TABLE IF NOT EXISTS pipeline_stages (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(100) NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_final BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS prospects (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            first_name VARCHAR(255) NOT NULL,
+            last_name VARCHAR(255) NOT NULL,
+            rut VARCHAR(12),
+            email VARCHAR(255),
+            phone VARCHAR(20),
+            current_stage_id UUID REFERENCES pipeline_stages(id),
+            assigned_user_id UUID REFERENCES users(id),
+            source VARCHAR(50),
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_prospects_stage ON prospects(current_stage_id)",
+        "CREATE INDEX IF NOT EXISTS idx_prospects_assigned ON prospects(assigned_user_id)",
+        "CREATE TABLE IF NOT EXISTS prospect_activities (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            prospect_id UUID NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+            activity_type VARCHAR(20) NOT NULL DEFAULT 'note',
+            subject VARCHAR(255) NOT NULL,
+            description TEXT,
+            scheduled_at TIMESTAMPTZ,
+            is_completed BOOLEAN NOT NULL DEFAULT false,
+            created_by UUID REFERENCES users(id),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_prospect_activities_prospect ON prospect_activities(prospect_id)",
+        "CREATE TABLE IF NOT EXISTS prospect_documents (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            prospect_id UUID NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+            file_name VARCHAR(255) NOT NULL,
+            s3_url VARCHAR(500),
+            doc_type VARCHAR(50) NOT NULL DEFAULT 'other',
+            is_verified BOOLEAN NOT NULL DEFAULT false,
+            uploaded_by UUID REFERENCES users(id),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_prospect_documents_prospect ON prospect_documents(prospect_id)",
+        "CREATE TABLE IF NOT EXISTS grade_levels (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            code VARCHAR(20) UNIQUE NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            plan VARCHAR(20),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL REFERENCES users(id),
+            token_hash VARCHAR(255) NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)",
+        "CREATE TABLE IF NOT EXISTS audit_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id UUID NOT NULL,
+            action VARCHAR(20) NOT NULL,
+            user_id UUID,
+            changes JSONB,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)",
     ];
 
     for stmt in statements {

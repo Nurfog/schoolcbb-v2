@@ -3,9 +3,19 @@ use serde_json::Value;
 
 pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 
-pub fn build_schema() -> AppSchema {
+pub fn build_schema(sis_url: &str, academic_url: &str, client: reqwest::Client) -> AppSchema {
     Schema::build(QueryRoot {}, EmptyMutation, EmptySubscription)
+        .data(ServicesConfig {
+            sis_url: sis_url.to_string(),
+            academic_url: academic_url.to_string(),
+        })
+        .data(client)
         .finish()
+}
+
+pub struct ServicesConfig {
+    pub sis_url: String,
+    pub academic_url: String,
 }
 
 #[derive(Default)]
@@ -15,13 +25,14 @@ pub struct QueryRoot;
 impl QueryRoot {
     async fn students(&self, ctx: &Context<'_>, search: Option<String>) -> Vec<StudentGql> {
         let client = ctx.data::<reqwest::Client>().unwrap();
+        let cfg = ctx.data::<ServicesConfig>().unwrap();
         let endpoint = match search {
             Some(q) => format!("/api/students?search={}", q.replace(' ', "%20")),
             None => "/api/students".to_string(),
         };
 
         let token = get_token(ctx);
-        let mut req = client.get(format!("http://localhost:3002{}", endpoint));
+        let mut req = client.get(format!("{}{}", cfg.sis_url, endpoint));
         if let Some(t) = token {
             req = req.header("Authorization", format!("Bearer {}", t));
         }
@@ -51,8 +62,9 @@ impl QueryRoot {
 
     async fn subjects(&self, ctx: &Context<'_>) -> Vec<SubjectGql> {
         let client = ctx.data::<reqwest::Client>().unwrap();
+        let cfg = ctx.data::<ServicesConfig>().unwrap();
         let token = get_token(ctx);
-        let mut req = client.get("http://localhost:3003/api/grades/subjects");
+        let mut req = client.get(format!("{}/api/grades/subjects", cfg.academic_url));
         if let Some(t) = token {
             req = req.header("Authorization", format!("Bearer {}", t));
         }
@@ -85,10 +97,11 @@ impl QueryRoot {
         year: i32,
     ) -> Option<StudentReportGql> {
         let client = ctx.data::<reqwest::Client>().unwrap();
+        let cfg = ctx.data::<ServicesConfig>().unwrap();
         let token = get_token(ctx);
         let mut req = client.get(format!(
-            "http://localhost:3003/api/grades/reports/student/{}/{}",
-            student_id, year
+            "{}/api/grades/reports/student/{}/{}",
+            cfg.academic_url, student_id, year
         ));
         if let Some(t) = token {
             req = req.header("Authorization", format!("Bearer {}", t));

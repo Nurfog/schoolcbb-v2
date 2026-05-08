@@ -36,6 +36,10 @@ async fn main() {
     tracing::info!("Identity Service connected to database");
     schoolcbb_common::db_schema::run(&pool).await;
 
+    if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
+        tracing::warn!("SQLx migrations skipped: {e}");
+    }
+
     models::seed_admin(&pool).await.expect("Failed to seed admin user");
     tracing::info!("Admin user: admin@colegio.cl / admin123");
 

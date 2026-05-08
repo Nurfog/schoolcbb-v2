@@ -200,3 +200,124 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .map(|parsed| Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
         .unwrap_or(false)
 }
+
+pub async fn update_user_profile(
+    pool: &PgPool,
+    id: Uuid,
+    name: &str,
+    email: &str,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET name = $1, email = $2, updated_at = NOW() WHERE id = $3
+         RETURNING id, rut, name, email, password_hash, role, active",
+    )
+    .bind(name)
+    .bind(email)
+    .bind(id)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn change_password(
+    pool: &PgPool,
+    id: Uuid,
+    new_password: &str,
+) -> Result<(), sqlx::Error> {
+    let hash = hash_password(new_password);
+    sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
+        .bind(&hash)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct SchoolConfigRow {
+    pub id: Uuid,
+    pub school_name: String,
+    pub school_logo_url: String,
+    pub primary_color: String,
+    pub secondary_color: String,
+}
+
+pub async fn get_branding(pool: &PgPool) -> Result<Option<SchoolConfigRow>, sqlx::Error> {
+    sqlx::query_as::<_, SchoolConfigRow>(
+        "SELECT id, school_name, school_logo_url, primary_color, secondary_color FROM school_config LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn upsert_branding(
+    pool: &PgPool,
+    school_name: &str,
+    school_logo_url: &str,
+    primary_color: &str,
+    secondary_color: &str,
+) -> Result<SchoolConfigRow, sqlx::Error> {
+    let existing = get_branding(pool).await?;
+    if let Some(_row) = existing {
+        sqlx::query_as::<_, SchoolConfigRow>(
+            "UPDATE school_config SET school_name = $1, school_logo_url = $2, primary_color = $3, secondary_color = $4, updated_at = NOW()
+             RETURNING id, school_name, school_logo_url, primary_color, secondary_color",
+        )
+        .bind(school_name)
+        .bind(school_logo_url)
+        .bind(primary_color)
+        .bind(secondary_color)
+        .fetch_one(pool)
+        .await
+    } else {
+        let id = Uuid::new_v4();
+        sqlx::query_as::<_, SchoolConfigRow>(
+            "INSERT INTO school_config (id, school_name, school_logo_url, primary_color, secondary_color)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, school_name, school_logo_url, primary_color, secondary_color",
+        )
+        .bind(id)
+        .bind(school_name)
+        .bind(school_logo_url)
+        .bind(primary_color)
+        .bind(secondary_color)
+        .fetch_one(pool)
+        .await
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserPreferenceRow {
+    pub user_id: Uuid,
+    pub show_module_manager: bool,
+}
+
+pub async fn get_preferences(pool: &PgPool, user_id: Uuid) -> Result<UserPreferenceRow, sqlx::Error> {
+    sqlx::query_as::<_, UserPreferenceRow>(
+        "SELECT user_id, show_module_manager FROM user_preferences WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .map(|opt| opt.unwrap_or(UserPreferenceRow {
+        user_id,
+        show_module_manager: true,
+    }))
+}
+
+pub async fn update_preferences(
+    pool: &PgPool,
+    user_id: Uuid,
+    show_module_manager: bool,
+) -> Result<UserPreferenceRow, sqlx::Error> {
+    sqlx::query_as::<_, UserPreferenceRow>(
+        "INSERT INTO user_preferences (user_id, show_module_manager)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id)
+         DO UPDATE SET show_module_manager = $2, updated_at = NOW()
+         RETURNING user_id, show_module_manager",
+    )
+    .bind(user_id)
+    .bind(show_module_manager)
+    .fetch_one(pool)
+    .await
+}

@@ -9,7 +9,6 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./packages/common/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U schoolcbb"]
       interval: 5s
@@ -34,9 +33,10 @@ services:
       ACADEMIC_URL: http://academic:3003
       ATTENDANCE_URL: http://attendance:3004
       NOTIFICATIONS_URL: http://notifications:3005
+      FINANCE_URL: http://finance:3006
+      REPORTING_URL: http://reporting:3007
     depends_on:
-      db:
-        condition: service_healthy
+      - identity
 
   identity:
     build:

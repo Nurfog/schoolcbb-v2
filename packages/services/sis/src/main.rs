@@ -1,3 +1,4 @@
+mod admission;
 mod config;
 mod error;
 mod routes;
@@ -34,6 +35,7 @@ async fn main() {
 
     tracing::info!("SIS Service connected to database");
     schoolcbb_common::db_schema::run(&pool).await;
+    admission::seed_pipeline_stages(&pool).await;
 
     let state = AppState {
         pool,
@@ -42,6 +44,7 @@ async fn main() {
 
     let app = Router::new()
         .merge(routes::router())
+        .merge(admission::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

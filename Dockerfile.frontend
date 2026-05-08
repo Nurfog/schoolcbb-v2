@@ -1,6 +1,7 @@
-FROM rust:slim-bookworm AS builder
+# ─── Stage 1: Cache dependencies ──────────────────────────────
+FROM rust:slim-bookworm AS deps
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev curl protobuf-compiler && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl && rm -rf /var/lib/apt/lists/*
 
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 RUN cargo binstall dioxus-cli --version 0.6.3 --no-confirm
@@ -8,9 +9,10 @@ RUN cargo binstall dioxus-cli --version 0.6.3 --no-confirm
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 
-# Copy all workspace member Cargo.toml files and create dummy src for cargo metadata
 COPY packages/common/Cargo.toml packages/common/Cargo.toml
+COPY packages/proto/Cargo.toml packages/proto/Cargo.toml
 COPY packages/gateway/Cargo.toml packages/gateway/Cargo.toml
+COPY packages/frontend/Cargo.toml packages/frontend/Cargo.toml
 COPY packages/services/identity/Cargo.toml packages/services/identity/Cargo.toml
 COPY packages/services/sis/Cargo.toml packages/services/sis/Cargo.toml
 COPY packages/services/academic/Cargo.toml packages/services/academic/Cargo.toml
@@ -18,21 +20,42 @@ COPY packages/services/attendance/Cargo.toml packages/services/attendance/Cargo.
 COPY packages/services/notifications/Cargo.toml packages/services/notifications/Cargo.toml
 COPY packages/services/finance/Cargo.toml packages/services/finance/Cargo.toml
 COPY packages/services/reporting/Cargo.toml packages/services/reporting/Cargo.toml
-COPY packages/proto/Cargo.toml packages/proto/Cargo.toml
-COPY packages/frontend/Cargo.toml packages/frontend/Cargo.toml
-RUN mkdir -p packages/common/src packages/gateway/src packages/services/identity/src packages/services/sis/src packages/services/academic/src packages/services/attendance/src packages/services/notifications/src packages/services/finance/src packages/services/reporting/src packages/proto/src packages/frontend/src && \
-    touch packages/common/src/lib.rs packages/gateway/src/lib.rs packages/services/identity/src/lib.rs packages/services/sis/src/lib.rs packages/services/academic/src/lib.rs packages/services/attendance/src/lib.rs packages/services/notifications/src/lib.rs packages/services/finance/src/lib.rs packages/services/reporting/src/lib.rs packages/proto/src/lib.rs packages/frontend/src/lib.rs
 
-COPY packages/frontend packages/frontend
+RUN mkdir -p packages/common/src packages/proto/src && \
+    touch packages/common/src/lib.rs packages/proto/src/lib.rs && \
+    for pkg in gateway frontend; do \
+      mkdir -p packages/$pkg/src && echo "fn main() {}" > packages/$pkg/src/main.rs; \
+    done && \
+    for pkg in identity sis academic attendance notifications finance reporting; do \
+      mkdir -p packages/services/$pkg/src && echo "fn main() {}" > packages/services/$pkg/src/main.rs; \
+    done
+
+RUN cargo fetch
+
+# ─── Stage 2: Build WASM ────────────────────────────────────
+FROM rust:slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall dioxus-cli --version 0.6.3 --no-confirm
+
+WORKDIR /app
+COPY --from=deps /usr/local/cargo /usr/local/cargo
+COPY Cargo.toml Cargo.lock ./
+COPY packages packages
 
 WORKDIR /app/packages/frontend
 RUN dx build --release --platform web
 
+# ─── Stage 3: Nginx ─────────────────────────────────────────
 FROM nginx:alpine
+
 COPY --from=builder /app/target/dx/schoolcbb-frontend/release/web/public /usr/share/nginx/html
 COPY packages/frontend/assets /usr/share/nginx/html/assets
 COPY packages/frontend/public /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN sed -i 's|init("/\./assets/|init({ module_or_path: "/./assets/|g; s|\.wasm")|.wasm" })|g' /usr/share/nginx/html/index.html
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

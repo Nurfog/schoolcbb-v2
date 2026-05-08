@@ -63,6 +63,14 @@ pub async fn post_json(endpoint: &str, body: &Value) -> Result<Value, String> {
     request("POST", endpoint, Some(body)).await
 }
 
+pub async fn put_json(endpoint: &str, body: &Value) -> Result<Value, String> {
+    request("PUT", endpoint, Some(body)).await
+}
+
+pub async fn delete_json(endpoint: &str) -> Result<Value, String> {
+    request("DELETE", endpoint, None).await
+}
+
 pub async fn login(email: &str, password: &str) -> Result<Value, String> {
     let body = serde_json::json!({ "email": email, "password": password });
     let resp = client()
@@ -134,6 +142,9 @@ pub async fn fetch_student_report(student_id: &str, year: i32) -> Result<Value, 
 pub async fn fetch_course_performance(course_id: &str, year: i32) -> Result<Value, String> {
     fetch_json(&format!("/api/grades/reports/course/{}/{}", course_id, year)).await
 }
+pub async fn fetch_grades_by_subject(subject_id: &str, year: i32) -> Result<Value, String> {
+    fetch_json(&format!("/api/grades/by-subject/{}/{}", subject_id, year)).await
+}
 
 // ─── Attendance ───
 pub async fn fetch_attendance_monthly(year: i32, month: u32) -> Result<Value, String> {
@@ -151,6 +162,131 @@ pub async fn fetch_interviews_student(student_id: &str) -> Result<Value, String>
 // ─── Finance ───
 pub async fn fetch_fees_student(student_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/finance/fees/student/{}", student_id)).await
+}
+pub async fn fetch_all_fees() -> Result<Value, String> {
+    fetch_json("/api/finance/fees").await
+}
+pub async fn create_fee(payload: &Value) -> Result<Value, String> {
+    post_json("/api/finance/fees", payload).await
+}
+pub async fn mark_fee_paid(fee_id: &str) -> Result<Value, String> {
+    put_json(&format!("/api/finance/fees/{}", fee_id), &serde_json::json!({"paid": true})).await
+}
+pub async fn delete_fee(fee_id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/finance/fees/{}", fee_id)).await
+}
+pub async fn fetch_all_payments() -> Result<Value, String> {
+    fetch_json("/api/finance/payments").await
+}
+pub async fn create_payment(payload: &Value) -> Result<Value, String> {
+    post_json("/api/finance/payments", payload).await
+}
+pub async fn fetch_all_scholarships() -> Result<Value, String> {
+    fetch_json("/api/finance/scholarships").await
+}
+pub async fn create_scholarship(payload: &Value) -> Result<Value, String> {
+    post_json("/api/finance/scholarships", payload).await
+}
+pub async fn approve_scholarship(scholarship_id: &str) -> Result<Value, String> {
+    put_json(&format!("/api/finance/scholarships/{}", scholarship_id), &serde_json::json!({})).await
+}
+pub async fn delete_scholarship(scholarship_id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/finance/scholarships/{}", scholarship_id)).await
+}
+
+// ─── Reports ───
+pub async fn fetch_student_certificate(student_id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/reports/certificate/student/{}", student_id)).await
+}
+pub async fn fetch_student_concentration(student_id: &str, year: i32) -> Result<Value, String> {
+    fetch_json(&format!("/api/reports/concentration/{}/{}", student_id, year)).await
+}
+pub async fn fetch_final_record(course_id: &str, year: i32) -> Result<Value, String> {
+    fetch_json(&format!("/api/reports/final-record/{}/{}", course_id, year)).await
+}
+pub async fn fetch_sige_students() -> Result<Value, String> {
+    fetch_json("/api/reports/sige/students").await
+}
+pub async fn fetch_sige_attendance(year: i32, month: u32) -> Result<Value, String> {
+    fetch_json(&format!("/api/reports/sige/attendance/{}/{}", year, month)).await
+}
+
+// ─── Academic Years ───
+pub async fn fetch_academic_years() -> Result<Value, String> {
+    fetch_json("/api/academic-years").await
+}
+pub async fn create_academic_year(payload: &Value) -> Result<Value, String> {
+    post_json("/api/academic-years", payload).await
+}
+pub async fn update_academic_year(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/academic-years/{}", id), payload).await
+}
+pub async fn delete_academic_year(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/academic-years/{}", id)).await
+}
+pub async fn activate_academic_year(id: &str) -> Result<Value, String> {
+    post_json(&format!("/api/academic-years/{}/activate", id), &serde_json::json!({})).await
+}
+pub async fn clone_academic_year(payload: &Value) -> Result<Value, String> {
+    post_json("/api/academic-years/clone", payload).await
+}
+
+// ─── Grade Levels ───
+pub async fn fetch_grade_levels() -> Result<Value, String> {
+    fetch_json("/api/academic/grade-levels").await
+}
+pub async fn create_grade_level(payload: &Value) -> Result<Value, String> {
+    post_json("/api/academic/grade-levels", payload).await
+}
+pub async fn update_grade_level(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/academic/grade-levels/{}", id), payload).await
+}
+pub async fn delete_grade_level(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/academic/grade-levels/{}", id)).await
+}
+pub async fn import_subjects(payload: &Value) -> Result<Value, String> {
+    post_json("/api/grades/subjects/import", payload).await
+}
+
+// ─── Admission ───
+pub async fn fetch_pipeline_stages() -> Result<Value, String> {
+    fetch_json("/api/admission/stages").await
+}
+pub async fn fetch_prospects() -> Result<Value, String> {
+    fetch_json("/api/admission/prospects").await
+}
+pub async fn fetch_prospect(id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/admission/prospects/{}", id)).await
+}
+pub async fn create_prospect(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admission/prospects", payload).await
+}
+pub async fn update_prospect(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admission/prospects/{}", id), payload).await
+}
+pub async fn delete_prospect(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/admission/prospects/{}", id)).await
+}
+pub async fn change_prospect_stage(id: &str, stage_id: &str) -> Result<Value, String> {
+    put_json(&format!("/api/admission/prospects/{}/stage", id), &serde_json::json!({ "stage_id": stage_id })).await
+}
+pub async fn fetch_classrooms() -> Result<Value, String> {
+    fetch_json("/api/admission/classrooms").await
+}
+pub async fn create_classroom(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admission/classrooms", payload).await
+}
+pub async fn update_classroom(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admission/classrooms/{}", id), payload).await
+}
+pub async fn delete_classroom(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/admission/classrooms/{}", id)).await
+}
+pub async fn fetch_audit_logs() -> Result<Value, String> {
+    fetch_json("/api/academic/audit-log").await
+}
+pub async fn check_vacancies() -> Result<Value, String> {
+    fetch_json("/api/admission/vacancy-check").await
 }
 
 fn urlencoding(s: &str) -> String {

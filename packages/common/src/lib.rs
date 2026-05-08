@@ -8,6 +8,8 @@ pub mod communication;
 pub mod finance;
 pub mod reporting;
 pub mod modules;
+pub mod audit;
+pub mod admission;
 
 #[cfg(feature = "db")]
 pub mod db_schema;

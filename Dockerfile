@@ -1,21 +1,55 @@
-FROM rust:slim-bookworm AS builder
+# ─── Stage 1: Cache dependencies ─────────────────────────────
+FROM rust:slim-bookworm AS deps
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY protos protos
-COPY packages/common packages/common
-COPY packages/proto packages/proto
-COPY packages/gateway packages/gateway
-COPY packages/services packages/services
+
+# All workspace member Cargo.toml files (in proper subdirectories)
+COPY packages/common/Cargo.toml packages/common/Cargo.toml
+COPY packages/proto/Cargo.toml packages/proto/Cargo.toml
+COPY packages/gateway/Cargo.toml packages/gateway/Cargo.toml
 COPY packages/frontend/Cargo.toml packages/frontend/Cargo.toml
-RUN mkdir -p packages/frontend/src && echo "" > packages/frontend/src/lib.rs
+COPY packages/services/identity/Cargo.toml packages/services/identity/Cargo.toml
+COPY packages/services/sis/Cargo.toml packages/services/sis/Cargo.toml
+COPY packages/services/academic/Cargo.toml packages/services/academic/Cargo.toml
+COPY packages/services/attendance/Cargo.toml packages/services/attendance/Cargo.toml
+COPY packages/services/notifications/Cargo.toml packages/services/notifications/Cargo.toml
+COPY packages/services/finance/Cargo.toml packages/services/finance/Cargo.toml
+COPY packages/services/reporting/Cargo.toml packages/services/reporting/Cargo.toml
+
+# Dummy sources for cargo metadata resolution
+RUN mkdir -p packages/common/src packages/proto/src && \
+    touch packages/common/src/lib.rs packages/proto/src/lib.rs && \
+    for pkg in gateway frontend; do \
+      mkdir -p packages/$pkg/src && echo "fn main() {}" > packages/$pkg/src/main.rs; \
+    done && \
+    for pkg in identity sis academic attendance notifications finance reporting; do \
+      mkdir -p packages/services/$pkg/src && echo "fn main() {}" > packages/services/$pkg/src/main.rs; \
+    done
+
+RUN cargo fetch
+
+# ─── Stage 2: Compile ────────────────────────────────────────
+FROM rust:slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=deps /usr/local/cargo /usr/local/cargo
+COPY Cargo.toml Cargo.lock ./
+COPY protos protos
+COPY packages packages
 
 RUN cargo build --release --workspace --exclude schoolcbb-frontend
 
+# ─── Stage 3: Runtime ────────────────────────────────────────
 FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/target/release/schoolcbb-gateway /usr/local/bin/
 COPY --from=builder /app/target/release/schoolcbb-identity /usr/local/bin/
 COPY --from=builder /app/target/release/schoolcbb-sis /usr/local/bin/

@@ -188,3 +188,96 @@ pub struct SupereducExportRow {
     pub justified: i32,
     pub attendance_percentage: f64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_attendance_status_presente() {
+        let s = AttendanceStatus::Presente;
+        assert!(s.es_asistencia());
+        assert!(!s.es_ausencia());
+        assert!(!s.es_justificado());
+        assert_eq!(s.as_str(), "Presente");
+    }
+
+    #[test]
+    fn test_attendance_status_ausente() {
+        let s = AttendanceStatus::Ausente;
+        assert!(!s.es_asistencia());
+        assert!(s.es_ausencia());
+        assert!(!s.es_justificado());
+        assert_eq!(s.as_str(), "Ausente");
+    }
+
+    #[test]
+    fn test_attendance_status_justificado() {
+        let s = AttendanceStatus::Justificado;
+        assert!(s.es_justificado());
+        assert_eq!(s.as_str(), "Justificado");
+    }
+
+    #[test]
+    fn test_attendance_status_licencia_es_justificado() {
+        let s = AttendanceStatus::Licencia;
+        assert!(s.es_justificado());
+        assert_eq!(s.as_str(), "Licencia");
+    }
+
+    #[test]
+    fn test_from_str_defaults_to_presente() {
+        assert_eq!(AttendanceStatus::from_str("Desconocido"), AttendanceStatus::Presente);
+    }
+
+    #[test]
+    fn test_from_str_parses_all() {
+        assert_eq!(AttendanceStatus::from_str("Ausente"), AttendanceStatus::Ausente);
+        assert_eq!(AttendanceStatus::from_str("Atraso"), AttendanceStatus::Atraso);
+        assert_eq!(AttendanceStatus::from_str("Justificado"), AttendanceStatus::Justificado);
+        assert_eq!(AttendanceStatus::from_str("Licencia"), AttendanceStatus::Licencia);
+    }
+
+    #[test]
+    fn test_monthly_summary_percentage() {
+        let s = MonthlyAttendanceSummary {
+            student_id: Uuid::nil(),
+            student_name: "Test".into(),
+            rut: "1-9".into(),
+            year: 2025,
+            month: 3,
+            total_days: 20,
+            present: 18,
+            absent: 1,
+            late: 1,
+            justified: 0,
+        };
+        assert!((s.attendance_percentage() - 90.0).abs() < f64::EPSILON);
+        assert!(!s.is_below_threshold(85.0));
+        assert!(!s.is_below_threshold(90.0));
+        assert!(s.is_below_threshold(95.0));
+    }
+
+    #[test]
+    fn test_monthly_summary_zero_days() {
+        let s = MonthlyAttendanceSummary {
+            student_id: Uuid::nil(),
+            student_name: "Test".into(),
+            rut: "1-9".into(),
+            year: 2025,
+            month: 3,
+            total_days: 0,
+            present: 0,
+            absent: 0,
+            late: 0,
+            justified: 0,
+        };
+        assert!((s.attendance_percentage() - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_thresholds_constants() {
+        assert!((THRESHOLD_ASISTENCIA_GENERAL - 85.0).abs() < f64::EPSILON);
+        assert!((THRESHOLD_ASISTENCIA_NEE - 75.0).abs() < f64::EPSILON);
+    }
+}

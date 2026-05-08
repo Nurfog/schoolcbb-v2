@@ -331,6 +331,8 @@ a:hover { text-decoration: underline; }
     flex: 1;
     font-size: 14px;
     color: var(--text-primary);
+    padding: 8px 70px 8px 36px;
+    min-width: 0;
 }
 .search-bar input::placeholder {
     color: var(--text-muted);
@@ -352,6 +354,8 @@ a:hover { text-decoration: underline; }
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
+    stroke: var(--text-muted);
+    fill: none;
     font-size: 16px;
     pointer-events: none;
 }
@@ -854,6 +858,7 @@ a:hover { text-decoration: underline; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .topbar { padding: 0 12px; }
     .quick-search-modal { max-width: 100vw; margin: 0 12px; }
+    .module-list { grid-template-columns: 1fr; }
 }
 
 /* ─── Page Header ─── */
@@ -1063,6 +1068,25 @@ a:hover { text-decoration: underline; }
 .pct-good { color: var(--success); font-weight: 600; }
 .pct-warning { color: var(--warning); font-weight: 600; }
 .pct-danger { color: var(--danger); font-weight: 600; }
+
+/* ─── Grade Colors ─── */
+.grade-good { color: var(--success); font-weight: 600; }
+.grade-bad { color: var(--danger); font-weight: 600; }
+
+/* ─── Inline Editing ─── */
+.inline-edit-input {
+    width: 100%;
+    padding: 2px 4px;
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    font-size: inherit;
+    font-family: inherit;
+    background: white;
+    outline: none;
+}
+.inline-edit-input:focus {
+    box-shadow: 0 0 0 2px rgba(26, 43, 60, 0.15);
+}
 
 /* ─── Info Card ─── */
 .info-card {
@@ -1401,11 +1425,12 @@ tr.unread td {
 }
 .module-list {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
     overflow-y: auto;
     padding: 2px 0;
+    align-content: start;
 }
 .module-tile {
     display: flex;
@@ -1482,4 +1507,528 @@ tr.unread td {
     color: #eab308;
     stroke: #eab308;
     fill: #eab308;
+}
+
+/* ─── Config Page ─── */
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    align-content: start;
+}
+.config-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+}
+.config-card h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+}
+.config-card-body {
+    margin-top: 16px;
+}
+.config-card .field {
+    margin-bottom: 14px;
+}
+.config-card .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.config-card .login-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.config-card .login-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.config-card .login-btn {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.config-card .login-btn:hover {
+    background: var(--primary-dark);
+}
+.config-card .login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.config-success {
+    color: var(--success);
+    font-size: 13px;
+    margin: 6px 0;
+}
+.config-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0 0;
+}
+.config-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.config-toggle label {
+    margin: 0 !important;
+}
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--border);
+    border-radius: 24px;
+    transition: background 0.2s;
+}
+.toggle-slider::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--primary);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+.color-picker-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.color-picker-row input[type="color"] {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.color-picker-row .color-hex {
+    width: auto !important;
+    flex: 1;
+}
+
+/* ─── Searchable Select ─── */
+.searchable-select {
+    position: relative;
+    width: 100%;
+}
+.searchable-select .login-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.searchable-select-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--text-muted);
+    stroke: var(--text-muted);
+    display: flex;
+    align-items: center;
+    padding: 2px;
+}
+.searchable-select-clear:hover {
+    color: var(--text-primary);
+    stroke: var(--text-primary);
+}
+.searchable-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 2px;
+}
+.searchable-select-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-primary);
+    transition: background 0.1s;
+}
+.searchable-select-item:hover {
+    background: var(--primary-light);
+}
+.searchable-select-item:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+}
+.searchable-select-empty {
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.searchable-select-loading {
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ─── Hours Editor ─── */
+.hours-expanded-row td {
+    padding: 0 !important;
+    background: var(--bg);
+}
+.hours-cell {
+    border-bottom: 2px solid var(--primary) !important;
+}
+.hours-editor {
+    padding: 16px 20px;
+}
+.hours-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.hours-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.hours-field label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hours-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+    background: var(--surface);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.hours-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-light);
+    outline: none;
+}
+
+/* ─── Form Card ─── */
+.form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+.form-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+}
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+.form-grid .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.form-grid .login-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+.btn-secondary {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-secondary:hover {
+    background: var(--bg);
+}
+.cell-mono {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.cell-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.btn-icon {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+.btn-icon:hover {
+    background: var(--bg);
+    color: var(--primary);
+}
+.btn-icon-danger:hover {
+    color: var(--danger);
+    background: var(--danger-light);
+}
+
+/* ─── Kanban Board ─── */
+.kanban-board {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding: 16px 0;
+    min-height: 400px;
+}
+.kanban-column {
+    flex: 1;
+    min-width: 240px;
+    max-width: 320px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+.kanban-column-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.kanban-column-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+.kanban-count {
+    background: var(--primary);
+    color: white;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.kanban-cards {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+}
+.kanban-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+.kanban-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-color: var(--primary);
+}
+.kanban-card.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(26, 43, 60, 0.15);
+}
+.card-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+}
+.card-rut {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+.card-actions {
+    margin-top: 6px;
+    display: flex;
+    justify-content: flex-end;
+}
+.move-btn {
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.move-btn:hover {
+    background: var(--primary-light);
+}
+
+/* ─── Admission Modal ─── */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: var(--surface);
+    border-radius: 12px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+.modal-header h2 { margin: 0; font-size: 18px; }
+.modal-body { padding: 20px; }
+.detail-grid { display: flex; flex-direction: column; gap: 20px; }
+.detail-section h4 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.detail-section p { margin: 4px 0; font-size: 14px; }
+.activity-item, .doc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+.activity-type { font-weight: 600; color: var(--primary); }
+.doc-status { font-size: 12px; }
+
+/* ─── Vacancy Section ─── */
+.vacancy-section {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.vacancy-section h3 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+.vacancy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+}
+.vacancy-card {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+}
+.vacancy-level {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+.vacancy-numbers {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.vacancy-ok { color: var(--success); font-weight: 600; }
+.vacancy-full { color: var(--danger); font-weight: 600; }
+
+@media (max-width: 768px) {
+    .config-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
 }

@@ -14,6 +14,12 @@ pub struct Subject {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubjectHour {
+    pub level: String,
+    pub hours_per_week: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSubjectPayload {
     pub code: String,
     pub name: String,
@@ -197,4 +203,62 @@ pub struct CourseSubjectGradeEntry {
     pub rut: String,
     pub grades: Vec<f64>,
     pub average: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "db", derive(sqlx::FromRow))]
+pub struct AcademicYear {
+    pub id: Uuid,
+    pub year: i32,
+    pub name: String,
+    pub is_active: bool,
+    pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAcademicYearPayload {
+    pub year: i32,
+    pub name: String,
+    pub is_active: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAcademicYearPayload {
+    pub name: Option<String>,
+    pub is_active: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloneYearPayload {
+    pub from_year: i32,
+    pub to_year: i32,
+    pub to_year_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "db", derive(sqlx::FromRow))]
+pub struct GradeLevel {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub plan: Option<String>,
+    pub sort_order: i32,
+    pub active: bool,
+    pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateGradeLevelPayload {
+    pub code: String,
+    pub name: String,
+    pub plan: Option<String>,
+    pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateGradeLevelPayload {
+    pub name: Option<String>,
+    pub plan: Option<String>,
+    pub sort_order: Option<i32>,
+    pub active: Option<bool>,
 }

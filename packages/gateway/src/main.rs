@@ -55,15 +55,21 @@ async fn main() {
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any);
 
-    let schema = graphql::build_schema();
+    let schema = graphql::build_schema(&state.sis_url, &state.academic_url, state.client.clone());
 
     let app = Router::new()
         .route("/health", get(|| async { (StatusCode::OK, axum::Json(serde_json::json!({"status": "ok", "service": "gateway"}))) }))
         .route("/api/auth/*path", any(proxy_identity))
         .route("/api/user/*path", any(proxy_identity))
         .route("/api/students/*path", any(proxy_sis))
+        .route("/api/courses/*path", any(proxy_sis))
+        .route("/api/enrollments/*path", any(proxy_sis))
         .route("/api/dashboard/*path", any(proxy_sis))
+        .route("/api/admission/*path", any(proxy_sis))
         .route("/api/grades/*path", any(proxy_academic))
+        .route("/api/academic-years/*path", any(proxy_academic))
+        .route("/api/academic/grade-levels/*path", any(proxy_academic))
+        .route("/api/academic/audit-log", any(proxy_academic))
         .route("/api/attendance/*path", any(proxy_attendance))
         .route("/api/communications/*path", any(proxy_notifications))
         .route("/api/finance/*path", any(proxy_finance))

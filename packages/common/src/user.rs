@@ -12,6 +12,7 @@ pub enum UserRole {
     Profesor,
     Apoderado,
     Alumno,
+    Admision,
 }
 
 impl UserRole {
@@ -28,6 +29,7 @@ impl UserRole {
             UserRole::Profesor => "Profesor",
             UserRole::Apoderado => "Apoderado",
             UserRole::Alumno => "Alumno",
+            UserRole::Admision => "Admision",
         }
     }
 
@@ -41,6 +43,7 @@ impl UserRole {
             "Profesor" => Some(UserRole::Profesor),
             "Apoderado" => Some(UserRole::Apoderado),
             "Alumno" => Some(UserRole::Alumno),
+            "Admision" => Some(UserRole::Admision),
             _ => None,
         }
     }
