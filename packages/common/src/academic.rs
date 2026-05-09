@@ -212,7 +212,7 @@ pub struct AcademicYear {
     pub year: i32,
     pub name: String,
     pub is_active: bool,
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -244,7 +244,7 @@ pub struct GradeLevel {
     pub plan: Option<String>,
     pub sort_order: i32,
     pub active: bool,
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

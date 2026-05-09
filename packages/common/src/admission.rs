@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,7 +9,7 @@ pub struct PipelineStage {
     pub name: String,
     pub sort_order: i32,
     pub is_final: bool,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,8 +39,8 @@ pub struct Prospect {
     pub assigned_user_id: Option<Uuid>,
     pub source: Option<String>,
     pub notes: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,10 +73,10 @@ pub struct ProspectActivity {
     pub activity_type: String,
     pub subject: String,
     pub description: Option<String>,
-    pub scheduled_at: Option<NaiveDateTime>,
+    pub scheduled_at: Option<DateTime<Utc>>,
     pub is_completed: bool,
     pub created_by: Option<Uuid>,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,7 +85,7 @@ pub struct CreateActivityPayload {
     pub activity_type: String,
     pub subject: String,
     pub description: Option<String>,
-    pub scheduled_at: Option<NaiveDateTime>,
+    pub scheduled_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,7 +98,7 @@ pub struct ProspectDocument {
     pub doc_type: String,
     pub is_verified: bool,
     pub uploaded_by: Option<Uuid>,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,7 +116,7 @@ pub struct Classroom {
     pub capacity: i32,
     pub location: Option<String>,
     pub active: bool,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

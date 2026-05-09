@@ -92,9 +92,15 @@ fn MessageRow(msg: serde_json::Value) -> Element {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum AudienceType {
+    User, Course, AllStudents, AllTeachers, AllStaff,
+}
+
 #[component]
 fn ComposeModal(is_open: Signal<bool>, on_sent: EventHandler) -> Element {
-    let mut receiver = use_signal(|| "".to_string());
+    let mut audience_type = use_signal(|| AudienceType::AllStudents);
+    let mut audience_id = use_signal(|| "".to_string());
     let mut subject = use_signal(|| "".to_string());
     let mut body = use_signal(|| "".to_string());
     let mut sending = use_signal(|| false);
@@ -104,8 +110,15 @@ fn ComposeModal(is_open: Signal<bool>, on_sent: EventHandler) -> Element {
             return;
         }
         sending.set(true);
+        let audience = match audience_type() {
+            AudienceType::User => serde_json::json!({ "type": "User", "id": audience_id() }),
+            AudienceType::Course => serde_json::json!({ "type": "Course", "id": audience_id() }),
+            AudienceType::AllStudents => serde_json::json!({ "type": "AllStudents" }),
+            AudienceType::AllTeachers => serde_json::json!({ "type": "AllTeachers" }),
+            AudienceType::AllStaff => serde_json::json!({ "type": "AllStaff" }),
+        };
         let payload = serde_json::json!({
-            "receiver_id": receiver(),
+            "audience": audience,
             "subject": subject(),
             "body": body(),
         });
@@ -116,6 +129,8 @@ fn ComposeModal(is_open: Signal<bool>, on_sent: EventHandler) -> Element {
             on_sent.call(());
         });
     };
+
+    let needs_id = audience_type() == AudienceType::User || audience_type() == AudienceType::Course;
 
     rsx! {
         div { class: "quick-search-overlay",
@@ -131,25 +146,44 @@ fn ComposeModal(is_open: Signal<bool>, on_sent: EventHandler) -> Element {
                 }
                 div { class: "compose-body",
                     div { class: "field",
-                        label { "Destinatario ID (UUID)" }
-                        input { class: "login-input", value: "{receiver}", placeholder: "UUID del destinatario",
-                            oninput: move |evt| receiver.set(evt.value()),
+                        label { "Destinatarios" }
+                        select { class: "form-input", value: "{audience_type():?}", oninput: move |e| {
+                            let v = e.value();
+                            audience_type.set(if v == "User" { AudienceType::User }
+                                else if v == "Course" { AudienceType::Course }
+                                else if v == "AllTeachers" { AudienceType::AllTeachers }
+                                else if v == "AllStaff" { AudienceType::AllStaff }
+                                else { AudienceType::AllStudents });
+                        },
+                            option { value: "AllStudents", "Todos los Alumnos" }
+                            option { value: "AllTeachers", "Todos los Profesores" }
+                            option { value: "AllStaff", "Todo el Personal" }
+                            option { value: "User", "Usuario específico" }
+                            option { value: "Course", "Curso específico" }
+                        }
+                    }
+                    if needs_id {
+                        div { class: "field",
+                            label { if audience_type() == AudienceType::User { "ID del Usuario" } else { "ID del Curso" } }
+                            input { class: "form-input", value: "{audience_id}", placeholder: if audience_type() == AudienceType::User { "UUID del usuario" } else { "UUID del curso" },
+                                oninput: move |evt| audience_id.set(evt.value()),
+                            }
                         }
                     }
                     div { class: "field",
                         label { "Asunto" }
-                        input { class: "login-input", value: "{subject}", placeholder: "Asunto del mensaje",
+                        input { class: "form-input", value: "{subject}", placeholder: "Asunto del mensaje",
                             oninput: move |evt| subject.set(evt.value()),
                         }
                     }
                     div { class: "field",
                         label { "Mensaje" }
-                        textarea { class: "login-input compose-textarea", value: "{body}", placeholder: "Escriba su mensaje...",
+                        textarea { class: "form-input compose-textarea", value: "{body}", placeholder: "Escriba su mensaje...",
                             rows: "5",
                             oninput: move |evt| body.set(evt.value()),
                         }
                     }
-                    button { class: "login-btn", onclick: do_send, disabled: sending(),
+                    button { class: "btn-primary", onclick: do_send, disabled: sending(),
                         if sending() { "Enviando..." } else { "Enviar Mensaje" }
                     }
                 }

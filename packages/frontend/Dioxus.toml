@@ -4,6 +4,7 @@ default_platform = "web"
 
 [web]
 title = "SchoolCBB - Plataforma Escolar"
+base_url = "/"
 base_path = "/"
 out_dir = "dist"
 

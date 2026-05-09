@@ -789,6 +789,12 @@ a:hover { text-decoration: underline; }
     transition: background var(--transition);
     text-decoration: none;
     color: var(--text-primary);
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: inherit;
 }
 
 .quick-search-result-item:hover {
@@ -1286,6 +1292,20 @@ tr.unread td {
     border-color: var(--primary);
     background: var(--surface);
 }
+.form-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text-primary);
+}
+.form-input:focus {
+    border-color: var(--primary);
+    background: var(--surface);
+    outline: none;
+}
 .login-btn {
     width: 100%;
     padding: 12px;
@@ -1479,6 +1499,9 @@ tr.unread td {
 .module-tile .tile-icon.money { background: linear-gradient(135deg, #06b6d4, #0891b2); }
 .module-tile .tile-icon.config { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .module-tile .tile-icon.gear { background: linear-gradient(135deg, #6b7280, #4b5563); }
+.module-tile .tile-icon.calendar { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+.module-tile .tile-icon.home { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+.module-tile .tile-icon.file-text { background: linear-gradient(135deg, #64748b, #475569); }
 .module-tile .tile-name {
     flex: 1;
     font-size: 14px;
@@ -1541,17 +1564,18 @@ tr.unread td {
     color: var(--text-secondary);
     margin-bottom: 4px;
 }
-.config-card .login-input {
+.config-card .login-input,
+.config-card .form-input {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     font-size: 14px;
     background: var(--bg);
-    color: var(--text-primary);
     box-sizing: border-box;
 }
-.config-card .login-input:disabled {
+.config-card .login-input:disabled,
+.config-card .form-input:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
@@ -1653,7 +1677,8 @@ tr.unread td {
     position: relative;
     width: 100%;
 }
-.searchable-select .login-input {
+.searchable-select .login-input,
+.searchable-select .form-input {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border);
@@ -1792,7 +1817,8 @@ tr.unread td {
     color: var(--text-secondary);
     margin-bottom: 4px;
 }
-.form-grid .login-input {
+.form-grid .login-input,
+.form-grid .form-input {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border);
@@ -1850,6 +1876,23 @@ tr.unread td {
     color: var(--primary);
 }
 .btn-icon-danger:hover {
+    color: var(--danger);
+    background: var(--danger-light);
+}
+.btn-danger {
+    padding: 10px 16px;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background: var(--danger);
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-danger:hover {
+    background: #b91c1c;
+}
     color: var(--danger);
     background: var(--danger-light);
 }
@@ -1971,6 +2014,13 @@ tr.unread td {
 }
 .modal-header h2 { margin: 0; font-size: 18px; }
 .modal-body { padding: 20px; }
+.modal-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+}
 .detail-grid { display: flex; flex-direction: column; gap: 20px; }
 .detail-section h4 {
     margin: 0 0 8px;

@@ -6,6 +6,7 @@ use crate::api::client;
 pub fn AcademicYearsPage() -> Element {
     let mut years = use_resource(|| client::fetch_academic_years());
     let mut show_form = use_signal(|| false);
+    let mut editing_id = use_signal(|| None::<String>);
     let mut year = use_signal(|| 2026i32);
     let mut name = use_signal(|| String::new());
     let mut is_active = use_signal(|| false);
@@ -19,10 +20,11 @@ pub fn AcademicYearsPage() -> Element {
         year.set(2026);
         name.set(String::new());
         is_active.set(false);
+        editing_id.set(None);
         show_form.set(false);
     };
 
-    let do_create = move |_| {
+    let do_save = move |_| {
         saving.set(true);
         let payload = serde_json::json!({
             "year": year(),
@@ -30,7 +32,11 @@ pub fn AcademicYearsPage() -> Element {
             "is_active": is_active(),
         });
         spawn(async move {
-            let _ = client::create_academic_year(&payload).await;
+            if let Some(ref id) = editing_id() {
+                let _ = client::update_academic_year(id, &payload).await;
+            } else {
+                let _ = client::create_academic_year(&payload).await;
+            }
             saving.set(false);
             reset_form();
             years.restart();
@@ -82,6 +88,7 @@ pub fn AcademicYearsPage() -> Element {
             if show_form() {
                 rsx! {
                     div { class: "form-card",
+                        h3 { if editing_id().is_some() { "Editar Año Académico" } else { "Nuevo Año Académico" } }
                         div { class: "form-row",
                             div { class: "form-group",
                                 label { "Año:" }
@@ -97,7 +104,7 @@ pub fn AcademicYearsPage() -> Element {
                             }
                         }
                         div { class: "form-actions",
-                            button { class: "btn btn-primary", disabled: saving(), onclick: do_create, if saving() { "Guardando..." } else { "Guardar" } }
+                            button { class: "btn btn-primary", disabled: saving(), onclick: do_save, if saving() { "Guardando..." } else { "Guardar" } }
                             button { class: "btn", onclick: move |_| reset_form(), "Cancelar" }
                         }
                     }
@@ -160,8 +167,9 @@ pub fn AcademicYearsPage() -> Element {
                                         td { "{yname}" }
                                         td { if *active { span { class: "status-active", "Activo" } } else { span { class: "status-inactive", "Inactivo" } } }
                                         td {
+                                            button { class: "btn btn-sm", onclick: { let id = yid.clone(); let y = *ynum; let n = yname.clone(); let a = *active; move |_| { editing_id.set(Some(id.clone())); year.set(y as i32); name.set(n.clone()); is_active.set(a); show_form.set(true); } }, "Editar" }
                                             if !active {
-                                                button { class: "btn btn-sm btn-success", onclick: { let id = yid.clone(); move |_| do_activate(id.clone()) }, "Activar" }
+                                                button { class: "btn btn-sm btn-success", style: "margin-left: 4px;", onclick: { let id = yid.clone(); move |_| do_activate(id.clone()) }, "Activar" }
                                                 button { class: "btn btn-sm btn-danger", style: "margin-left: 4px;", onclick: { let id = yid.clone(); move |_| do_delete(id.clone()) }, "Eliminar" }
                                             }
                                         }

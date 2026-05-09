@@ -16,7 +16,6 @@ pub fn ClassroomsPage() -> Element {
         saving.set(true);
         let payload = serde_json::json!({ "name": name(), "capacity": capacity(), "location": if location().is_empty() { serde_json::Value::Null } else { serde_json::json!(location()) } });
         let is_edit = editing_id().is_some();
-        let ep = if let Some(ref id) = editing_id() { format!("/api/admission/classrooms/{}", id) } else { "/api/admission/classrooms".to_string() };
         spawn(async move {
             if is_edit { let _ = client::update_classroom(&editing_id().unwrap_or_default(), &payload).await; }
             else { let _ = client::create_classroom(&payload).await; }

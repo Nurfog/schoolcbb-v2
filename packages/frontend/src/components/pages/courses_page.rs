@@ -86,7 +86,7 @@ pub fn CoursesPage() -> Element {
             p { "Gestión de cursos y asignación de profesores jefe" }
         }
         div { class: "page-toolbar",
-            button { class: "btn-primary", onclick: move |_| { reset_form(); show_form.set(true); },
+            button { class: "btn btn-primary", onclick: move |_| { reset_form(); show_form.set(true); },
                 "Nuevo Curso"
             }
         }
@@ -96,19 +96,19 @@ pub fn CoursesPage() -> Element {
                 div { class: "form-grid",
                     div { class: "field",
                         label { "Nombre del Curso" }
-                        input { class: "login-input", placeholder: "1° Medio A", value: "{name}",
+                        input { class: "form-input", placeholder: "1° Medio A", value: "{name}",
                             oninput: move |e| name.set(e.value()),
                         }
                     }
                     div { class: "field",
                         label { "Asignatura Principal" }
-                        input { class: "login-input", placeholder: "Lenguaje", value: "{subject}",
+                        input { class: "form-input", placeholder: "Lenguaje", value: "{subject}",
                             oninput: move |e| subject.set(e.value()),
                         }
                     }
                     div { class: "field",
                         label { "Nivel" }
-                        select { class: "login-input", value: "{grade_level}",
+                        select { class: "form-input", value: "{grade_level}",
                             oninput: move |e| {
                                 grade_level.set(e.value());
                                 plan.set(String::new());
@@ -138,7 +138,7 @@ pub fn CoursesPage() -> Element {
                             rsx! {
                                 div { class: "field",
                                     label { "Plan" }
-                                    select { class: "login-input", value: "{plan}",
+                                    select { class: "form-input", value: "{plan}",
                                         oninput: move |e| plan.set(e.value()),
                                         option { value: "", "Seleccionar..." }
                                         option { value: "HC", "Científico-Humanista" }
@@ -151,7 +151,7 @@ pub fn CoursesPage() -> Element {
                     }
                     div { class: "field",
                         label { "Sección" }
-                        input { class: "login-input", placeholder: "A", value: "{section}",
+                        input { class: "form-input", placeholder: "A", value: "{section}",
                             oninput: move |e| section.set(e.value()),
                         }
                     }

@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,12 +11,22 @@ pub struct Message {
     pub subject: String,
     pub body: String,
     pub read: bool,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "id")]
+pub enum AudienceTarget {
+    User(Uuid),
+    Course(Uuid),
+    AllStudents,
+    AllTeachers,
+    AllStaff,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateMessagePayload {
-    pub receiver_id: Uuid,
+    pub audience: AudienceTarget,
     pub subject: String,
     pub body: String,
 }
@@ -37,7 +47,7 @@ pub struct InterviewLog {
     pub reason: String,
     pub notes: String,
     pub follow_up: Option<String>,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -67,7 +67,7 @@ pub fn SearchableSelect(
     rsx! {
         div { class: "searchable-select",
             input {
-                class: "login-input",
+                class: "form-input",
                 r#type: "text",
                 placeholder: "{placeholder}",
                 value: "{display_val}",

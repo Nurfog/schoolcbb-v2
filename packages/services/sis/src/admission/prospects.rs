@@ -26,19 +26,16 @@ async fn list_prospects(claims: Claims, State(state): State<AppState>, Query(q):
 
     let mut sql = "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects".to_string();
     let mut clauses: Vec<String> = vec![];
-    let mut idx = 1u32;
 
-    if let Some(sid) = q.stage_id {
-        clauses.push(format!("current_stage_id = ${}", idx));
-        idx += 1;
+    if q.stage_id.is_some() {
+        clauses.push(format!("current_stage_id = ${}", clauses.len() + 1));
     }
     if q.search.is_some() {
-        clauses.push(format!("(first_name ILIKE ${} OR last_name ILIKE ${} OR rut ILIKE ${})", idx, idx, idx));
-        idx += 1;
+        let n = clauses.len() + 1;
+        clauses.push(format!("(first_name ILIKE ${n} OR last_name ILIKE ${n} OR rut ILIKE ${n})"));
     }
-    if let Some(uid) = q.assigned_to {
-        clauses.push(format!("assigned_user_id = ${}", idx));
-        idx += 1;
+    if q.assigned_to.is_some() {
+        clauses.push(format!("assigned_user_id = ${}", clauses.len() + 1));
     }
     if !clauses.is_empty() {
         sql.push_str(&format!(" WHERE {}", clauses.join(" AND ")));

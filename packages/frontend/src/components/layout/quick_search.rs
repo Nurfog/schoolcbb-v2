@@ -140,10 +140,9 @@ fn SearchResultRow(student: Value, highlighted: bool, on_click: EventHandler<()>
         .unwrap_or_else(|| "?".into());
 
     rsx! {
-        a {
+        button {
             class: "quick-search-result-item",
             "data-selected": "{highlighted}",
-            href: "#",
             onclick: move |_| on_click.call(()),
             div { class: "avatar", "{initial}" }
             div { class: "info",

@@ -142,29 +142,81 @@ async fn send_message(
         return Err(NotifError::Validation("Asunto y cuerpo son obligatorios".into()));
     }
 
-    let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::communication::Message>(
-        r#"
-        INSERT INTO messages (id, sender_id, receiver_id, subject, body)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, sender_id, receiver_id, subject, body, read, created_at
-        "#,
-    )
-    .bind(id)
-    .bind(sender_id)
-    .bind(payload.receiver_id)
-    .bind(&payload.subject)
-    .bind(&payload.body)
-    .fetch_one(&state.pool)
-    .await?;
+    let recipients: Vec<Uuid> = resolve_recipients(&state.pool, &payload.audience).await?;
 
-    state.ws_hub.broadcast(&json!({
-        "type": "new_message",
-        "receiver_id": payload.receiver_id,
-        "message": &result
-    }).to_string());
+    if recipients.is_empty() {
+        return Err(NotifError::Validation("No hay destinatarios para la audiencia seleccionada".into()));
+    }
 
-    Ok(Json(json!({ "message": result })))
+    let mut sent: Vec<schoolcbb_common::communication::Message> = vec![];
+    for recv_id in &recipients {
+        let id = Uuid::new_v4();
+        let msg = sqlx::query_as::<_, schoolcbb_common::communication::Message>(
+            r#"
+            INSERT INTO messages (id, sender_id, receiver_id, subject, body)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, sender_id, receiver_id, subject, body, read, created_at
+            "#,
+        )
+        .bind(id)
+        .bind(sender_id)
+        .bind(recv_id)
+        .bind(&payload.subject)
+        .bind(&payload.body)
+        .fetch_one(&state.pool)
+        .await?;
+
+        state.ws_hub.broadcast(&json!({
+            "type": "new_message",
+            "receiver_id": recv_id,
+            "message": &msg
+        }).to_string());
+
+        sent.push(msg);
+    }
+
+    Ok(Json(json!({ "messages": sent, "total": sent.len() })))
+}
+
+async fn resolve_recipients(pool: &sqlx::PgPool, audience: &schoolcbb_common::communication::AudienceTarget) -> Result<Vec<Uuid>, NotifError> {
+    match audience {
+        schoolcbb_common::communication::AudienceTarget::User(uid) => Ok(vec![*uid]),
+        schoolcbb_common::communication::AudienceTarget::Course(course_id) => {
+            let rows: Vec<(Uuid,)> = sqlx::query_as(
+                "SELECT DISTINCT u.id FROM users u \
+                 JOIN enrollments e ON e.student_id = u.id \
+                 WHERE e.course_id = $1 AND e.active = true"
+            )
+            .bind(course_id)
+            .fetch_all(pool)
+            .await?;
+            Ok(rows.into_iter().map(|r| r.0).collect())
+        }
+        schoolcbb_common::communication::AudienceTarget::AllStudents => {
+            let rows: Vec<(Uuid,)> = sqlx::query_as(
+                "SELECT id FROM users WHERE role = 'Alumno'"
+            )
+            .fetch_all(pool)
+            .await?;
+            Ok(rows.into_iter().map(|r| r.0).collect())
+        }
+        schoolcbb_common::communication::AudienceTarget::AllTeachers => {
+            let rows: Vec<(Uuid,)> = sqlx::query_as(
+                "SELECT id FROM users WHERE role = 'Profesor'"
+            )
+            .fetch_all(pool)
+            .await?;
+            Ok(rows.into_iter().map(|r| r.0).collect())
+        }
+        schoolcbb_common::communication::AudienceTarget::AllStaff => {
+            let rows: Vec<(Uuid,)> = sqlx::query_as(
+                "SELECT id FROM users WHERE role IN ('Administrador', 'Sostenedor', 'Director', 'UTP')"
+            )
+            .fetch_all(pool)
+            .await?;
+            Ok(rows.into_iter().map(|r| r.0).collect())
+        }
+    }
 }
 
 async fn get_message(

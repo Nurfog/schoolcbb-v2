@@ -48,7 +48,7 @@ pub fn EnrollmentsPage() -> Element {
             p { "Gestión de matrículas de alumnos en cursos" }
         }
         div { class: "page-toolbar",
-            button { class: "btn-primary", onclick: move |_| { reset_form(); show_form.set(true); },
+            button { class: "btn btn-primary", onclick: move |_| { reset_form(); show_form.set(true); },
                 "Nueva Matrícula"
             }
         }
@@ -80,7 +80,7 @@ pub fn EnrollmentsPage() -> Element {
                     }
                     div { class: "field",
                         label { "Año Académico" }
-                        input { class: "login-input", r#type: "number", value: "{year}",
+                        input { class: "form-input", r#type: "number", value: "{year}",
                             oninput: move |e| year.set(e.value().parse().unwrap_or(chrono_now_year())),
                         }
                     }

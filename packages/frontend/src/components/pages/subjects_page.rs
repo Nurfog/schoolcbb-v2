@@ -51,7 +51,7 @@ pub fn SubjectsPage() -> Element {
                     rows.push(rsx! {
                         tr { key: "{sid}",
                             td { class: "cell-mono",
-                                ondblclick: { let s = sid.clone(); let cv = code_v.clone(); move |_| { editing_cell.set(Some((s.clone(), "code".to_string()))); edit_value.set(cv.clone()); } },
+                                ondoubleclick: { let s = sid.clone(); let cv = code_v.clone(); move |_| { editing_cell.set(Some((s.clone(), "code".to_string()))); edit_value.set(cv.clone()); } },
                                 {
                                     if is_editing_code {
                                         rsx! {
@@ -59,7 +59,7 @@ pub fn SubjectsPage() -> Element {
                                                 class: "inline-edit-input",
                                                 value: "{edit_value}",
                                                 oninput: move |e| edit_value.set(e.value()),
-                                                onblur: { let s = sid.clone(); let cv = edit_value(); move |_| { editing_cell.set(None); } },
+                                                onblur: move |_| { editing_cell.set(None); },
                                             }
                                         }
                                     } else {
@@ -68,7 +68,7 @@ pub fn SubjectsPage() -> Element {
                                 }
                             }
                             td { class: "cell-name",
-                                ondblclick: { let s = sid.clone(); let nv = name_v.clone(); move |_| { editing_cell.set(Some((s.clone(), "name".to_string()))); edit_value.set(nv.clone()); } },
+                                ondoubleclick: { let s = sid.clone(); let nv = name_v.clone(); move |_| { editing_cell.set(Some((s.clone(), "name".to_string()))); edit_value.set(nv.clone()); } },
                                 {
                                     if is_editing_name {
                                         rsx! {
@@ -76,7 +76,7 @@ pub fn SubjectsPage() -> Element {
                                                 class: "inline-edit-input",
                                                 value: "{edit_value}",
                                                 oninput: move |e| edit_value.set(e.value()),
-                                                onblur: { let s = sid.clone(); move |_| { editing_cell.set(None); } },
+                                                onblur: move |_| { editing_cell.set(None); },
                                             }
                                         }
                                     } else {
@@ -165,8 +165,8 @@ pub fn SubjectsPage() -> Element {
             p { "Catálogo de asignaturas y configuración de horas por nivel" }
         }
         div { class: "page-toolbar",
-            button { class: "btn-primary", onclick: move |_| { reset(); show_form.set(true); }, "Nueva Asignatura" }
-            button { class: "btn", style: "margin-left: 8px;", onclick: move |_| { show_import.set(!show_import()); import_result.set(None); }, "Importar CSV" }
+            button { class: "btn btn-primary", onclick: move |_| { reset(); show_form.set(true); }, "Nueva Asignatura" }
+            button { class: "btn", onclick: move |_| { show_import.set(!show_import()); import_result.set(None); }, "Importar CSV" }
         }
         {
             if show_import() {
@@ -232,8 +232,8 @@ pub fn SubjectsPage() -> Element {
             div { class: "card form-card",
                 h3 { if editing_id().is_some() { "Editar Asignatura" } else { "Nueva Asignatura" } }
                 div { class: "form-grid",
-                    div { class: "field", label { "Código SIGE" } input { class: "login-input", placeholder: "MAT01", value: "{code}", oninput: move |e| code.set(e.value()) } }
-                    div { class: "field", label { "Nombre" } input { class: "login-input", placeholder: "Matemática", value: "{name}", oninput: move |e| name.set(e.value()) } }
+                    div { class: "field", label { "Código SIGE" } input { class: "form-input", placeholder: "MAT01", value: "{code}", oninput: move |e| code.set(e.value()) } }
+                    div { class: "field", label { "Nombre" } input { class: "form-input", placeholder: "Matemática", value: "{name}", oninput: move |e| name.set(e.value()) } }
                 }
                 div { class: "form-actions",
                     button { class: "btn-secondary", onclick: move |_| reset(), "Cancelar" }
