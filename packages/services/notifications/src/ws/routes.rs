@@ -67,10 +67,10 @@ pub fn router() -> Router<AppState> {
         .route("/ws", get(ws_handler))
         .route("/api/communications/messages", get(list_messages).post(send_message))
         .route("/api/communications/messages/unread-count", get(unread_count))
-        .route("/api/communications/messages/{id}", get(get_message))
-        .route("/api/communications/messages/{id}/read", post(mark_read))
+        .route("/api/communications/messages/:id", get(get_message))
+        .route("/api/communications/messages/:id/read", post(mark_read))
         .route("/api/communications/interviews", get(list_interviews).post(create_interview))
-        .route("/api/communications/interviews/{id}", get(get_interview).put(update_interview).delete(delete_interview))
+        .route("/api/communications/interviews/:id", get(get_interview).put(update_interview).delete(delete_interview))
         .route("/api/communications/interviews/student/{student_id}", get(interviews_by_student))
 }
 

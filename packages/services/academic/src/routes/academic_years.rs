@@ -13,8 +13,8 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/academic-years", get(list_years).post(create_year))
-        .route("/api/academic-years/{id}", get(get_year).put(update_year).delete(delete_year))
-        .route("/api/academic-years/{id}/activate", post(activate_year))
+        .route("/api/academic-years/:id", get(get_year).put(update_year).delete(delete_year))
+        .route("/api/academic-years/:id/activate", post(activate_year))
         .route("/api/academic-years/clone", post(clone_year))
 }
 

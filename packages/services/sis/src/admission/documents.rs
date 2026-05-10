@@ -9,8 +9,8 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/documents", get(list_documents).post(create_document))
-        .route("/api/admission/documents/{id}", get(get_document).delete(delete_document))
-        .route("/api/admission/documents/{id}/verify", post(verify_document))
+        .route("/api/admission/documents/:id", get(get_document).delete(delete_document))
+        .route("/api/admission/documents/:id/verify", post(verify_document))
 }
 
 async fn list_documents(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {

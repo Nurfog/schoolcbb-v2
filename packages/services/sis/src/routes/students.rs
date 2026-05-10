@@ -141,9 +141,9 @@ const STUDENT_COLUMNS: &str = r#"
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/students", get(list_students).post(create_student))
-        .route("/api/students/{id}", get(get_student).put(update_student).delete(deactivate_student))
-        .route("/api/students/{id}/guardians", get(list_guardians).post(add_guardian))
-        .route("/api/students/{id}/guardians/{guardian_id}", delete(remove_guardian))
+        .route("/api/students/:id", get(get_student).put(update_student).delete(deactivate_student))
+        .route("/api/students/:id/guardians", get(list_guardians).post(add_guardian))
+        .route("/api/students/:id/guardians/:guardian_id", delete(remove_guardian))
 }
 
 async fn list_students(

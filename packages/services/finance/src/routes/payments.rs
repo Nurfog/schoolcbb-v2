@@ -13,7 +13,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/finance/payments", get(list_payments).post(create_payment))
-        .route("/api/finance/payments/{id}", get(get_payment))
+        .route("/api/finance/payments/:id", get(get_payment))
         .route("/api/finance/payments/student/{student_id}", get(payments_by_student))
 }
 

@@ -82,7 +82,7 @@ pub struct RawAttendance {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/attendance", get(list_attendance).post(create_attendance))
-        .route("/api/attendance/{id}", get(get_attendance).put(update_attendance).delete(delete_attendance))
+        .route("/api/attendance/:id", get(get_attendance).put(update_attendance).delete(delete_attendance))
         .route("/api/attendance/bulk", post(bulk_create_attendance))
         .route("/api/attendance/today", get(today_attendance))
         .route("/api/attendance/date/{date}", get(attendance_by_date))

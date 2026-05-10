@@ -106,8 +106,8 @@ const LEVELS: &[&str] = &[
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades/subjects", get(list_subjects).post(create_subject))
-        .route("/api/grades/subjects/{id}", get(get_subject).put(update_subject).delete(deactivate_subject))
-        .route("/api/grades/subjects/{id}/hours", put(save_hours))
+        .route("/api/grades/subjects/:id", get(get_subject).put(update_subject).delete(deactivate_subject))
+        .route("/api/grades/subjects/:id/hours", put(save_hours))
         .route("/api/grades/subjects/import", post(import_subjects))
         .route("/api/academic/audit-log", get(get_audit_log))
 }

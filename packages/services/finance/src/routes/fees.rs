@@ -60,7 +60,7 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), FinanceEr
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/finance/fees", get(list_fees).post(create_fee))
-        .route("/api/finance/fees/{id}", get(get_fee).put(update_fee).delete(delete_fee))
+        .route("/api/finance/fees/:id", get(get_fee).put(update_fee).delete(delete_fee))
         .route("/api/finance/fees/student/{student_id}", get(fees_by_student))
 }
 
