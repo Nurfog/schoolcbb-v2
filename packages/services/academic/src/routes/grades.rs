@@ -24,9 +24,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/grades", get(list_grades).post(create_grade))
         .route("/api/grades/:id", get(get_grade).put(update_grade).delete(delete_grade))
         .route("/api/grades/bulk", post(bulk_create_grades))
-        .route("/api/grades/course-subject/{course_subject_id}", get(grades_by_course_subject))
-        .route("/api/grades/student/{student_id}/{semester}/{year}", get(student_grades))
-        .route("/api/grades/by-subject/{subject_id}/{year}", get(grades_by_subject))
+        .route("/api/grades/course-subject/:course_subject_id", get(grades_by_course_subject))
+        .route("/api/grades/student/:student_id/:semester/:year", get(student_grades))
+        .route("/api/grades/by-subject/:subject_id/:year", get(grades_by_subject))
 }
 
 async fn list_grades(
@@ -36,36 +36,38 @@ async fn list_grades(
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
 
+    let school_condition = claims.school_id.as_ref().map(|sid| format!(" AND g.school_id = '{}'::uuid", sid)).unwrap_or_default();
+
     let grades = if let Some(sid) = filter.student_id {
         if let Some(csid) = filter.course_subject_id {
             if let Some(sem) = filter.semester {
                 if let Some(y) = filter.year {
                     sqlx::query_as::<_, RawGrade>(
-                        "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                         FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 AND year = $4 ORDER BY date DESC"
+                        &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
+                         FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 AND year = $4{} ORDER BY date DESC", school_condition)
                     ).bind(sid).bind(csid).bind(sem).bind(y).fetch_all(&state.pool).await?
                 } else {
                     sqlx::query_as::<_, RawGrade>(
-                        "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                         FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 ORDER BY date DESC"
+                        &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
+                         FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3{} ORDER BY date DESC", school_condition)
                     ).bind(sid).bind(csid).bind(sem).fetch_all(&state.pool).await?
                 }
             } else {
-                sqlx::query_as::<_, RawGrade>(
-                    "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                     FROM grades WHERE student_id = $1 AND course_subject_id = $2 ORDER BY date DESC"
-                ).bind(sid).bind(csid).fetch_all(&state.pool).await?
+                    sqlx::query_as::<_, RawGrade>(
+                        &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
+                         FROM grades WHERE student_id = $1 AND course_subject_id = $2{} ORDER BY date DESC", school_condition)
+                    ).bind(sid).bind(csid).fetch_all(&state.pool).await?
             }
         } else {
             sqlx::query_as::<_, RawGrade>(
-                "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                 FROM grades WHERE student_id = $1 ORDER BY date DESC"
+                &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
+                 FROM grades WHERE student_id = $1{} ORDER BY date DESC", school_condition)
             ).bind(sid).fetch_all(&state.pool).await?
         }
     } else {
         sqlx::query_as::<_, RawGrade>(
-            "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-             FROM grades ORDER BY date DESC"
+            &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
+             FROM grades WHERE 1=1{} ORDER BY date DESC", school_condition)
         ).fetch_all(&state.pool).await?
     };
 

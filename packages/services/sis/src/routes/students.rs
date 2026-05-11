@@ -20,6 +20,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[async_trait]
@@ -156,6 +158,11 @@ async fn list_students(
     let mut conditions = vec!["s.enrolled = true".to_string()];
     let mut bind_values: Vec<String> = vec![];
 
+    if let Some(ref sid) = claims.school_id {
+        conditions.push(format!("s.school_id = ${}::uuid", conditions.len() + 1));
+        bind_values.push(sid.clone());
+    }
+
     if let Some(ref gl) = filter.grade_level {
         conditions.push(format!("s.grade_level = ${}", conditions.len() + 1));
         bind_values.push(gl.clone());
@@ -242,14 +249,17 @@ async fn create_student(
         return Err(SisError::Validation("NEE inválido: use N, T o P".into()));
     }
 
+    let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
+
     let id = Uuid::new_v4();
     let result = sqlx::query_as::<_, RawStudent>(
         r#"
         INSERT INTO students (id, rut, first_name, last_name, email, phone,
                               grade_level, section, cod_nivel, condicion, prioritario, nee,
                               diseases, allergies,
-                              emergency_contact_name, emergency_contact_phone, emergency_contact_relation)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                              emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+                              school_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING id, rut, first_name, last_name, email, phone,
                   grade_level, section, cod_nivel, condicion, prioritario, nee,
                   diseases, allergies, emergency_contact_name,
@@ -273,6 +283,7 @@ async fn create_student(
     .bind(&payload.emergency_contact_name)
     .bind(&payload.emergency_contact_phone)
     .bind(&payload.emergency_contact_relation)
+    .bind(school_id)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| {

@@ -15,7 +15,7 @@ use crate::AppState;
 struct RawCourse {
     id: Uuid,
     name: String,
-    subject: String,
+    subject: Option<String>,
     grade_level: String,
     section: String,
     teacher_id: Uuid,
@@ -34,7 +34,6 @@ struct CourseQuery {
 #[derive(Deserialize)]
 struct CreateCoursePayload {
     name: String,
-    subject: String,
     grade_level: String,
     section: String,
     teacher_id: Uuid,
@@ -45,7 +44,6 @@ struct CreateCoursePayload {
 #[derive(Deserialize)]
 struct UpdateCoursePayload {
     name: Option<String>,
-    subject: Option<String>,
     grade_level: Option<String>,
     section: Option<String>,
     teacher_id: Option<Uuid>,
@@ -66,13 +64,16 @@ async fn list_courses(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"])?;
 
-    let (where_clause, _param_idx) = build_filters(&q);
+    let (where_clause, _param_idx) = build_filters(&q, &claims);
     let sql = format!(
         "SELECT id, name, subject, grade_level, section, teacher_id, plan, classroom_id FROM courses {} ORDER BY grade_level, plan, name",
         where_clause
     );
 
     let mut query = sqlx::query_as::<_, RawCourse>(&sql);
+    if let Some(ref sid) = claims.school_id {
+        query = query.bind(sid);
+    }
     if let Some(ref gl) = q.grade_level {
         query = query.bind(gl);
     }
@@ -92,13 +93,17 @@ async fn list_courses(
     Ok(Json(json!({ "courses": courses })))
 }
 
-fn build_filters(q: &CourseQuery) -> (String, u32) {
+fn build_filters(q: &CourseQuery, claims: &Claims) -> (String, u32) {
     let mut clauses = Vec::new();
     let mut idx = 1u32;
+    if claims.school_id.is_some() {
+        clauses.push(format!("school_id = ${}::uuid", idx));
+        idx += 1;
+    }
     if q.grade_level.is_some() { clauses.push(format!("grade_level = ${}", idx)); idx += 1; }
     if q.plan.is_some() { clauses.push(format!("plan = ${}", idx)); idx += 1; }
     if q.teacher_id.is_some() { clauses.push(format!("teacher_id = ${}", idx)); idx += 1; }
-    if q.search.is_some() { clauses.push(format!("(name ILIKE ${} OR subject ILIKE ${})", idx, idx)); idx += 1; }
+    if q.search.is_some() { clauses.push(format!("name ILIKE ${}", idx)); idx += 1; }
     let where_clause = if clauses.is_empty() { String::new() } else { format!("WHERE {}", clauses.join(" AND ")) };
     (where_clause, idx)
 }
@@ -110,22 +115,24 @@ async fn create_course(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador", "Director", "UTP"])?;
 
-    if payload.name.trim().is_empty() || payload.subject.trim().is_empty() {
-        return Err(SisError::Validation("Nombre y asignatura son obligatorios".into()));
+    if payload.name.trim().is_empty() {
+        return Err(SisError::Validation("El nombre del curso es obligatorio".into()));
     }
 
+    let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
+
     let course = sqlx::query_as::<_, RawCourse>(
-        "INSERT INTO courses (name, subject, grade_level, section, teacher_id, plan, classroom_id)
+        "INSERT INTO courses (name, grade_level, section, teacher_id, plan, classroom_id, school_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, name, subject, grade_level, section, teacher_id, plan, classroom_id",
     )
     .bind(&payload.name)
-    .bind(&payload.subject)
     .bind(&payload.grade_level)
     .bind(&payload.section)
     .bind(payload.teacher_id)
     .bind(&payload.plan)
     .bind(&payload.classroom_id)
+    .bind(school_id)
     .fetch_one(&state.pool)
     .await?;
 
@@ -167,7 +174,6 @@ async fn update_course(
     .ok_or(SisError::NotFound("Curso no encontrado".into()))?;
 
     let name = payload.name.unwrap_or(current.name);
-    let subject = payload.subject.unwrap_or(current.subject);
     let grade_level = payload.grade_level.unwrap_or(current.grade_level);
     let section = payload.section.unwrap_or(current.section);
     let teacher_id = payload.teacher_id.unwrap_or(current.teacher_id);
@@ -175,11 +181,10 @@ async fn update_course(
     let classroom_id = payload.classroom_id.or(current.classroom_id);
 
     let course = sqlx::query_as::<_, RawCourse>(
-        "UPDATE courses SET name = $1, subject = $2, grade_level = $3, section = $4, teacher_id = $5, plan = $6, classroom_id = $7 WHERE id = $8
+        "UPDATE courses SET name = $1, grade_level = $2, section = $3, teacher_id = $4, plan = $5, classroom_id = $6 WHERE id = $7
          RETURNING id, name, subject, grade_level, section, teacher_id, plan, classroom_id",
     )
     .bind(&name)
-    .bind(&subject)
     .bind(&grade_level)
     .bind(&section)
     .bind(teacher_id)

@@ -12,7 +12,6 @@ fn needs_plan(level: &str) -> bool {
 pub fn CoursesPage() -> Element {
     let mut courses = use_resource(|| client::fetch_json("/api/courses"));
     let mut name = use_signal(|| "".to_string());
-    let mut subject = use_signal(|| "".to_string());
     let mut grade_level = use_signal(|| "".to_string());
     let mut plan = use_signal(|| "".to_string());
     let mut section = use_signal(|| "".to_string());
@@ -21,9 +20,11 @@ pub fn CoursesPage() -> Element {
     let mut show_form = use_signal(|| false);
     let mut saving = use_signal(|| false);
 
+    let mut subjects_modal_course = use_signal(|| None::<Value>);
+    let mut subjects_modal_open = use_signal(|| false);
+
     let mut reset_form = move || {
         name.set("".to_string());
-        subject.set("".to_string());
         grade_level.set("".to_string());
         plan.set("".to_string());
         section.set("".to_string());
@@ -36,7 +37,6 @@ pub fn CoursesPage() -> Element {
         saving.set(true);
         let mut payload = serde_json::json!({
             "name": name(),
-            "subject": subject(),
             "grade_level": grade_level(),
             "section": section(),
             "teacher_id": teacher_id(),
@@ -71,7 +71,6 @@ pub fn CoursesPage() -> Element {
 
     let do_edit = move |c: Value| {
         name.set(c["name"].as_str().unwrap_or("").to_string());
-        subject.set(c["subject"].as_str().unwrap_or("").to_string());
         grade_level.set(c["grade_level"].as_str().unwrap_or("").to_string());
         plan.set(c["plan"].as_str().unwrap_or("").to_string());
         section.set(c["section"].as_str().unwrap_or("").to_string());
@@ -98,12 +97,6 @@ pub fn CoursesPage() -> Element {
                         label { "Nombre del Curso" }
                         input { class: "form-input", placeholder: "1° Medio A", value: "{name}",
                             oninput: move |e| name.set(e.value()),
-                        }
-                    }
-                    div { class: "field",
-                        label { "Asignatura Principal" }
-                        input { class: "form-input", placeholder: "Lenguaje", value: "{subject}",
-                            oninput: move |e| subject.set(e.value()),
                         }
                     }
                     div { class: "field",
@@ -180,7 +173,6 @@ pub fn CoursesPage() -> Element {
                 thead {
                     tr {
                         th { "Nombre" }
-                        th { "Asignatura" }
                         th { "Nivel" }
                         th { "Plan" }
                         th { "Sección" }
@@ -193,18 +185,40 @@ pub fn CoursesPage() -> Element {
                         Some(Ok(data)) => {
                             let list = data["courses"].as_array().cloned().unwrap_or_default();
                             if list.is_empty() {
-                                rsx! { tr { td { colspan: "7", class: "empty-state", "No hay cursos configurados" } } }
+                                rsx! { tr { td { colspan: "6", class: "empty-state", "No hay cursos configurados" } } }
                             } else {
                                 rsx! {
-                                    for c in list {
-                                        CourseRow { course: c, on_edit: do_edit.clone(), on_delete: do_delete.clone() }
+                                    for c in &list {
+                                        CourseRow {
+                                            course: c.clone(),
+                                            on_edit: do_edit.clone(),
+                                            on_delete: do_delete.clone(),
+                                            on_manage_subjects: {
+                                                let c = c.clone();
+                                                move |_| {
+                                                    subjects_modal_course.set(Some(c.clone()));
+                                                    subjects_modal_open.set(true);
+                                                }
+                                            },
+                                        }
                                     }
                                 }
                             }
                         }
-                        Some(Err(e)) => rsx! { tr { td { colspan: "7", class: "empty-state", "Error: {e}" } } },
-                        None => rsx! { tr { td { colspan: "7", class: "empty-state", div { class: "loading-spinner", "Cargando..." } } } },
+                        Some(Err(e)) => rsx! { tr { td { colspan: "6", class: "empty-state", "Error: {e}" } } },
+                        None => rsx! { tr { td { colspan: "6", class: "empty-state", div { class: "loading-spinner", "Cargando..." } } } },
                     }
+                }
+            }
+        }
+        if subjects_modal_open() {
+            if let Some(ref course) = subjects_modal_course() {
+                CourseSubjectsModal {
+                    course: course.clone(),
+                    on_close: move || {
+                        subjects_modal_open.set(false);
+                        subjects_modal_course.set(None);
+                    },
                 }
             }
         }
@@ -212,10 +226,9 @@ pub fn CoursesPage() -> Element {
 }
 
 #[component]
-fn CourseRow(course: Value, on_edit: EventHandler<Value>, on_delete: EventHandler<String>) -> Element {
+fn CourseRow(course: Value, on_edit: EventHandler<Value>, on_delete: EventHandler<String>, on_manage_subjects: EventHandler<()>) -> Element {
     let id = course["id"].as_str().unwrap_or("").to_string();
     let name = course["name"].as_str().unwrap_or("").to_string();
-    let subject = course["subject"].as_str().unwrap_or("").to_string();
     let grade_level = course["grade_level"].as_str().unwrap_or("").to_string();
     let plan = course["plan"].as_str().unwrap_or("").to_string();
     let section = course["section"].as_str().unwrap_or("").to_string();
@@ -225,21 +238,190 @@ fn CourseRow(course: Value, on_edit: EventHandler<Value>, on_delete: EventHandle
     rsx! {
         tr {
             td { class: "cell-name", "{name}" }
-            td { "{subject}" }
             td { "{grade_level}" }
             td { "{plan_display}" }
             td { "{section}" }
             td { class: "cell-mono", "{&teacher_id[..8]}..." }
             td { class: "cell-actions",
-                button { class: "btn-icon", onclick: move |_| on_edit.call(course.clone()),
+                button { class: "btn-icon", title: "Editar",
+                    onclick: move |_| on_edit.call(course.clone()),
                     svg { role: "presentation", view_box: "0 0 24 24", width: "16", height: "16",
                         path { d: "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" }
                     }
                 }
-                button { class: "btn-icon btn-icon-danger", onclick: move |_| on_delete.call(id.clone()),
+                button { class: "btn-icon", title: "Asignaturas",
+                    onclick: move |_| on_manage_subjects.call(()),
+                    svg { role: "presentation", view_box: "0 0 24 24", width: "16", height: "16",
+                        path { d: "M4 6h16M4 12h16M4 18h16" }
+                    }
+                }
+                button { class: "btn-icon btn-icon-danger", title: "Eliminar",
+                    onclick: move |_| on_delete.call(id.clone()),
                     svg { role: "presentation", view_box: "0 0 24 24", width: "16", height: "16",
                         path { d: "M3 6h18" }
                         path { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
+    let course_name = course["name"].as_str().unwrap_or("").to_string();
+
+    let cid = course["id"].as_str().unwrap_or("").to_string();
+    let cid_clone = cid.clone();
+    let subjects = use_resource(move || {
+        let cid = cid_clone.clone();
+        async move { client::fetch_json(&format!("/api/grades/course-subjects/{}/2025", cid)).await }
+    });
+
+    let mut assign_subject_id = use_signal(|| "".to_string());
+    let mut assign_teacher_id = use_signal(|| "".to_string());
+    let mut assign_hours = use_signal(|| "".to_string());
+    let mut assign_year = use_signal(|| "2025".to_string());
+    let mut saving = use_signal(|| false);
+
+    let subject_rows = match &subjects() {
+        Some(Ok(data)) => data["course_subjects"].as_array().map(|arr| {
+            arr.iter().map(|cs| {
+                let subj_name = cs.get("subject_name").and_then(|v| v.as_str()).unwrap_or("-").to_string();
+                let subj_code = cs.get("subject_code").and_then(|v| v.as_str()).unwrap_or("-").to_string();
+                let teacher_name = cs.get("teacher_name").and_then(|v| v.as_str()).unwrap_or("-").to_string();
+                let hpw = cs.get("hours_per_week").and_then(|v| v.as_i64()).unwrap_or(0);
+                let year = cs.get("academic_year").and_then(|v| v.as_i64()).unwrap_or(0);
+                let cs_id = cs.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                (subj_name, subj_code, teacher_name, hpw, year, cs_id)
+            }).collect::<Vec<_>>()
+        }).unwrap_or_default(),
+        _ => vec![],
+    };
+
+    let course_id = cid.clone();
+    let do_assign = move |_| {
+        saving.set(true);
+        let payload = serde_json::json!({
+            "course_id": course_id,
+            "subject_id": assign_subject_id(),
+            "teacher_id": assign_teacher_id(),
+            "academic_year": assign_year().parse::<i32>().unwrap_or(2025),
+            "hours_per_week": assign_hours().parse::<i32>().ok(),
+        });
+        let mut subjects = subjects.clone();
+        spawn(async move {
+            let _ = client::post_json("/api/grades/course-subjects", &payload).await;
+            saving.set(false);
+            assign_subject_id.set("".to_string());
+            assign_teacher_id.set("".to_string());
+            assign_hours.set("".to_string());
+            subjects.restart();
+        });
+    };
+
+    let subjects_rc = subjects.clone();
+
+    rsx! {
+        div { class: "modal-overlay", onclick: move |_| on_close.call(()),
+            div { class: "modal-content", onclick: move |e| e.stop_propagation(),
+                div { class: "modal-header",
+                    h2 { "Asignaturas - {course_name}" }
+                    button { class: "btn-icon", onclick: move |_| on_close.call(()),
+                        svg { role: "presentation", view_box: "0 0 24 24", width: "20", height: "20",
+                            path { d: "M18 6L6 18M6 6l12 12" }
+                        }
+                    }
+                }
+                div { class: "modal-body",
+                    div { class: "form-row",
+                        div { class: "field",
+                            label { "Asignatura" }
+                            SearchableSelect {
+                                fetch_url: "/api/grades/subjects".to_string(),
+                                results_key: "subjects".to_string(),
+                                label_key: "name".to_string(),
+                                value_key: "id".to_string(),
+                                placeholder: "Buscar asignatura...",
+                                on_select: move |id| assign_subject_id.set(id),
+                            }
+                        }
+                        div { class: "field",
+                            label { "Profesor" }
+                            SearchableSelect {
+                                fetch_url: "/api/auth/users".to_string(),
+                                results_key: "users".to_string(),
+                                label_key: "name".to_string(),
+                                value_key: "id".to_string(),
+                                placeholder: "Buscar profesor...",
+                                on_select: move |id| assign_teacher_id.set(id),
+                            }
+                        }
+                        div { class: "field",
+                            label { "Horas" }
+                            input { class: "form-input", placeholder: "4", value: "{assign_hours}",
+                                oninput: move |e| assign_hours.set(e.value()),
+                            }
+                        }
+                        div { class: "field",
+                            label { "Año" }
+                            input { class: "form-input", value: "{assign_year}",
+                                oninput: move |e| assign_year.set(e.value()),
+                            }
+                        }
+                    }
+                    button { class: "btn-primary", onclick: do_assign, disabled: saving(),
+                        if saving() { "Asignando..." } else { "Asignar Asignatura" }
+                    }
+                    hr {}
+                    h4 { "Asignaturas asignadas" }
+                    if subject_rows.is_empty() {
+                        p { class: "empty-state", "No hay asignaturas asignadas a este curso" }
+                    } else {
+                        table { class: "data-table",
+                            thead {
+                                tr {
+                                    th { "Asignatura" }
+                                    th { "Código" }
+                                    th { "Profesor" }
+                                    th { "Horas" }
+                                    th { "Año" }
+                                    th { "Acciones" }
+                                }
+                            }
+                            tbody {
+                                for row in &subject_rows {
+                                    tr {
+                                        td { "{row.0}" }
+                                        td { "{row.1}" }
+                                        td { "{row.2}" }
+                                        td { "{row.3}" }
+                                        td { "{row.4}" }
+                                        td {
+                                            button {
+                                                class: "btn-icon btn-icon-danger",
+                                                title: "Remover",
+                                                onclick: {
+                                                    let id = row.5.clone();
+                                                    let mut subjects = subjects_rc.clone();
+                                                    move |_| {
+                                                        let id = id.clone();
+                                                        spawn(async move {
+                                                            let _ = client::delete_json(&format!("/api/grades/course-subjects/{}", id)).await;
+                                                            subjects.restart();
+                                                        });
+                                                    }
+                                                },
+                                                svg { role: "presentation", view_box: "0 0 24 24", width: "16", height: "16",
+                                                    path { d: "M3 6h18" }
+                                                    path { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

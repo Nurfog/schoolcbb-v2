@@ -2,7 +2,7 @@ use axum::{
     async_trait,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
@@ -34,7 +34,12 @@ pub fn router() -> Router<AppState> {
         .route("/api/user/preferences", get(get_user_preferences))
         .route("/api/user/preferences", put(update_user_preferences))
         .route("/api/config/branding", get(get_branding))
+        .route("/api/auth/my-permissions", get(my_permissions))
         .route("/api/config/branding", put(update_branding))
+        .route("/api/corporations", get(list_corporations).post(create_corporation))
+        .route("/api/schools", get(list_schools).post(create_school))
+        .route("/api/schools/:id", get(get_school))
+        .merge(roles_router())
 }
 
 fn require_role(claims: &Claims, required: &str) -> Result<(), AuthError> {
@@ -92,6 +97,8 @@ fn generate_token_pair(
     role: &str,
     name: &str,
     email: &str,
+    corporation_id: Option<Uuid>,
+    school_id: Option<Uuid>,
 ) -> Result<(String, Claims), AuthError> {
     let now = chrono::Utc::now();
 
@@ -100,6 +107,8 @@ fn generate_token_pair(
         role: role.to_string(),
         name: name.to_string(),
         email: email.to_string(),
+        corporation_id: corporation_id.map(|id| id.to_string()),
+        school_id: school_id.map(|id| id.to_string()),
         exp: (now + chrono::Duration::hours(12)).timestamp() as usize,
         iat: now.timestamp() as usize,
     };
@@ -137,6 +146,8 @@ async fn login(
         &user.role,
         &user.name,
         &user.email,
+        user.corporation_id,
+        user.school_id,
     )?;
 
     let (refresh_token, _) = models::create_refresh_token(&state.pool, id, 7).await?;
@@ -149,7 +160,9 @@ async fn login(
             "name": user.name,
             "email": user.email,
             "role": user.role,
-            "rut": user.rut
+            "rut": user.rut,
+            "corporation_id": user.corporation_id,
+            "school_id": user.school_id
         }
     })))
 }
@@ -240,8 +253,68 @@ async fn me(
             "name": user.name,
             "email": user.email,
             "role": user.role,
-            "rut": user.rut
+            "rut": user.rut,
+            "corporation_id": user.corporation_id,
+            "school_id": user.school_id
         }
+    })))
+}
+
+async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AuthError::TokenInvalid("Invalid user ID".into()))?;
+
+    let role_ids: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT role_id FROM user_roles WHERE user_id = $1
+         UNION
+         SELECT id FROM roles WHERE name = $2",
+    )
+    .bind(user_id)
+    .bind(&claims.role)
+    .fetch_all(&state.pool).await?;
+
+    let is_sostenedor = claims.role == "Sostenedor";
+
+    let perms: Vec<PermEntry> = if is_sostenedor {
+        sqlx::query_as::<_, PermEntry>(
+            "SELECT pd.id, pd.module, pd.resource, true as can_write FROM permission_definitions pd ORDER BY pd.module, pd.resource",
+        )
+        .fetch_all(&state.pool).await?
+    } else if role_ids.is_empty() {
+        vec![]
+    } else {
+        let ids: Vec<Uuid> = role_ids.iter().map(|r| r.0).collect();
+        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("${}", i + 1)).collect();
+        let sql = format!(
+            "SELECT pd.id, pd.module, pd.resource,
+                    bool_or(rp.can_create OR rp.can_update) as can_write
+             FROM role_permissions rp
+             JOIN permission_definitions pd ON pd.id = rp.permission_id
+             WHERE rp.role_id IN ({})
+             GROUP BY pd.id, pd.module, pd.resource
+             ORDER BY pd.module, pd.resource",
+            placeholders.join(",")
+        );
+        let mut query = sqlx::query_as::<_, PermEntry>(&sql);
+        for rid in &ids {
+            query = query.bind(rid);
+        }
+        query.fetch_all(&state.pool).await?
+    };
+
+    let mut modules: Vec<Value> = Vec::new();
+    let mut i = 0;
+    while i < perms.len() {
+        let module_name = perms[i].module.clone();
+        let has_write = perms[i..].iter().take_while(|p| p.module == module_name).any(|p| p.can_write);
+        modules.push(json!({ "module": module_name, "write": has_write }));
+        i += perms[i..].iter().take_while(|p| p.module == module_name).count();
+    }
+
+    Ok(Json(json!({
+        "permissions": perms,
+        "modules": modules,
+        "can_assign_roles": is_sostenedor || perms.iter().any(|p| p.module == "Users" && p.can_write),
     })))
 }
 
@@ -265,6 +338,9 @@ async fn register(
         return Err(AuthError::Internal(format!("Rol inválido: {}", payload.role)));
     }
 
+    let corporation_id = payload.corporation_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
+    let school_id = payload.school_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
+
     let user = models::insert_user(
         &state.pool,
         &payload.rut,
@@ -272,6 +348,8 @@ async fn register(
         &payload.email,
         &payload.password,
         &payload.role,
+        corporation_id,
+        school_id,
     )
     .await
     .map_err(|e| {
@@ -292,7 +370,9 @@ async fn register(
             "name": user.name,
             "email": user.email,
             "role": user.role,
-            "rut": user.rut
+            "rut": user.rut,
+            "corporation_id": user.corporation_id,
+            "school_id": user.school_id
         }
     })))
 }
@@ -321,6 +401,8 @@ async fn refresh(
         &user.role,
         &user.name,
         &user.email,
+        user.corporation_id,
+        user.school_id,
     )?;
 
     let (new_refresh_token, _) = models::create_refresh_token(&state.pool, user.id, 7).await?;
@@ -333,7 +415,9 @@ async fn refresh(
             "name": user.name,
             "email": user.email,
             "role": user.role,
-            "rut": user.rut
+            "rut": user.rut,
+            "corporation_id": user.corporation_id,
+            "school_id": user.school_id
         }
     })))
 }
@@ -367,6 +451,8 @@ struct UserListItem {
     email: String,
     role: String,
     active: bool,
+    corporation_id: Option<Uuid>,
+    school_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -383,13 +469,13 @@ async fn list_users(
     let search = q.search.as_deref().unwrap_or("");
     let users = if search.is_empty() {
         sqlx::query_as::<_, UserListItem>(
-            "SELECT id, rut, name, email, role, active FROM users ORDER BY name",
+            "SELECT id, rut, name, email, role, active, corporation_id, school_id FROM users ORDER BY name",
         )
         .fetch_all(&state.pool)
         .await?
     } else {
         sqlx::query_as::<_, UserListItem>(
-            "SELECT id, rut, name, email, role, active FROM users
+            "SELECT id, rut, name, email, role, active, corporation_id, school_id FROM users
              WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY name",
         )
         .bind(format!("%{}%", search))
@@ -416,7 +502,7 @@ async fn update_role(
         return Err(AuthError::Internal("Rol inválido".into()));
     }
     let user = sqlx::query_as::<_, UserListItem>(
-        "UPDATE users SET role = $1 WHERE id = $2 RETURNING id, rut, name, email, role, active",
+        "UPDATE users SET role = $1 WHERE id = $2 RETURNING id, rut, name, email, role, active, corporation_id, school_id",
     )
     .bind(new_role)
     .bind(id)
@@ -433,7 +519,7 @@ async fn toggle_active(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
     let user = sqlx::query_as::<_, UserListItem>(
-        "UPDATE users SET active = NOT active WHERE id = $1 RETURNING id, rut, name, email, role, active",
+        "UPDATE users SET active = NOT active WHERE id = $1 RETURNING id, rut, name, email, role, active, corporation_id, school_id",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -470,7 +556,9 @@ async fn update_profile(
             "name": user.name,
             "email": user.email,
             "role": user.role,
-            "rut": user.rut
+            "rut": user.rut,
+            "corporation_id": user.corporation_id,
+            "school_id": user.school_id
         }
     })))
 }
@@ -584,6 +672,9 @@ fn builtin_modules() -> Vec<schoolcbb_common::modules::Module> {
         schoolcbb_common::modules::Module { id: "grade-levels".into(), name: "Niveles".into(), icon: "book".into(), category: "Académico".into(), route: "/grade-levels".into(), is_favorite: false },
         schoolcbb_common::modules::Module { id: "classrooms".into(), name: "Salas".into(), icon: "home".into(), category: "Administración".into(), route: "/classrooms".into(), is_favorite: false },
         schoolcbb_common::modules::Module { id: "audit".into(), name: "Auditoría".into(), icon: "file-text".into(), category: "Sistema".into(), route: "/audit".into(), is_favorite: false },
+        schoolcbb_common::modules::Module { id: "roles".into(), name: "Roles y Permisos".into(), icon: "users".into(), category: "Sistema".into(), route: "/roles".into(), is_favorite: false },
+        schoolcbb_common::modules::Module { id: "corporations".into(), name: "Corporaciones y Colegios".into(), icon: "home".into(), category: "Sistema".into(), route: "/corporations".into(), is_favorite: false },
+        schoolcbb_common::modules::Module { id: "hr".into(), name: "Recursos Humanos".into(), icon: "users".into(), category: "Administración".into(), route: "/hr".into(), is_favorite: false },
     ]
 }
 
@@ -611,4 +702,294 @@ async fn toggle_favorite(
             .bind(user_id).bind(&module_id).execute(&state.pool).await?;
     }
     Ok(Json(json!({ "module_id": module_id, "favorite": payload.favorite })))
+}
+
+// ─── Corporations & Schools ───
+
+#[derive(Deserialize)]
+struct SchoolQuery {
+    corporation_id: Option<Uuid>,
+}
+
+async fn list_corporations(
+    claims: Claims,
+    State(state): State<AppState>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let corporations = sqlx::query_as::<_, schoolcbb_common::school::Corporation>(
+        "SELECT id, name, rut, logo_url, settings, active, created_at FROM corporations ORDER BY name",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(json!({ "corporations": corporations })))
+}
+
+async fn create_corporation(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::school::CreateCorporationPayload>,
+) -> AuthResult<Json<Value>> {
+    require_role(&claims, "Sostenedor")?;
+
+    let id = Uuid::new_v4();
+    let corp = sqlx::query_as::<_, schoolcbb_common::school::Corporation>(
+        "INSERT INTO corporations (id, name, rut, logo_url) VALUES ($1, $2, $3, $4)
+         RETURNING id, name, rut, logo_url, settings, active, created_at",
+    )
+    .bind(id)
+    .bind(&payload.name)
+    .bind(&payload.rut)
+    .bind(&payload.logo_url)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(json!({ "corporation": corp })))
+}
+
+async fn list_schools(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<SchoolQuery>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let schools = if let Some(corp_id) = q.corporation_id {
+        sqlx::query_as::<_, schoolcbb_common::school::School>(
+            "SELECT id, corporation_id, name, address, phone, logo_url, active, created_at FROM schools WHERE corporation_id = $1 ORDER BY name",
+        )
+        .bind(corp_id)
+        .fetch_all(&state.pool)
+        .await?
+    } else {
+        sqlx::query_as::<_, schoolcbb_common::school::School>(
+            "SELECT id, corporation_id, name, address, phone, logo_url, active, created_at FROM schools ORDER BY name",
+        )
+        .fetch_all(&state.pool)
+        .await?
+    };
+
+    Ok(Json(json!({ "schools": schools })))
+}
+
+async fn create_school(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::school::CreateSchoolPayload>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let id = Uuid::new_v4();
+    let school = sqlx::query_as::<_, schoolcbb_common::school::School>(
+        "INSERT INTO schools (id, corporation_id, name, address, phone) VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, corporation_id, name, address, phone, logo_url, active, created_at",
+    )
+    .bind(id)
+    .bind(payload.corporation_id)
+    .bind(&payload.name)
+    .bind(&payload.address)
+    .bind(&payload.phone)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(json!({ "school": school })))
+}
+
+async fn get_school(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let school = sqlx::query_as::<_, schoolcbb_common::school::School>(
+        "SELECT id, corporation_id, name, address, phone, logo_url, active, created_at FROM schools WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AuthError::NotFound("Colegio no encontrado".into()))?;
+
+    Ok(Json(json!({ "school": school })))
+}
+
+// ─── Roles & Permissions ───
+
+async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    let roles = sqlx::query_as::<_, schoolcbb_common::roles::RoleRow>(
+        "SELECT id, name, description, is_system, created_at FROM roles ORDER BY name",
+    )
+    .fetch_all(&state.pool).await?;
+
+    let mut result = Vec::new();
+    for role in roles {
+        let perms: Vec<schoolcbb_common::roles::ResourcePermission> = sqlx::query_as::<_, PermJoin>(
+            r#"SELECT pd.id, pd.module, pd.resource, rp.can_create, rp.can_read, rp.can_update, rp.can_delete
+               FROM role_permissions rp
+               JOIN permission_definitions pd ON pd.id = rp.permission_id
+               WHERE rp.role_id = $1
+               ORDER BY pd.module, pd.resource"#,
+        )
+        .bind(role.id)
+        .fetch_all(&state.pool).await?
+        .into_iter()
+        .map(|p| schoolcbb_common::roles::ResourcePermission {
+            permission_id: p.id,
+            module: p.module,
+            resource: p.resource,
+            can_create: p.can_create,
+            can_read: p.can_read,
+            can_update: p.can_update,
+            can_delete: p.can_delete,
+        })
+        .collect();
+
+        result.push(serde_json::json!({
+            "id": role.id,
+            "name": role.name,
+            "description": role.description,
+            "is_system": role.is_system,
+            "permissions": perms,
+        }));
+    }
+
+    Ok(Json(json!({ "roles": result })))
+}
+
+async fn create_role(claims: Claims, State(state): State<AppState>, Json(payload): Json<schoolcbb_common::roles::CreateRolePayload>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    let id = Uuid::new_v4();
+    sqlx::query("INSERT INTO roles (id, name, description) VALUES ($1, $2, $3)")
+        .bind(id).bind(&payload.name).bind(&payload.description)
+        .execute(&state.pool).await?;
+
+    Ok(Json(json!({ "id": id })))
+}
+
+async fn delete_role(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    let is_system: (bool,) = sqlx::query_as("SELECT is_system FROM roles WHERE id = $1")
+        .bind(id).fetch_optional(&state.pool).await?
+        .ok_or(AuthError::NotFound("Rol no encontrado".into()))?;
+
+    if is_system.0 {
+        return Err(AuthError::Forbidden("No se puede eliminar un rol del sistema".into()));
+    }
+
+    sqlx::query("DELETE FROM roles WHERE id = $1").bind(id).execute(&state.pool).await?;
+    Ok(Json(json!({ "message": "Rol eliminado" })))
+}
+
+async fn update_role_permissions(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<schoolcbb_common::roles::UpdatePermissionsPayload>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    for perm in &payload.permissions {
+        let existing: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM role_permissions WHERE role_id = $1 AND permission_id = $2",
+        )
+        .bind(id).bind(perm.permission_id)
+        .fetch_one(&state.pool).await?;
+
+        if existing.0 > 0 {
+            sqlx::query(
+                "UPDATE role_permissions SET can_create = $1, can_read = $2, can_update = $3, can_delete = $4 WHERE role_id = $5 AND permission_id = $6",
+            )
+            .bind(perm.can_create).bind(perm.can_read).bind(perm.can_update).bind(perm.can_delete)
+            .bind(id).bind(perm.permission_id)
+            .execute(&state.pool).await?;
+        } else {
+            sqlx::query(
+                "INSERT INTO role_permissions (id, role_id, permission_id, can_create, can_read, can_update, can_delete) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            )
+            .bind(Uuid::new_v4()).bind(id).bind(perm.permission_id)
+            .bind(perm.can_create).bind(perm.can_read).bind(perm.can_update).bind(perm.can_delete)
+            .execute(&state.pool).await?;
+        }
+    }
+
+    Ok(Json(json!({ "message": "Permisos actualizados" })))
+}
+
+async fn list_permission_definitions(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    let defs = sqlx::query_as::<_, schoolcbb_common::roles::PermissionDef>(
+        "SELECT id, module, resource, label, created_at FROM permission_definitions ORDER BY module, resource",
+    )
+    .fetch_all(&state.pool).await?;
+
+    let defs_json: Vec<Value> = defs.into_iter().map(|d| json!({
+        "id": d.id,
+        "module": d.module,
+        "resource": d.resource,
+        "label": d.label,
+        "created_at": d.created_at,
+    })).collect();
+    Ok(Json(json!({ "definitions": defs_json })))
+}
+
+async fn assign_role_to_user(claims: Claims, State(state): State<AppState>, Path(user_id): Path<Uuid>, Json(payload): Json<schoolcbb_common::roles::AssignRolePayload>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    sqlx::query("INSERT INTO user_roles (id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
+        .bind(Uuid::new_v4()).bind(user_id).bind(payload.role_id)
+        .execute(&state.pool).await?;
+
+    Ok(Json(json!({ "message": "Rol asignado" })))
+}
+
+async fn remove_role_from_user(claims: Claims, State(state): State<AppState>, Path((user_id, role_id)): Path<(Uuid, Uuid)>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    sqlx::query("DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2")
+        .bind(user_id).bind(role_id)
+        .execute(&state.pool).await?;
+
+    Ok(Json(json!({ "message": "Rol removido" })))
+}
+
+async fn list_user_roles(claims: Claims, State(state): State<AppState>, Path(user_id): Path<Uuid>) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+
+    let assigned: Vec<(Uuid,)> = sqlx::query_as("SELECT role_id FROM user_roles WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(&state.pool).await?;
+
+    let ids: Vec<String> = assigned.into_iter().map(|r| r.0.to_string()).collect();
+    Ok(Json(json!({ "role_ids": ids })))
+}
+
+// Re-export for router
+pub fn roles_router() -> Router<AppState> {
+    Router::new()
+        .route("/api/roles", get(list_roles).post(create_role))
+        .route("/api/roles/:id", delete(delete_role))
+        .route("/api/roles/:id/permissions", put(update_role_permissions))
+        .route("/api/permissions/definitions", get(list_permission_definitions))
+        .route("/api/users/:user_id/roles", get(list_user_roles).post(assign_role_to_user))
+        .route("/api/users/:user_id/roles/:role_id", delete(remove_role_from_user))
+}
+
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+struct PermEntry {
+    id: Uuid,
+    module: String,
+    resource: String,
+    can_write: bool,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct PermJoin {
+    id: Uuid,
+    module: String,
+    resource: String,
+    can_create: bool,
+    can_read: bool,
+    can_update: bool,
+    can_delete: bool,
 }

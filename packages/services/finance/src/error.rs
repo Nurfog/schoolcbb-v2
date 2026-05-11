@@ -19,6 +19,12 @@ pub enum FinanceError {
 
     #[error("Forbidden: {0}")]
     Forbidden(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl IntoResponse for FinanceError {
@@ -32,6 +38,8 @@ impl IntoResponse for FinanceError {
             FinanceError::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),
             FinanceError::Unauthorized => (StatusCode::UNAUTHORIZED, "No autorizado".into()),
             FinanceError::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
+            FinanceError::Conflict(m) => (StatusCode::CONFLICT, m.clone()),
+            FinanceError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
         };
         (status, Json(json!({"error": message}))).into_response()
     }

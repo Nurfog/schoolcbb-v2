@@ -1,5 +1,8 @@
 use dioxus::prelude::*;
 use crate::api::client;
+use crate::components::widgets::admission_metrics::AdmissionMetricsWidget;
+use crate::components::widgets::business_process_flow::BusinessProcessFlow;
+use crate::components::widgets::custom_fields_section::CustomFieldsSection;
 
 #[component]
 pub fn AdmissionPage() -> Element {
@@ -162,6 +165,7 @@ pub fn AdmissionPage() -> Element {
                 }
             } else { rsx! {} }
         }
+        div { class: "dashboard-grid", AdmissionMetricsWidget {} }
         div { class: "kanban-board",
             {
                 if columns.is_empty() && stages().is_some() {
@@ -298,6 +302,19 @@ pub fn AdmissionPage() -> Element {
                                     h2 { "{pname}" }
                                     button { class: "btn-icon", onclick: move |_| selected_id.set(None), "✕" }
                                 }
+                                {
+                                    let stages_data = stages();
+                                    let p_stage = pstage.clone();
+                                    match stages_data {
+                                        Some(Ok(sj)) => {
+                                            let list = sj["stages"].as_array().cloned().unwrap_or_default();
+                                            rsx! {
+                                                BusinessProcessFlow { stages: list, current_stage_id: p_stage }
+                                            }
+                                        }
+                                        _ => rsx! {},
+                                    }
+                                }
                                 div { class: "modal-body",
                                     if editing_prospect() {
                                         div { class: "form-card",
@@ -377,6 +394,7 @@ pub fn AdmissionPage() -> Element {
                                                     }
                                                 }
                                             }
+                                            CustomFieldsSection { entity_id: pid.clone(), entity_type: "prospect".to_string() }
                                         }
                                     }
                                 }

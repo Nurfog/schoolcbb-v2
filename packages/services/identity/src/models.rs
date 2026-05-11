@@ -17,6 +17,8 @@ pub struct UserRow {
     pub password_hash: String,
     pub role: String,
     pub active: bool,
+    pub corporation_id: Option<Uuid>,
+    pub school_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +29,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -40,7 +44,7 @@ pub struct RefreshTokenRow {
 
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
-        "SELECT id, rut, name, email, password_hash, role, active FROM users WHERE email = $1",
+        "SELECT id, rut, name, email, password_hash, role, active, corporation_id, school_id FROM users WHERE email = $1",
     )
     .bind(email)
     .fetch_optional(pool)
@@ -49,7 +53,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>
 
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
-        "SELECT id, rut, name, email, password_hash, role, active FROM users WHERE id = $1",
+        "SELECT id, rut, name, email, password_hash, role, active, corporation_id, school_id FROM users WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -63,15 +67,17 @@ pub async fn insert_user(
     email: &str,
     password: &str,
     role: &str,
+    corporation_id: Option<Uuid>,
+    school_id: Option<Uuid>,
 ) -> Result<UserRow, sqlx::Error> {
     let hash = hash_password(password);
 
     let id = Uuid::new_v4();
     sqlx::query_as::<_, UserRow>(
         r#"
-        INSERT INTO users (id, rut, name, email, password_hash, role, active)
-        VALUES ($1, $2, $3, $4, $5, $6, true)
-        RETURNING id, rut, name, email, password_hash, role, active
+        INSERT INTO users (id, rut, name, email, password_hash, role, active, corporation_id, school_id)
+        VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
+        RETURNING id, rut, name, email, password_hash, role, active, corporation_id, school_id
         "#,
     )
     .bind(id)
@@ -80,6 +86,8 @@ pub async fn insert_user(
     .bind(email)
     .bind(&hash)
     .bind(role)
+    .bind(corporation_id)
+    .bind(school_id)
     .fetch_one(pool)
     .await
 }
@@ -209,7 +217,7 @@ pub async fn update_user_profile(
 ) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "UPDATE users SET name = $1, email = $2, updated_at = NOW() WHERE id = $3
-         RETURNING id, rut, name, email, password_hash, role, active",
+         RETURNING id, rut, name, email, password_hash, role, active, corporation_id, school_id",
     )
     .bind(name)
     .bind(email)
@@ -304,6 +312,74 @@ pub async fn get_preferences(pool: &PgPool, user_id: Uuid) -> Result<UserPrefere
     }))
 }
 
+pub async fn seed_roles(pool: &PgPool) {
+    let default_roles = [
+        ("Sostenedor", "Dueño del colegio, acceso total al sistema", true),
+        ("Administrador", "Administrador del sistema, gestión completa", true),
+        ("Director", "Director académico, supervisión general", true),
+        ("UTP", "Unidad Técnico Pedagógica, gestión curricular", true),
+        ("Profesor", "Docente, gestión de cursos y notas", true),
+        ("Apoderado", "Padre/madre/apoderado, consulta de pupilos", true),
+        ("Alumno", "Estudiante, consulta de notas y asistencia", true),
+        ("Admision", "Equipo de admisión, gestión de postulantes", true),
+    ];
+
+    for (name, description, is_system) in &default_roles {
+        let existing: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM roles WHERE name = $1")
+            .bind(name)
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
+
+        if existing.0 == 0 {
+            sqlx::query("INSERT INTO roles (id, name, description, is_system) VALUES ($1, $2, $3, $4)")
+                .bind(uuid::Uuid::new_v4())
+                .bind(name)
+                .bind(description)
+                .bind(is_system)
+                .execute(pool)
+                .await
+                .unwrap_or_else(|_| {
+                    tracing::warn!("Could not seed role: {}", name);
+                    Default::default()
+                });
+        }
+    }
+}
+
+pub async fn seed_permission_definitions(pool: &PgPool) {
+    use schoolcbb_common::roles::Module;
+    for (module_name, resources) in Module::all() {
+        for resource in resources {
+            let existing: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM permission_definitions WHERE module = $1 AND resource = $2",
+            )
+            .bind(module_name)
+            .bind(resource)
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
+
+            if existing.0 == 0 {
+                let label = format!("{}/{}", module_name, resource);
+                sqlx::query(
+                    "INSERT INTO permission_definitions (id, module, resource, label) VALUES ($1, $2, $3, $4)",
+                )
+                .bind(uuid::Uuid::new_v4())
+                .bind(module_name)
+                .bind(resource)
+                .bind(&label)
+                .execute(pool)
+                .await
+                .unwrap_or_else(|_| {
+                    tracing::warn!("Could not seed permission: {}", label);
+                    Default::default()
+                });
+            }
+        }
+    }
+}
+
 pub async fn update_preferences(
     pool: &PgPool,
     user_id: Uuid,
@@ -320,4 +396,43 @@ pub async fn update_preferences(
     .bind(show_module_manager)
     .fetch_one(pool)
     .await
+}
+
+pub async fn seed_default_school(pool: &PgPool) {
+    let exists: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM corporations WHERE name = 'Corporación Educativa'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or((0,));
+
+    if exists.0 > 0 {
+        return;
+    }
+
+    let corp_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO corporations (id, name, rut, active) VALUES ($1, 'Corporación Educativa', '99.999.999-9', true)",
+    )
+    .bind(corp_id)
+    .execute(pool)
+    .await
+    .unwrap_or_else(|_| {
+        tracing::warn!("Could not seed default corporation");
+        Default::default()
+    });
+
+    sqlx::query(
+        "INSERT INTO schools (id, corporation_id, name, active) VALUES ($1, $2, 'Colegio Predeterminado', true)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(corp_id)
+    .execute(pool)
+    .await
+    .unwrap_or_else(|_| {
+        tracing::warn!("Could not seed default school");
+        Default::default()
+    });
+
+    tracing::info!("Default corporation and school created");
 }

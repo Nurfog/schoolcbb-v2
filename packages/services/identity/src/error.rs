@@ -14,6 +14,9 @@ pub enum AuthError {
     #[error("User not found")]
     UserNotFound,
 
+    #[error("Not found: {0}")]
+    NotFound(String),
+
     #[error("Unauthorized")]
     Unauthorized,
 
@@ -41,6 +44,7 @@ impl IntoResponse for AuthError {
                 (StatusCode::UNAUTHORIZED, "Credenciales inválidas".into())
             }
             AuthError::UserNotFound => (StatusCode::NOT_FOUND, "Usuario no encontrado".into()),
+            AuthError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
             AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, "No autorizado".into()),
             AuthError::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
             AuthError::TokenExpired => (StatusCode::UNAUTHORIZED, "Sesión expirada".into()),

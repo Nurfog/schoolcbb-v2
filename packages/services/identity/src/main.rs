@@ -43,6 +43,12 @@ async fn main() {
     models::seed_admin(&pool).await.expect("Failed to seed admin user");
     tracing::info!("Admin user: admin@colegio.cl / admin123");
 
+    models::seed_roles(&pool).await;
+    models::seed_permission_definitions(&pool).await;
+    tracing::info!("Roles and permissions seeded");
+
+    models::seed_default_school(&pool).await;
+
     let state = AppState {
         pool,
         config: config.clone(),

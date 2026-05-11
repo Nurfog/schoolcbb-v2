@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package workflow;
+
+service WorkflowEvents {
+    rpc NotifyEvent (EventNotification) returns (EventAck);
+}
+
+message EventNotification {
+    string event_type = 1;
+    string source_service = 2;
+    string prospect_id = 3;
+    string student_id = 4;
+    string stage_name = 5;
+}
+
+message EventAck {
+    bool ok = 1;
+    string message = 2;
+}

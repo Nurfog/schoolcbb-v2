@@ -20,6 +20,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[async_trait]
@@ -61,7 +63,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/finance/fees", get(list_fees).post(create_fee))
         .route("/api/finance/fees/:id", get(get_fee).put(update_fee).delete(delete_fee))
-        .route("/api/finance/fees/student/{student_id}", get(fees_by_student))
+        .route("/api/finance/fees/student/:student_id", get(fees_by_student))
 }
 
 async fn list_fees(
@@ -70,8 +72,10 @@ async fn list_fees(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
+    let school_condition = claims.school_id.as_ref().map(|sid| format!(" WHERE school_id = '{}'::uuid", sid)).unwrap_or_default();
+
     let fees = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
-        "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees ORDER BY due_date DESC LIMIT 100",
+        &format!("SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees{} ORDER BY due_date DESC LIMIT 100", school_condition),
     )
     .fetch_all(&state.pool)
     .await?;
@@ -108,11 +112,13 @@ async fn create_fee(
         return Err(FinanceError::Validation("Descripción y monto válido son obligatorios".into()));
     }
 
+    let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
+
     let id = Uuid::new_v4();
     let result = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
         r#"
-        INSERT INTO fees (id, student_id, description, amount, due_date)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO fees (id, student_id, description, amount, due_date, school_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at
         "#,
     )
@@ -121,6 +127,7 @@ async fn create_fee(
     .bind(&payload.description)
     .bind(payload.amount)
     .bind(payload.due_date)
+    .bind(school_id)
     .fetch_one(&state.pool)
     .await?;
 

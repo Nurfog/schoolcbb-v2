@@ -72,6 +72,8 @@ pub struct RegisterPayload {
     pub email: String,
     pub password: String,
     pub role: String,
+    pub corporation_id: Option<String>,
+    pub school_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::error::SisResult;
 use crate::routes::students::{require_any_role, Claims};
+use crate::workflow::CrmEvent;
 use crate::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -40,6 +41,18 @@ async fn create_document(claims: Claims, State(state): State<AppState>, Json(pay
            RETURNING id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at"#,
     ).bind(id).bind(payload.prospect_id).bind(&payload.file_name).bind(&payload.doc_type).bind(user_id)
     .fetch_one(&state.pool).await?;
+
+    let event = CrmEvent::DocumentUploaded {
+        prospect_id: payload.prospect_id,
+        document_id: id,
+        doc_type: payload.doc_type.clone(),
+        uploaded_by: user_id,
+    };
+    let wf = state.workflow.clone();
+    tokio::spawn(async move {
+        wf.process(event).await;
+    });
+
     Ok(Json(json!({ "document": result })))
 }
 
@@ -49,6 +62,16 @@ async fn verify_document(claims: Claims, State(state): State<AppState>, Path(id)
         "UPDATE prospect_documents SET is_verified = true WHERE id = $1
          RETURNING id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at",
     ).bind(id).fetch_one(&state.pool).await?;
+
+    let event = CrmEvent::DocumentVerified {
+        document_id: id,
+        prospect_id: result.prospect_id,
+    };
+    let wf = state.workflow.clone();
+    tokio::spawn(async move {
+        wf.process(event).await;
+    });
+
     Ok(Json(json!({ "document": result })))
 }
 

@@ -12,7 +12,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/reports/sige/students", get(sige_students))
-        .route("/api/reports/sige/attendance/{year}/{month}", get(sige_attendance))
+        .route("/api/reports/sige/attendance/:year/:month", get(sige_attendance))
 }
 
 async fn sige_students(

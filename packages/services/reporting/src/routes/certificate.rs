@@ -20,6 +20,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[async_trait]
@@ -59,7 +61,7 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), ReportErr
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/reports/certificate/student/{student_id}", get(certificate_student))
+        .route("/api/reports/certificate/student/:student_id", get(certificate_student))
 }
 
 async fn certificate_student(

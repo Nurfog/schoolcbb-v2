@@ -20,6 +20,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[async_trait]

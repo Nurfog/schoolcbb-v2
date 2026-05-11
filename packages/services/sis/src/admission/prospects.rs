@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::error::{SisError, SisResult};
 use crate::routes::students::{require_any_role, Claims};
+use crate::workflow::CrmEvent;
 use crate::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -131,47 +132,50 @@ async fn delete_prospect(claims: Claims, State(state): State<AppState>, Path(id)
 async fn change_stage(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<ChangeStagePayload>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
 
-    let stage_info: Option<(bool,)> = sqlx::query_as(
-        "SELECT is_final FROM pipeline_stages WHERE id = $1",
+    let old_stage: Option<Uuid> = sqlx::query_as::<_, (Option<Uuid>,)>(
+        "SELECT current_stage_id FROM prospects WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool).await?
+    .and_then(|r| r.0);
+
+    let stage_info: Option<(String, bool)> = sqlx::query_as(
+        "SELECT name, is_final FROM pipeline_stages WHERE id = $1",
     )
     .bind(payload.stage_id)
     .fetch_optional(&state.pool).await?;
 
-    let (is_final,) = stage_info.ok_or_else(|| SisError::Validation("La etapa no existe".into()))?;
+    let (stage_name, is_final) = stage_info.ok_or_else(|| SisError::Validation("La etapa no existe".into()))?;
+
+    if is_final {
+        let rut: Option<String> = sqlx::query_as::<_, (Option<String>,)>("SELECT rut FROM prospects WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pool).await?
+            .and_then(|r| r.0)
+            .filter(|r| !r.is_empty());
+        if rut.is_none() {
+            return Err(SisError::Validation("El postulante debe tener RUT para ser matriculado".into()));
+        }
+    }
 
     let result = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
         r#"UPDATE prospects SET current_stage_id = $1, updated_at = NOW() WHERE id = $2
            RETURNING id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at"#,
     ).bind(payload.stage_id).bind(id).fetch_one(&state.pool).await?;
 
-    if is_final {
-        let rut = result.rut.as_deref().unwrap_or("");
-        if rut.is_empty() {
-            return Err(SisError::Validation("El postulante debe tener RUT para ser matriculado".into()));
-        }
+    let user_id = Uuid::parse_str(&claims.sub).ok();
+    let event = CrmEvent::StageChanged {
+        prospect_id: id,
+        from_stage_id: old_stage,
+        to_stage_id: payload.stage_id,
+        to_stage_name: stage_name,
+        triggered_by: user_id,
+    };
 
-        let existing: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM students WHERE rut = $1")
-            .bind(rut)
-            .fetch_one(&state.pool).await?;
-
-        if existing.0 == 0 {
-            let student_id = Uuid::new_v4();
-            let _ = sqlx::query(
-                r#"INSERT INTO students (id, rut, first_name, last_name, email, phone, grade_level, section, enrolled)
-                   VALUES ($1, $2, $3, $4, $5, $6, 'Pendiente', 'A', true)"#,
-            )
-            .bind(student_id)
-            .bind(rut)
-            .bind(&result.first_name)
-            .bind(&result.last_name)
-            .bind(&result.email)
-            .bind(&result.phone)
-            .execute(&state.pool)
-            .await;
-
-            tracing::info!("Prospect {} promoted to student {}", id, student_id);
-        }
-    }
+    let wf = state.workflow.clone();
+    tokio::spawn(async move {
+        wf.process(event).await;
+    });
 
     Ok(Json(json!({ "prospect": result })))
 }

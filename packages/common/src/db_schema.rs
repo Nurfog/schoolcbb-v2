@@ -35,6 +35,14 @@ pub async fn run(pool: &PgPool) {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS diseases TEXT",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS allergies TEXT",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(255)",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20)",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_contact_relation VARCHAR(100)",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS classroom_id UUID REFERENCES classrooms(id)",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS plan VARCHAR(2)",
+        "ALTER TABLE courses ALTER COLUMN subject DROP NOT NULL",
         "CREATE TABLE IF NOT EXISTS courses (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name VARCHAR(255) NOT NULL,
@@ -333,6 +341,143 @@ pub async fn run(pool: &PgPool) {
         )",
         "CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id)",
         "CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)",
+        "CREATE TABLE IF NOT EXISTS event_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            event_type VARCHAR(50) NOT NULL,
+            payload JSONB,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_event_log_type ON event_log(event_type)",
+        "CREATE INDEX IF NOT EXISTS idx_event_log_created ON event_log(created_at)",
+        "CREATE TABLE IF NOT EXISTS payment_transactions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            fee_id UUID NOT NULL REFERENCES fees(id),
+            token VARCHAR(255) NOT NULL,
+            amount DOUBLE PRECISION NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'INITIALIZED',
+            authorization_code VARCHAR(50),
+            payment_type VARCHAR(20),
+            gateway_url TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_payment_transactions_token ON payment_transactions(token)",
+        "CREATE INDEX IF NOT EXISTS idx_payment_transactions_fee ON payment_transactions(fee_id)",
+        "CREATE TABLE IF NOT EXISTS custom_field_definitions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            entity_type VARCHAR(50) NOT NULL,
+            field_name VARCHAR(100) NOT NULL,
+            field_type VARCHAR(20) NOT NULL DEFAULT 'text',
+            is_required BOOLEAN NOT NULL DEFAULT false,
+            options JSONB,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_custom_fields_entity ON custom_field_definitions(entity_type)",
+        "CREATE TABLE IF NOT EXISTS custom_field_values (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            field_definition_id UUID NOT NULL REFERENCES custom_field_definitions(id) ON DELETE CASCADE,
+            entity_id UUID NOT NULL,
+            value TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(field_definition_id, entity_id)
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_custom_field_values_entity ON custom_field_values(entity_id)",
+        "CREATE TABLE IF NOT EXISTS roles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(50) UNIQUE NOT NULL,
+            description TEXT,
+            is_system BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS permission_definitions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            module VARCHAR(50) NOT NULL,
+            resource VARCHAR(50) NOT NULL,
+            label VARCHAR(100) NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(module, resource)
+        )",
+        "CREATE TABLE IF NOT EXISTS role_permissions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+            permission_id UUID NOT NULL REFERENCES permission_definitions(id) ON DELETE CASCADE,
+            can_create BOOLEAN NOT NULL DEFAULT false,
+            can_read BOOLEAN NOT NULL DEFAULT false,
+            can_update BOOLEAN NOT NULL DEFAULT false,
+            can_delete BOOLEAN NOT NULL DEFAULT false,
+            UNIQUE(role_id, permission_id)
+        )",
+        "CREATE TABLE IF NOT EXISTS user_roles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+            UNIQUE(user_id, role_id)
+        )",
+        "CREATE TABLE IF NOT EXISTS corporations (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(255) NOT NULL,
+            rut VARCHAR(12) UNIQUE,
+            logo_url VARCHAR(500),
+            settings JSONB DEFAULT '{}',
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS schools (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_id UUID NOT NULL REFERENCES corporations(id),
+            name VARCHAR(255) NOT NULL,
+            address VARCHAR(500),
+            phone VARCHAR(20),
+            logo_url VARCHAR(500),
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS corporation_id UUID REFERENCES corporations(id)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE fees ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE scholarships ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS category VARCHAR(30)",
+        "CREATE TABLE IF NOT EXISTS employees (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            school_id UUID REFERENCES schools(id),
+            rut VARCHAR(12) UNIQUE NOT NULL,
+            first_name VARCHAR(255) NOT NULL,
+            last_name VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            phone VARCHAR(20),
+            position VARCHAR(100),
+            category VARCHAR(30),
+            hire_date DATE,
+            vacation_days_available REAL NOT NULL DEFAULT 15.0,
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS employee_contracts (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+            contract_type VARCHAR(20) NOT NULL DEFAULT 'Indefinido',
+            salary_base DOUBLE PRECISION NOT NULL,
+            weekly_hours INTEGER NOT NULL DEFAULT 40,
+            ley_karin_signed BOOLEAN NOT NULL DEFAULT false,
+            start_date DATE NOT NULL,
+            end_date DATE,
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS employee_documents (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+            doc_type VARCHAR(50) NOT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            file_url VARCHAR(500),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
     ];
 
     for stmt in statements {

@@ -25,6 +25,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[async_trait]
@@ -71,7 +73,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/communications/messages/:id/read", post(mark_read))
         .route("/api/communications/interviews", get(list_interviews).post(create_interview))
         .route("/api/communications/interviews/:id", get(get_interview).put(update_interview).delete(delete_interview))
-        .route("/api/communications/interviews/student/{student_id}", get(interviews_by_student))
+        .route("/api/communications/interviews/student/:student_id", get(interviews_by_student))
 }
 
 async fn ws_handler(

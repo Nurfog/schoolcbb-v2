@@ -13,8 +13,8 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/attendance/alerts", get(alerts))
-        .route("/api/attendance/alerts/student/{student_id}", get(student_alert))
-        .route("/api/attendance/alerts/course/{course_id}", get(course_alerts))
+        .route("/api/attendance/alerts/student/:student_id", get(student_alert))
+        .route("/api/attendance/alerts/course/:course_id", get(course_alerts))
 }
 
 async fn alerts(

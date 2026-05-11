@@ -22,6 +22,9 @@ use crate::components::pages::admission_page::AdmissionPage;
 use crate::components::pages::grade_levels_page::GradeLevelsPage;
 use crate::components::pages::classrooms_page::ClassroomsPage;
 use crate::components::pages::audit_page::AuditPage;
+use crate::components::pages::roles_page::RolesPage;
+use crate::components::pages::hr_page::HrPage;
+use crate::components::pages::corporations_page::CorporationsPage;
 
 pub fn has_token() -> bool {
     web_sys::window()
@@ -85,6 +88,10 @@ pub enum Route {
     Classrooms {},
     #[route("/audit")]
     Audit {},
+    #[route("/roles")]
+    Roles {},
+    #[route("/hr")]
+    Hr {},
 }
 
 #[component]
@@ -222,4 +229,22 @@ pub fn Classrooms() -> Element {
 pub fn Audit() -> Element {
     require_auth();
     rsx! { AuditPage {} }
+}
+
+#[component]
+pub fn Roles() -> Element {
+    require_auth();
+    rsx! { RolesPage {} }
+}
+
+#[component]
+pub fn Hr() -> Element {
+    require_auth();
+    rsx! { HrPage {} }
+}
+
+#[component]
+pub fn Corporations() -> Element {
+    require_auth();
+    rsx! { CorporationsPage {} }
 }

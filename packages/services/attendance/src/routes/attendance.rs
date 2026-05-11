@@ -21,6 +21,8 @@ pub struct Claims {
     pub email: String,
     pub exp: usize,
     pub iat: usize,
+    pub school_id: Option<String>,
+    pub corporation_id: Option<String>,
 }
 
 #[async_trait]
@@ -85,9 +87,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/attendance/:id", get(get_attendance).put(update_attendance).delete(delete_attendance))
         .route("/api/attendance/bulk", post(bulk_create_attendance))
         .route("/api/attendance/today", get(today_attendance))
-        .route("/api/attendance/date/{date}", get(attendance_by_date))
-        .route("/api/attendance/student/{student_id}", get(attendance_by_student))
-        .route("/api/attendance/course/{course_id}/date/{date}", get(attendance_by_course_date))
+        .route("/api/attendance/date/:date", get(attendance_by_date))
+        .route("/api/attendance/student/:student_id", get(attendance_by_student))
+        .route("/api/attendance/course/:course_id/date/:date", get(attendance_by_course_date))
 }
 
 async fn list_attendance(
@@ -97,32 +99,34 @@ async fn list_attendance(
 ) -> AttendanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
 
+    let school_condition = claims.school_id.as_ref().map(|sid| format!(" AND a.school_id = '{}'::uuid", sid)).unwrap_or_default();
+
     let records = if let (Some(sid), Some(cid)) = (filter.student_id, filter.course_id) {
         if let (Some(from), Some(to)) = (filter.from, filter.to) {
             sqlx::query_as::<_, RawAttendance>(
-                "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-                 FROM attendance WHERE student_id = $1 AND course_id = $2 AND date >= $3 AND date <= $4 ORDER BY date DESC"
+                &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+                 FROM attendance WHERE student_id = $1 AND course_id = $2 AND date >= $3 AND date <= $4{} ORDER BY date DESC", school_condition)
             ).bind(sid).bind(cid).bind(from).bind(to).fetch_all(&state.pool).await?
         } else {
             sqlx::query_as::<_, RawAttendance>(
-                "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-                 FROM attendance WHERE student_id = $1 AND course_id = $2 ORDER BY date DESC"
+                &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+                 FROM attendance WHERE student_id = $1 AND course_id = $2{} ORDER BY date DESC", school_condition)
             ).bind(sid).bind(cid).fetch_all(&state.pool).await?
         }
     } else if let Some(sid) = filter.student_id {
         sqlx::query_as::<_, RawAttendance>(
-            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE student_id = $1 ORDER BY date DESC"
+            &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+             FROM attendance WHERE student_id = $1{} ORDER BY date DESC", school_condition)
         ).bind(sid).fetch_all(&state.pool).await?
     } else if let Some(cid) = filter.course_id {
         sqlx::query_as::<_, RawAttendance>(
-            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE course_id = $1 ORDER BY date DESC"
+            &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+             FROM attendance WHERE course_id = $1{} ORDER BY date DESC", school_condition)
         ).bind(cid).fetch_all(&state.pool).await?
     } else {
         sqlx::query_as::<_, RawAttendance>(
-            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance ORDER BY date DESC LIMIT 100"
+            &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+             FROM attendance WHERE 1=1{} ORDER BY date DESC LIMIT 100", school_condition)
         ).fetch_all(&state.pool).await?
     };
 

@@ -128,6 +128,7 @@ pub fn Sidebar() -> Element {
                 }
 
 
+
                 button { class: "nav-item logout", onclick: move |_| {
                         if let Some(window) = web_sys::window() {
                             if let Ok(Some(storage)) = window.local_storage() {

@@ -1,5 +1,7 @@
 mod config;
 mod error;
+mod grpc;
+mod payment_gateway;
 mod routes;
 
 use std::sync::Arc;
@@ -9,12 +11,25 @@ use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
+use payment_gateway::{MockGateway, PaymentGateway, PaymentGatewayConfig, WebpayGateway};
+
 use config::Config;
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub config: Arc<Config>,
+    pub gateway: Option<&'static dyn PaymentGateway>,
+}
+
+fn init_gateway() -> Option<&'static dyn PaymentGateway> {
+    let cfg = PaymentGatewayConfig::from_env()?;
+    let gateway: &'static dyn PaymentGateway = match cfg.provider.as_str() {
+        "webpay" => Box::leak(Box::new(WebpayGateway { config: cfg })),
+        _ => Box::leak(Box::new(MockGateway)),
+    };
+    tracing::info!("Payment gateway initialized: {}", gateway.provider_name());
+    Some(gateway)
 }
 
 #[tokio::main]
@@ -35,10 +50,19 @@ async fn main() {
     tracing::info!("Finance Service connected to database");
     schoolcbb_common::db_schema::run(&pool).await;
 
+    let gateway = init_gateway();
+
     let state = AppState {
-        pool,
+        pool: pool.clone(),
         config: config.clone(),
+        gateway,
     };
+
+    let grpc_pool = pool.clone();
+    let grpc_addr = format!("{}:{}", config.host, config.port + 1000);
+    tokio::spawn(async move {
+        grpc::start_grpc_server(grpc_pool, grpc_addr).await;
+    });
 
     let app = Router::new()
         .merge(routes::router())

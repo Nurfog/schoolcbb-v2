@@ -444,3 +444,308 @@ Fase 3: UI Avanzada (Semana 9-12)
 ¿Cómo avanzar con esto?
 
 Como mencionamos antes, este plan te da la base para que el CRM no sea solo una lista de nombres, sino un sistema vivo. Si ya tienes esto claro, desarrollemos el código para la vista Kanban en el frontend y el microservicio de gestión de archivos en S3 disponible opcionalmente y configurado por variables de entorno
+
+
+🏗️ Arquitectura de Permisos: El Modelo "Module-Action"
+Para que la UI de Árbol funcione, no podemos guardar "roles" planos. Debemos guardar una jerarquía:
+
+Módulo (ej. Admisión)
+
+Sub-función o Recurso (ej. Postulantes)
+
+Acción/CRUD (Crear, Leer, Actualizar, Borrar)
+
+🛠️ Código Rust Sugerido (Estructura de Datos)
+En tu crate common, definiríamos los permisos así para que el compilador nos ayude a no cometer errores:
+
+Rust
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Module {
+    Admission,
+    Academic,
+    Finance,
+    SIS,
+    Attendance,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Permission {
+    pub module: Module,
+    pub resource: String, // ej: "grades", "prospects"
+    pub can_create: bool,
+    pub can_read: bool,
+    pub can_update: bool,
+    pub can_delete: bool,
+}
+🎨 UI de Árbol (Tree View) en Leptos/Dioxus
+Para la UI, el usuario verá una lista colapsable. Al desplegar "Módulo Académico", aparecerán los recursos (Cursos, Notas, Asignaturas) y al lado de cada uno, 4 checkboxes para el CRUD.
+
+📂 Generación del Plan Detallado (Markdown)
+Voy a generar el archivo .md con el esquema de base de datos y la lógica de implementación.
+
+2. Definición de Roles Especiales
+A. Rol Alumno
+Módulo Académico: Solo READ en sus propias notas.
+
+Módulo Asistencia: Solo READ en su registro personal.
+
+Módulo Comunicación: READ y CREATE (para responder mensajes).
+
+B. Rol Apoderado
+Módulo Académico: READ para todos sus pupilos asociados.
+
+Módulo Finanzas: READ (boletas) y CREATE (pagos).
+
+Módulo Admisión: CREATE (para nuevas postulaciones de hermanos).
+
+3. Implementación de la UI de Árbol (Tree UI)
+La interfaz en Leptos/Dioxus se comportará de la siguiente manera:
+
+Nivel 1 (Raíz): Módulos del sistema (Check de "Acceso Total" al módulo).
+
+Nivel 2 (Hijos): Recursos dentro del módulo (ej: Dentro de 'Académico' -> 'Libro de Clases').
+
+Nivel 3 (Acciones): 4 Columnas para C-R-U-D.
+
+Lógica de UI:
+Si se marca 'Crear', automáticamente se debe marcar 'Leer'.
+
+Si se desmarca el Módulo, se desmarcan todos los hijos (Cascada).
+
+4. Lógica de Backend (Rust + Axum)
+Implementaremos un Middleware que verifique los permisos en cada petición:
+
+Rust
+pub async fn check_permission(
+    user_id: Uuid, 
+    required_module: Module, 
+    required_action: Action
+) -> bool {
+    // 1. Obtener roles del usuario
+    // 2. Buscar si algún rol tiene el permiso para el módulo
+    // 3. Verificar si el bit del CRUD está activo
+    // Retornar true/false
+}
+5. Etapas de Desarrollo
+Semana 1: Migraciones de DB y Crates de Auth (Argon2 + JWT).
+
+Semana 2: Backend API para CRUD de Roles y asignación de Permisos.
+
+Semana 3: Componente Tree UI en el Frontend con Tailwind CSS.
+
+Semana 4: Middleware de seguridad en el Gateway para restringir acceso a microservicios.
+"""
+
+with open("plan_roles_permisos_tree_ui.md", "w", encoding="utf-8") as f:
+f.write(roles_plan_content)
+
+He preparado el plan detallado para tu módulo de **Roles y Perfiles**. Este sistema permitirá una gestión extremadamente precisa, ideal para un entorno escolar donde la privacidad de los datos es crítica.
+
+Tu archivo está listo para descargar:
+[file-tag: code-generated-file-0-1778448643863913591]
+
+### Puntos clave del plan:
+
+1.  **Modelo de Permisos:** El archivo incluye un diagrama ERD donde cada permiso se define por una terna: `Módulo` + `Recurso` + `Flags CRUD` (4 booleanos).
+2.  **Roles Estudiante/Apoderado:** Se especifica la lógica para estos roles, asegurando que solo tengan acceso de lectura (`READ`) a sus propios registros.
+3.  **UI de Árbol:** Se describe el comportamiento de la interfaz jerárquica, incluyendo la lógica de "cascada" (si desactivas un módulo, se desactivan todas sus funciones CRUD automáticamente).
+4.  **Middleware en Rust:** Se incluye una propuesta de cómo el backend en **Axum** debe validar estos permisos antes de procesar cualquier transacción.
+
+Este módulo de roles será el "guardián" de tu aplicación, asegurando que cada usuario (desde el Director hasta el Alumno) vea exactamente lo que necesita y nada más.
+
+### RRHH
+🏗️ Pilares del Módulo RRHH Escolar (Chile 2026)
+1. Gestión de Contratos y Cumplimiento (DT)
+Contratos Digitales: Integración con firma electrónica avanzada para contratos y anexos.
+
+Ley de 40 Horas: Gestión de turnos y bandas horarias para padres (según la nueva ley), control de horas extra automatizado y tope de horas semanales con alertas en tiempo real.
+
+Ley Karin: Módulo de denuncias anónimas y registro de protocolos de prevención de acoso y violencia en el trabajo.
+
+2. Remuneraciones y LRE
+Cálculo Automático: Haberes imponibles, no imponibles (movilización, colación), descuentos legales (AFP, Salud, Seguro Cesantía).
+
+Integración Previred: Generación del archivo plano para pago de leyes sociales.
+
+Sincronización LRE: Exportación directa del archivo .csv con el formato exacto que exige la Dirección del Trabajo cada mes.
+
+3. Vida del Empleado (Timeline)
+Gestión de Licencias (IMED/Medipass): Conexión para recibir licencias médicas electrónicas y tramitarlas automáticamente.
+
+Vacaciones y Feriados Progresivos: Cálculo automático de días hábiles según antigüedad y carga de documentos de "Comprobante de Vacaciones".
+
+Evaluación Docente: Registro de desempeño, carrera docente y capacitaciones.
+
+📂 Plan de Desarrollo (Markdown)
+He preparado el plan detallado integrando la normativa chilena vigente para 2026.
+
+ plan_rrhh_chile_2026 
+MD
+
+mermaid
+erDiagram
+EMPLOYEE ||--o{ CONTRACT : "tiene"
+EMPLOYEE ||--o{ ATTENDANCE : "registra"
+EMPLOYEE ||--o{ PAYROLL : "recibe"
+EMPLOYEE ||--o{ LEAVE : "solicita"
+
+EMPLOYEE {
+    uuid id
+    string rut
+    string full_name
+    string position "Docente, Administrativo, Auxiliar"
+    date hire_date
+    int vacation_days_available
+}
+
+CONTRACT {
+    uuid id
+    enum type "Indefinido, Plazo Fijo, Por Hora"
+    decimal salary_base
+    int weekly_hours "Max 40 hrs según Ley"
+    bool ley_karin_signed
+}
+
+PAYROLL {
+    uuid id
+    int month
+    int year
+    decimal taxable_income
+    decimal net_salary
+    bool lre_exported
+}
+
+---
+
+## 2. Cumplimiento Normativo Chile 2026
+
+### A. Ley de 40 Horas
+- **Motor de Reglas:** Validación en Rust para que ningún contrato o anexo supere las 40 horas semanales.
+- **Control de Asistencia:** Marcaje digital con geocerca (geofencing) para personal de terreno o teletrabajo, integrado con la DT.
+
+### B. Libro de Remuneraciones Electrónico (LRE)
+- Módulo de auditoría antes de la exportación para asegurar que los haberes (imponibles y no imponibles) coincidan con los códigos de la DT.
+
+### C. Ley Karin (Prevención de Acoso)
+- Canal de denuncias integrado con el CRM de "Timeline" del empleado para registrar medidas de resguardo inmediatas.
+
+---
+
+## 3. Funcionalidades de "Auto-consulta" (Self-Service)
+Para reducir la carga administrativa, el empleado (Docente/Asistente) tiene su propio panel:
+- Descarga de liquidaciones de sueldo firmadas.
+- Solicitud de vacaciones con flujo de aprobación (UTP -> Dirección -> RRHH).
+- Carga de certificados de títulos y capacitaciones.
+
+---
+
+## 4. Implementación Técnica (Rust)
+
+### Backend (Remuneraciones)
+Usaremos el crate `rust_decimal` para precisión financiera total.
+```rust
+pub struct PayrollCalculator {
+    pub base_salary: Decimal,
+    pub gratificacion: Decimal, // 25% con tope legal
+    pub afp_rate: Decimal,
+    pub isapre_fixed_amount: Option<Decimal>,
+}
+
+impl PayrollCalculator {
+    pub fn calculate_liquid(&self) -> Decimal {
+        // Lógica de cálculo de impuestos de segunda categoría y descuentos legales
+    }
+}
+5. Etapas de Desarrollo
+Mes 1: Ficha del empleado, gestión documental y contratos (Firma digital).
+
+Mes 2: Motor de asistencia y gestión de vacaciones (Cálculo de días progresivos).
+
+Mes 3: Módulo de Remuneraciones, Previred y exportador LRE.
+
+Mes 4: Panel de auto-consulta y flujos de aprobación.
+"""
+
+with open("plan_rrhh_chile_2026.md", "w", encoding="utf-8") as f:
+f.write(hr_plan_content)
+
+He generado el plan detallado para tu módulo de **Recursos Humanos** adaptado a la realidad chilena de **2026**.
+
+Puedes descargar el archivo aquí:
+[file-tag: code-generated-file-0-1778712998363913591]
+
+### ¿Por qué este plan es clave para tu plataforma?
+
+1.  **Ley 40 Horas:** El sistema de contratos está diseñado para validar automáticamente la jornada laboral, algo que será el dolor de cabeza de muchos colegios en 2026.
+2.  **Precisión en Remuneraciones:** El uso de `rust_decimal` garantiza que no existan errores de redondeo en las liquidaciones, evitando multas de la Inspección del Trabajo.
+3.  **LRE y Previred:** Al incluir el exportador directo, ahorras horas de trabajo administrativo al encargado de finanzas del colegio.
+4.  **Ley Karin:** Incluye la infraestructura necesaria para cumplir con los protocolos de denuncia y prevención, una exigencia legal ineludible hoy en día.
+
+🏗️ Arquitectura del "Attendance Bridge" (Puente de Asistencia)
+Para cumplir con la DT, tu microservicio de RRHH debe tener una capa de validación que actúe así:
+
+Ingesta de Datos: Recibe el JSON (vía API) o el CSV (carga manual).
+
+Validación de Integridad: Verifica que los registros no hayan sido alterados manualmente (exigencia DT).
+
+Cruce de Horarios: Valida que la marca de asistencia coincida con el contrato del trabajador (respetando las 40 horas y turnos).
+
+Generación de Alertas: Notifica si hay horas extra no autorizadas o incumplimiento de descansos legales.
+
+📂 Actualización del Plan de RRHH (Markdown)
+He actualizado el plan para incluir específicamente el Módulo de Integración de Asistencia DT-Compliant.
+
+ plan_rrhh_...ia_dt_2026 
+MD
+
+rust
+pub struct AttendanceLog {
+pub rut: String,
+pub timestamp: DateTime,
+pub entry_type: EntryType, // "Entrada", "Salida Colación", "Retorno", "Salida"
+pub device_id: String,
+pub location_hash: Option, // Para cumplimiento de geocerca DT
+}
+
+impl AttendanceValidator {
+pub fn validate_compliance(&self, log: &AttendanceLog, contract: &Contract) -> Result<(), ComplianceError> {
+// 1. Verificar exceso de jornada (> 10 hrs diarias o > 40 semanales)
+// 2. Verificar descanso mínimo de 12 horas entre jornadas
+// 3. Detectar inconsistencias (ej: dos entradas seguidas sin salida)
+Ok(())
+}
+}
+
+
+---
+
+## 3. Exigencias DT (Fiscalización)
+
+- **Bitácora de Modificaciones:** Si un administrador edita una asistencia (ej: "olvidó marcar"), la DT exige guardar: Valor original, Valor nuevo, Usuario que cambió y Motivo.
+- **Exportación de Reporte de Asistencia:** Botón de un solo clic para generar el PDF legal firmado electrónicamente para fiscalizadores.
+
+---
+
+## 4. Pipeline de Sincronización
+
+1. **Recepción:** Recibe datos de API/CSV.
+2. **Sanitización:** Limpia formatos de RUT y fechas.
+3. **Cruce Contractual:** Valida contra el contrato activo en el microservicio de RRHH.
+4. **Persistencia:** Guarda en `attendance_ledger` (Libro Mayor de Asistencia).
+5. **Cómputo:** Envía los totales de horas al módulo de **Remuneraciones**.
+
+
+with open("plan_rrhh_asistencia_dt_2026.md", "w", encoding="utf-8") as f:
+    f.write(hr_attendance_plan)
+
+He generado el plan complementario centrado en la Integración de Asistencia de Terceros.
+
+Puntos clave de esta integración:
+API Robusta: Permite que empresas de relojes control (como GeoVictoria, RelojControl, etc.) envíen datos directamente a tu sistema.
+Cumplimiento DT: El plan incluye la Bitácora de Modificaciones, que es el requisito número uno que pide la Inspección del Trabajo cuando hay auditorías.
+Validación de 40 Horas: El sistema detecta automáticamente si la carga de datos externos viola la nueva jornada laboral chilena, alertando a RRHH antes de que se convierta en una multa.
+Mapper de CSV: No importa qué software use el colegio, tu UI en Rust les permitirá subir el archivo y "unir las columnas" de forma intuitiva.
+ver a continuación
+La lógica de la Bitácora de Auditoría en Rust (para la DT)
+El diseño de la UI para el "Mapper de CSV" (arrastrar y soltar columnas)
+Cómo conectar estos datos de asistencia con el cálculo de sueldos

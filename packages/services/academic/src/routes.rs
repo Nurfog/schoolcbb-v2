@@ -5,6 +5,7 @@ mod grades;
 mod reports;
 mod academic_years;
 pub mod grade_levels;
+mod course_subjects;
 
 pub fn router() -> axum::Router<crate::AppState> {
     axum::Router::new()
@@ -15,4 +16,5 @@ pub fn router() -> axum::Router<crate::AppState> {
         .merge(reports::router())
         .merge(academic_years::router())
         .merge(grade_levels::router())
+        .merge(course_subjects::router())
 }

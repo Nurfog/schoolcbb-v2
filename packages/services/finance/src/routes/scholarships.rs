@@ -14,7 +14,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/finance/scholarships", get(list_scholarships).post(create_scholarship))
         .route("/api/finance/scholarships/:id", get(get_scholarship).put(approve_scholarship).delete(delete_scholarship))
-        .route("/api/finance/scholarships/student/{student_id}", get(scholarships_by_student))
+        .route("/api/finance/scholarships/student/:student_id", get(scholarships_by_student))
 }
 
 async fn list_scholarships(

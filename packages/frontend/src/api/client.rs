@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::sync::OnceLock;
 
 fn base_url() -> String {
@@ -211,6 +211,27 @@ pub async fn fetch_sige_attendance(year: i32, month: u32) -> Result<Value, Strin
     fetch_json(&format!("/api/reports/sige/attendance/{}/{}", year, month)).await
 }
 
+// ─── Corporations & Schools ───
+#[allow(dead_code)]
+pub async fn fetch_corporations() -> Result<Value, String> {
+    fetch_json("/api/corporations").await
+}
+#[allow(dead_code)]
+pub async fn create_corporation(payload: &Value) -> Result<Value, String> {
+    post_json("/api/corporations", payload).await
+}
+#[allow(dead_code)]
+pub async fn fetch_schools(corporation_id: Option<&str>) -> Result<Value, String> {
+    match corporation_id {
+        Some(id) => fetch_json(&format!("/api/schools?corporation_id={}", id)).await,
+        None => fetch_json("/api/schools").await,
+    }
+}
+#[allow(dead_code)]
+pub async fn create_school(payload: &Value) -> Result<Value, String> {
+    post_json("/api/schools", payload).await
+}
+
 // ─── Academic Years ───
 pub async fn fetch_academic_years() -> Result<Value, String> {
     fetch_json("/api/academic-years").await
@@ -285,8 +306,53 @@ pub async fn delete_classroom(id: &str) -> Result<Value, String> {
 pub async fn fetch_audit_logs() -> Result<Value, String> {
     fetch_json("/api/academic/audit-log").await
 }
+pub async fn fetch_custom_field_definitions(entity_type: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/admission/custom-fields/definitions?entity_type={}", entity_type)).await
+}
+pub async fn fetch_custom_field_values(entity_id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/admission/custom-fields/values/{}", entity_id)).await
+}
+pub async fn fetch_my_permissions() -> Result<Value, String> {
+    fetch_json("/api/auth/my-permissions").await
+}
+pub async fn fetch_roles() -> Result<Value, String> {
+    fetch_json("/api/roles").await
+}
+pub async fn create_role(payload: &Value) -> Result<Value, String> {
+    post_json("/api/roles", payload).await
+}
+pub async fn delete_role(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/roles/{}", id)).await
+}
+pub async fn update_role_permissions(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/roles/{}/permissions", id), payload).await
+}
+pub async fn fetch_permission_definitions() -> Result<Value, String> {
+    fetch_json("/api/permissions/definitions").await
+}
+#[allow(dead_code)]
+pub async fn fetch_user_roles(user_id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/users/{}/roles", user_id)).await
+}
+#[allow(dead_code)]
+pub async fn assign_role(user_id: &str, role_id: &str) -> Result<Value, String> {
+    post_json(&format!("/api/users/{}/roles", user_id), &json!({"role_id": role_id})).await
+}
+#[allow(dead_code)]
+pub async fn remove_role(user_id: &str, role_id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/users/{}/roles/{}", user_id, role_id)).await
+}
+pub async fn save_custom_field_values(entity_id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admission/custom-fields/values/{}", entity_id), payload).await
+}
+pub async fn init_online_payment(fee_id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/finance/payment/init/{}", fee_id)).await
+}
 pub async fn check_vacancies() -> Result<Value, String> {
     fetch_json("/api/admission/vacancy-check").await
+}
+pub async fn fetch_admission_metrics() -> Result<Value, String> {
+    fetch_json("/api/admission/metrics").await
 }
 
 fn urlencoding(s: &str) -> String {

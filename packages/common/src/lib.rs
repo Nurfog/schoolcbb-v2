@@ -10,6 +10,10 @@ pub mod reporting;
 pub mod modules;
 pub mod audit;
 pub mod admission;
+pub mod event_bus;
+pub mod roles;
+pub mod school;
+pub mod hr;
 
 #[cfg(feature = "db")]
 pub mod db_schema;

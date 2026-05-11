@@ -110,6 +110,22 @@ fn FeesTab() -> Element {
         });
     };
 
+    let do_online_payment = move |fee_id: String| {
+        spawn(async move {
+            match client::init_online_payment(&fee_id).await {
+                Ok(data) => {
+                    if let Some(url) = data["url"].as_str() {
+                        let _ = web_sys::window().and_then(|w| w.location().assign(url).ok());
+                    }
+                }
+                Err(e) => {
+                    web_sys::window()
+                        .and_then(|w| w.alert_with_message(&format!("Error: {e}")).ok());
+                }
+            }
+        });
+    };
+
     rsx! {
         div { class: "toolbar-row",
             button { class: "btn btn-primary", onclick: move |_| show_form.set(!show_form()), if show_form() { "Cancelar" } else { "Nueva Cuota" } }
@@ -236,6 +252,7 @@ fn FeesTab() -> Element {
                                         td {
                                             if !paid {
                                                 button { class: "btn btn-sm btn-success", onclick: { let id = fid.clone(); move |_| do_mark_paid(id.clone()) }, "Pagar" }
+                                                button { class: "btn btn-sm btn-info", style: "margin-left: 4px;", onclick: { let id = fid.clone(); move |_| do_online_payment(id.clone()) }, "Online" }
                                             }
                                             button { class: "btn btn-sm btn-danger", style: "margin-left: 4px;", onclick: { let id = fid.clone(); move |_| do_delete(id.clone()) }, "Eliminar" }
                                         }

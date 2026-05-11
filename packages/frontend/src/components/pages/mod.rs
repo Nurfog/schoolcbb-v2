@@ -18,3 +18,6 @@ pub mod admission_page;
 pub mod grade_levels_page;
 pub mod classrooms_page;
 pub mod audit_page;
+pub mod roles_page;
+pub mod hr_page;
+pub mod corporations_page;
