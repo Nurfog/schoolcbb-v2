@@ -1,13 +1,11 @@
 use dioxus::prelude::*;
 
 use crate::api::client;
-use crate::components::layout::dashboard_grid::DashboardGrid;
 use crate::components::pages::students_page::StudentsPage;
 use crate::components::pages::attendance_page::AttendancePage;
 use crate::components::pages::grades_page::GradesPage;
 use crate::components::pages::student_detail_page::StudentDetailPage;
 use crate::components::pages::notifications_page::NotificationsPage;
-use crate::components::pages::agenda_page::AgendaPage;
 use crate::components::pages::reports_page::ReportsPage;
 use crate::components::pages::finance_page::FinancePage;
 use crate::components::pages::users_page::UsersPage;
@@ -17,13 +15,10 @@ use crate::components::pages::courses_page::CoursesPage;
 use crate::components::pages::enrollments_page::EnrollmentsPage;
 use crate::components::pages::subjects_page::SubjectsPage;
 use crate::components::pages::login_page::LoginPage;
-use crate::components::pages::academic_years_page::AcademicYearsPage;
 use crate::components::pages::admission_page::AdmissionPage;
-use crate::components::pages::grade_levels_page::GradeLevelsPage;
-use crate::components::pages::classrooms_page::ClassroomsPage;
-use crate::components::pages::audit_page::AuditPage;
-use crate::components::pages::roles_page::RolesPage;
 use crate::components::pages::hr_page::HrPage;
+use crate::components::pages::hr_detail_page::HrDetailPage;
+use crate::components::pages::csv_import_page::CsvImportPage;
 use crate::components::pages::corporations_page::CorporationsPage;
 
 pub fn has_token() -> bool {
@@ -50,8 +45,6 @@ pub enum Route {
     Login {},
     #[route("/")]
     ModuleManagerRoot {},
-    #[route("/dashboard")]
-    Dashboard {},
     #[route("/students")]
     Students {},
     #[route("/students/{student_id}")]
@@ -62,8 +55,6 @@ pub enum Route {
     Grades {},
     #[route("/notifications")]
     Notifications {},
-    #[route("/agenda")]
-    Agenda {},
     #[route("/reports")]
     Reports {},
     #[route("/finance")]
@@ -78,20 +69,16 @@ pub enum Route {
     Subjects {},
     #[route("/config")]
     Config {},
-    #[route("/academic-years")]
-    AcademicYears {},
     #[route("/admission")]
     Admission {},
-    #[route("/grade-levels")]
-    GradeLevels {},
-    #[route("/classrooms")]
-    Classrooms {},
-    #[route("/audit")]
-    Audit {},
-    #[route("/roles")]
-    Roles {},
     #[route("/hr")]
     Hr {},
+    #[route("/hr/{employee_id}")]
+    HrDetail { employee_id: String },
+    #[route("/import")]
+    Import {},
+    #[route("/corporations")]
+    Corporations {},
 }
 
 #[component]
@@ -124,12 +111,6 @@ pub fn ModuleManagerRoot() -> Element {
 }
 
 #[component]
-pub fn Dashboard() -> Element {
-    require_auth();
-    rsx! { DashboardGrid {} }
-}
-
-#[component]
 pub fn Students() -> Element {
     require_auth();
     rsx! { StudentsPage {} }
@@ -153,11 +134,6 @@ pub fn Notifications() -> Element {
     rsx! { NotificationsPage {} }
 }
 
-#[component]
-pub fn Agenda() -> Element {
-    require_auth();
-    rsx! { AgendaPage {} }
-}
 
 #[component]
 pub fn Reports() -> Element {
@@ -202,45 +178,34 @@ pub fn Config() -> Element {
 }
 
 #[component]
-pub fn AcademicYears() -> Element {
-    require_auth();
-    rsx! { AcademicYearsPage {} }
-}
-
-#[component]
 pub fn Admission() -> Element {
     require_auth();
     rsx! { AdmissionPage {} }
 }
 
 #[component]
-pub fn GradeLevels() -> Element {
-    require_auth();
-    rsx! { GradeLevelsPage {} }
-}
-
-#[component]
-pub fn Classrooms() -> Element {
-    require_auth();
-    rsx! { ClassroomsPage {} }
-}
-
-#[component]
-pub fn Audit() -> Element {
-    require_auth();
-    rsx! { AuditPage {} }
-}
-
-#[component]
-pub fn Roles() -> Element {
-    require_auth();
-    rsx! { RolesPage {} }
-}
-
-#[component]
 pub fn Hr() -> Element {
     require_auth();
     rsx! { HrPage {} }
+}
+
+#[component]
+pub fn HrDetail(employee_id: String) -> Element {
+    require_auth();
+    rsx! { HrDetailPage { employee_id: employee_id } }
+}
+
+#[component]
+pub fn Import() -> Element {
+    use dioxus::prelude::*;
+    let mut entity_type = use_signal(|| "employees".to_string());
+    rsx! {
+        div { class: "page-toolbar",
+            button { class: if entity_type() == "employees" { "btn btn-primary" } else { "btn" }, onclick: move |_| entity_type.set("employees".to_string()), "Empleados" }
+            button { class: if entity_type() == "students" { "btn btn-primary" } else { "btn" }, onclick: move |_| entity_type.set("students".to_string()), "Alumnos" }
+        }
+        CsvImportPage { entity_type: entity_type() }
+    }
 }
 
 #[component]

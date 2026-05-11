@@ -9,7 +9,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/classrooms", get(list_classrooms).post(create_classroom))
-        .route("/api/admission/classrooms/:id", get(get_classroom).put(update_classroom).delete(delete_classroom))
+        .route("/api/admission/classrooms/{id}", get(get_classroom).put(update_classroom).delete(delete_classroom))
         .route("/api/admission/vacancy-check", get(vacancy_check))
 }
 

@@ -12,10 +12,10 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/attendance/monthly/:year/:month", get(monthly_report))
-        .route("/api/attendance/monthly/:year/:month/:course_id", get(monthly_report_by_course))
-        .route("/api/attendance/student/:student_id/summary/:year", get(student_yearly_summary))
-        .route("/api/attendance/report/export/:year/:month", get(export_supereduc))
+        .route("/api/attendance/monthly/{year}/{month}", get(monthly_report))
+        .route("/api/attendance/monthly/{year}/{month}/{course_id}", get(monthly_report_by_course))
+        .route("/api/attendance/student/{student_id}/summary/{year}", get(student_yearly_summary))
+        .route("/api/attendance/report/export/{year}/{month}", get(export_supereduc))
 }
 
 async fn monthly_report(

@@ -13,7 +13,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades/periods", get(list_periods).post(create_period))
-        .route("/api/grades/periods/:id", get(get_period).put(update_period))
+        .route("/api/grades/periods/{id}", get(get_period).put(update_period))
         .route("/api/grades/periods/current", get(current_period))
 }
 

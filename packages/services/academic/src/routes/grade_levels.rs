@@ -13,7 +13,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/academic/grade-levels", get(list_levels).post(create_level))
-        .route("/api/academic/grade-levels/:id", get(get_level).put(update_level).delete(delete_level))
+        .route("/api/academic/grade-levels/{id}", get(get_level).put(update_level).delete(delete_level))
 }
 
 pub async fn seed_grade_levels(pool: &sqlx::PgPool) {

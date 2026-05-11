@@ -11,8 +11,8 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/prospects", get(list_prospects).post(create_prospect))
-        .route("/api/admission/prospects/:id", get(get_prospect).put(update_prospect).delete(delete_prospect))
-        .route("/api/admission/prospects/:id/stage", put(change_stage))
+        .route("/api/admission/prospects/{id}", get(get_prospect).put(update_prospect).delete(delete_prospect))
+        .route("/api/admission/prospects/{id}/stage", put(change_stage))
 }
 
 #[derive(Deserialize)]

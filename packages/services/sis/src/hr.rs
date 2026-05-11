@@ -14,8 +14,8 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/hr/employees", get(list_employees).post(create_employee))
-        .route("/api/hr/employees/:id", get(get_employee).put(update_employee).delete(deactivate_employee))
-        .route("/api/hr/employees/:id/contracts", get(list_contracts).post(create_contract))
+        .route("/api/hr/employees/{id}", get(get_employee).put(update_employee).delete(deactivate_employee))
+        .route("/api/hr/employees/{id}/contracts", get(list_contracts).post(create_contract))
 }
 
 #[derive(Deserialize)]

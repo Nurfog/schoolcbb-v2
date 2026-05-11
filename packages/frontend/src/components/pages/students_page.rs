@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::api::client;
+use crate::components::inline_edit::InlineEdit;
 
 fn first_letter(s: &str) -> String {
     s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
@@ -88,6 +89,8 @@ fn StudentRow(student: serde_json::Value) -> Element {
     let section = student["section"].as_str().unwrap_or("-").to_string();
     let enrolled = student["enrolled"].as_bool().unwrap_or(true);
     let avatar = first_letter(&first);
+    let api_base = format!("/api/students/{}", sid);
+    let sid_clone = sid.clone();
 
     rsx! {
         tr {
@@ -102,8 +105,26 @@ fn StudentRow(student: serde_json::Value) -> Element {
                     span { "{first} {last}" }
                 }
             }
-            td { "{grade}" }
-            td { "{section}" }
+            td {
+                InlineEdit {
+                    value: grade.clone(),
+                    field: "grade_level".to_string(),
+                    entity_id: sid_clone.clone(),
+                    api_url: api_base.clone(),
+                    input_type: None,
+                    options: None,
+                }
+            }
+            td {
+                InlineEdit {
+                    value: section.clone(),
+                    field: "section".to_string(),
+                    entity_id: sid_clone.clone(),
+                    api_url: api_base.clone(),
+                    input_type: None,
+                    options: None,
+                }
+            }
             td {
                 if enrolled {
                     span { class: "status-active", "Activo" }

@@ -1,5 +1,5 @@
+
 use axum::{
-    async_trait,
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         FromRequestParts, Path, State,
@@ -29,7 +29,6 @@ pub struct Claims {
     pub corporation_id: Option<String>,
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for Claims {
     type Rejection = NotifError;
 
@@ -69,11 +68,11 @@ pub fn router() -> Router<AppState> {
         .route("/ws", get(ws_handler))
         .route("/api/communications/messages", get(list_messages).post(send_message))
         .route("/api/communications/messages/unread-count", get(unread_count))
-        .route("/api/communications/messages/:id", get(get_message))
-        .route("/api/communications/messages/:id/read", post(mark_read))
+        .route("/api/communications/messages/{id}", get(get_message))
+        .route("/api/communications/messages/{id}/read", post(mark_read))
         .route("/api/communications/interviews", get(list_interviews).post(create_interview))
-        .route("/api/communications/interviews/:id", get(get_interview).put(update_interview).delete(delete_interview))
-        .route("/api/communications/interviews/student/:student_id", get(interviews_by_student))
+        .route("/api/communications/interviews/{id}", get(get_interview).put(update_interview).delete(delete_interview))
+        .route("/api/communications/interviews/student/{student_id}", get(interviews_by_student))
 }
 
 async fn ws_handler(
@@ -89,7 +88,7 @@ async fn handle_socket(socket: WebSocket, hub: std::sync::Arc<crate::ws::hub::Ws
 
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            if sender.send(Message::Text(msg)).await.is_err() {
+            if sender.send(Message::Text(msg.into())).await.is_err() {
                 break;
             }
         }

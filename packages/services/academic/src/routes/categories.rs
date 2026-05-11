@@ -13,8 +13,8 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades/categories", get(list_categories).post(create_category))
-        .route("/api/grades/categories/:id", get(get_category).put(update_category).delete(delete_category))
-        .route("/api/grades/course-subjects/:course_subject_id/categories", get(categories_by_course_subject))
+        .route("/api/grades/categories/{id}", get(get_category).put(update_category).delete(delete_category))
+        .route("/api/grades/course-subjects/{course_subject_id}/categories", get(categories_by_course_subject))
 }
 
 async fn list_categories(

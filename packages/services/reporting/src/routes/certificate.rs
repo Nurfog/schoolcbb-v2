@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path, State},
     http::request::Parts,
     routing::get,
@@ -24,7 +23,6 @@ pub struct Claims {
     pub corporation_id: Option<String>,
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for Claims {
     type Rejection = ReportError;
 
@@ -61,7 +59,7 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), ReportErr
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/reports/certificate/student/:student_id", get(certificate_student))
+        .route("/api/reports/certificate/student/{student_id}", get(certificate_student))
 }
 
 async fn certificate_student(

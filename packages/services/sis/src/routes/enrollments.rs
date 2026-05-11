@@ -38,7 +38,7 @@ struct CreateEnrollmentPayload {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/enrollments", get(list_enrollments).post(create_enrollment))
-        .route("/api/enrollments/:id", delete(delete_enrollment))
+        .route("/api/enrollments/{id}", delete(delete_enrollment))
 }
 
 async fn list_enrollments(

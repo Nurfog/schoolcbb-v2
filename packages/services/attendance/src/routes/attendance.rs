@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{get, post},
@@ -25,7 +24,6 @@ pub struct Claims {
     pub corporation_id: Option<String>,
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for Claims {
     type Rejection = AttendanceError;
 
@@ -84,12 +82,12 @@ pub struct RawAttendance {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/attendance", get(list_attendance).post(create_attendance))
-        .route("/api/attendance/:id", get(get_attendance).put(update_attendance).delete(delete_attendance))
+        .route("/api/attendance/{id}", get(get_attendance).put(update_attendance).delete(delete_attendance))
         .route("/api/attendance/bulk", post(bulk_create_attendance))
         .route("/api/attendance/today", get(today_attendance))
-        .route("/api/attendance/date/:date", get(attendance_by_date))
-        .route("/api/attendance/student/:student_id", get(attendance_by_student))
-        .route("/api/attendance/course/:course_id/date/:date", get(attendance_by_course_date))
+        .route("/api/attendance/date/{date}", get(attendance_by_date))
+        .route("/api/attendance/student/{student_id}", get(attendance_by_student))
+        .route("/api/attendance/course/{course_id}/date/{date}", get(attendance_by_course_date))
 }
 
 async fn list_attendance(

@@ -28,6 +28,7 @@ pub fn AdmissionPage() -> Element {
     let mut notes = use_signal(String::new);
     let mut saving = use_signal(|| false);
     let mut editing_prospect = use_signal(|| false);
+    let mut view_mode = use_signal(|| "table".to_string());
     let mut edit_first_name = use_signal(String::new);
     let mut edit_last_name = use_signal(String::new);
     let mut edit_rut = use_signal(String::new);
@@ -115,6 +116,9 @@ pub fn AdmissionPage() -> Element {
         }
         div { class: "page-toolbar",
             button { class: "btn btn-primary", onclick: move |_| show_new.set(!show_new()), if show_new() { "Cancelar" } else { "Nuevo Postulante" } }
+            button { class: "btn btn-secondary", onclick: move |_| view_mode.set(if view_mode() == "kanban" { "table".to_string() } else { "kanban".to_string() }),
+                if view_mode() == "kanban" { "Vista Tabla" } else { "Vista Kanban" }
+            }
         }
         {
             if show_new() {
@@ -166,15 +170,21 @@ pub fn AdmissionPage() -> Element {
             } else { rsx! {} }
         }
         div { class: "dashboard-grid", AdmissionMetricsWidget {} }
-        div { class: "kanban-board",
-            {
-                if columns.is_empty() && stages().is_some() {
-                    rsx! { div { class: "empty-state", "No hay postulantes en ninguna etapa" } }
-                } else {
-                    rsx! { { columns.into_iter() } }
+        { if view_mode() == "kanban" {
+            rsx! {
+                div { class: "kanban-board",
+                    {
+                        if columns.is_empty() && stages().is_some() {
+                            rsx! { div { class: "empty-state", "No hay postulantes en ninguna etapa" } }
+                        } else {
+                            rsx! { { columns.into_iter() } }
+                        }
+                    }
                 }
             }
-        }
+        } else {
+            rsx! { ProspectTable { prospects: prospects } }
+        }}
         div { class: "vacancy-section",
             h3 { "Disponibilidad por Nivel" }
             {
@@ -408,6 +418,59 @@ pub fn AdmissionPage() -> Element {
                 }
                 Some(Err(_)) => rsx! {},
                 None => rsx! {},
+            }
+        }
+    }
+}
+
+#[component]
+fn ProspectTable(prospects: Resource<Result<serde_json::Value, String>>) -> Element {
+    rsx! {
+        div { class: "data-table-container",
+            match prospects() {
+                Some(Ok(data)) => {
+                    let list = data["prospects"].as_array().cloned().unwrap_or_default();
+                    if list.is_empty() {
+                        rsx! { div { class: "empty-state", "No hay postulantes" } }
+                    } else {
+                        let _stages_data = prospects();
+                        let rows: Vec<Element> = list.iter().map(|p| {
+                            let _pid = p["id"].as_str().unwrap_or("").to_string();
+                            let name = format!("{} {}",
+                                p["first_name"].as_str().unwrap_or(""),
+                                p["last_name"].as_str().unwrap_or("")
+                            );
+                            let rut = p["rut"].as_str().unwrap_or("-").to_string();
+                            let stage = p["current_stage_name"].as_str().unwrap_or("-").to_string();
+                            let source = p["source"].as_str().unwrap_or("-").to_string();
+                            let date = p["created_at"].as_str().unwrap_or("").to_string();
+                            rsx! {
+                                tr { class: "clickable-row", onclick: move |_| {
+                                    // select this prospect
+                                },
+                                    td { "{name}" }
+                                    td { "{rut}" }
+                                    td { span { class: "role-badge", "{stage}" } }
+                                    td { "{source}" }
+                                    td { "{date}" }
+                                }
+                            }
+                        }).collect();
+                        rsx! {
+                            table { class: "data-table",
+                                thead { tr {
+                                    th { "Nombre" }
+                                    th { "RUT" }
+                                    th { "Etapa" }
+                                    th { "Origen" }
+                                    th { "Creado" }
+                                }}
+                                tbody { { rows.into_iter() } }
+                            }
+                        }
+                    }
+                }
+                _ => rsx! { div { class: "empty-state", "Cargando..." } },
             }
         }
     }

@@ -35,8 +35,8 @@ struct FieldValuePayload {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/custom-fields/definitions", get(list_definitions).post(create_definition))
-        .route("/api/admission/custom-fields/definitions/:id", put(update_definition).delete(delete_definition))
-        .route("/api/admission/custom-fields/values/:entity_id", get(get_values).put(save_values))
+        .route("/api/admission/custom-fields/definitions/{id}", put(update_definition).delete(delete_definition))
+        .route("/api/admission/custom-fields/values/{entity_id}", get(get_values).put(save_values))
 }
 
 #[derive(Deserialize)]

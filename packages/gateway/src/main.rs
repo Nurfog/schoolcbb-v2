@@ -60,48 +60,50 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(|| async { (StatusCode::OK, axum::Json(serde_json::json!({"status": "ok", "service": "gateway"}))) }))
         .route("/api/auth", any(proxy_identity))
-        .route("/api/auth/*path", any(proxy_identity))
+        .route("/api/auth/{*path}", any(proxy_identity))
         .route("/api/user", any(proxy_identity))
-        .route("/api/user/*path", any(proxy_identity))
+        .route("/api/user/{*path}", any(proxy_identity))
         .route("/api/roles", any(proxy_identity))
-        .route("/api/roles/*path", any(proxy_identity))
+        .route("/api/roles/{*path}", any(proxy_identity))
         .route("/api/permissions", any(proxy_identity))
-        .route("/api/permissions/*path", any(proxy_identity))
+        .route("/api/permissions/{*path}", any(proxy_identity))
         .route("/api/corporations", any(proxy_identity))
-        .route("/api/corporations/*path", any(proxy_identity))
+        .route("/api/corporations/{*path}", any(proxy_identity))
         .route("/api/schools", any(proxy_identity))
-        .route("/api/schools/*path", any(proxy_identity))
+        .route("/api/schools/{*path}", any(proxy_identity))
         .route("/api/config", any(proxy_identity))
-        .route("/api/config/*path", any(proxy_identity))
+        .route("/api/config/{*path}", any(proxy_identity))
         .route("/api/users", any(proxy_identity))
-        .route("/api/users/*path", any(proxy_identity))
+        .route("/api/users/{*path}", any(proxy_identity))
         .route("/api/students", any(proxy_sis))
-        .route("/api/students/*path", any(proxy_sis))
+        .route("/api/students/{*path}", any(proxy_sis))
         .route("/api/courses", any(proxy_sis))
-        .route("/api/courses/*path", any(proxy_sis))
+        .route("/api/courses/{*path}", any(proxy_sis))
         .route("/api/enrollments", any(proxy_sis))
-        .route("/api/enrollments/*path", any(proxy_sis))
+        .route("/api/enrollments/{*path}", any(proxy_sis))
         .route("/api/dashboard", any(proxy_sis))
-        .route("/api/dashboard/*path", any(proxy_sis))
+        .route("/api/dashboard/{*path}", any(proxy_sis))
         .route("/api/admission", any(proxy_sis))
-        .route("/api/admission/*path", any(proxy_sis))
+        .route("/api/admission/{*path}", any(proxy_sis))
         .route("/api/hr", any(proxy_sis))
-        .route("/api/hr/*path", any(proxy_sis))
+        .route("/api/hr/{*path}", any(proxy_sis))
+        .route("/api/search", any(proxy_sis))
+        .route("/api/search/{*path}", any(proxy_sis))
         .route("/api/grades", any(proxy_academic))
-        .route("/api/grades/*path", any(proxy_academic))
+        .route("/api/grades/{*path}", any(proxy_academic))
         .route("/api/academic-years", any(proxy_academic))
-        .route("/api/academic-years/*path", any(proxy_academic))
+        .route("/api/academic-years/{*path}", any(proxy_academic))
         .route("/api/academic/grade-levels", any(proxy_academic))
-        .route("/api/academic/grade-levels/*path", any(proxy_academic))
+        .route("/api/academic/grade-levels/{*path}", any(proxy_academic))
         .route("/api/academic/audit-log", any(proxy_academic))
         .route("/api/attendance", any(proxy_attendance))
-        .route("/api/attendance/*path", any(proxy_attendance))
+        .route("/api/attendance/{*path}", any(proxy_attendance))
         .route("/api/communications", any(proxy_notifications))
-        .route("/api/communications/*path", any(proxy_notifications))
+        .route("/api/communications/{*path}", any(proxy_notifications))
         .route("/api/finance", any(proxy_finance))
-        .route("/api/finance/*path", any(proxy_finance))
+        .route("/api/finance/{*path}", any(proxy_finance))
         .route("/api/reports", any(proxy_reporting))
-        .route("/api/reports/*path", any(proxy_reporting))
+        .route("/api/reports/{*path}", any(proxy_reporting))
         .route("/graphql", get(graphql_playground).post(graphql_handler))
         .layer(Extension(schema))
         .route("/ws", any(ws_proxy))
@@ -173,7 +175,7 @@ async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
             let c2u = tokio::spawn(async move {
                 while let Some(Ok(msg)) = client_receiver.next().await {
                     let data = msg.into_data();
-                    if upstream_sender.send(tungstenite::Message::Binary(data)).await.is_err() {
+                    if upstream_sender.send(tungstenite::Message::Binary(data.to_vec())).await.is_err() {
                         break;
                     }
                 }
@@ -182,7 +184,7 @@ async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
             let u2c = tokio::spawn(async move {
                 while let Some(Ok(msg)) = upstream_receiver.next().await {
                     let data = msg.into_data();
-                    if client_sender.send(Message::Binary(data)).await.is_err() {
+                    if client_sender.send(Message::Binary(axum::body::Bytes::from(data))).await.is_err() {
                         break;
                     }
                 }

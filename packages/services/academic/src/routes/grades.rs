@@ -22,11 +22,11 @@ pub struct GradeFilter {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades", get(list_grades).post(create_grade))
-        .route("/api/grades/:id", get(get_grade).put(update_grade).delete(delete_grade))
+        .route("/api/grades/{id}", get(get_grade).put(update_grade).delete(delete_grade))
         .route("/api/grades/bulk", post(bulk_create_grades))
-        .route("/api/grades/course-subject/:course_subject_id", get(grades_by_course_subject))
-        .route("/api/grades/student/:student_id/:semester/:year", get(student_grades))
-        .route("/api/grades/by-subject/:subject_id/:year", get(grades_by_subject))
+        .route("/api/grades/course-subject/{course_subject_id}", get(grades_by_course_subject))
+        .route("/api/grades/student/{student_id}/{semester}/{year}", get(student_grades))
+        .route("/api/grades/by-subject/{subject_id}/{year}", get(grades_by_subject))
 }
 
 async fn list_grades(

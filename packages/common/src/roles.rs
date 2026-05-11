@@ -3,6 +3,25 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Action {
+    Crear,
+    Leer,
+    Actualizar,
+    Eliminar,
+}
+
+impl Action {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Action::Crear => "create",
+            Action::Leer => "read",
+            Action::Actualizar => "update",
+            Action::Eliminar => "delete",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Module {
     Dashboard,
     Academic,
@@ -111,4 +130,44 @@ pub struct PermissionEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignRolePayload {
     pub role_id: Uuid,
+}
+
+#[cfg(feature = "db")]
+pub async fn check_permission(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    required_module: &str,
+    required_action: Action,
+) -> Result<bool, sqlx::Error> {
+    let roles = sqlx::query_as::<_, (Uuid,)>(
+        "SELECT role_id FROM user_roles WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    if roles.is_empty() {
+        return Ok(false);
+    }
+
+    for (role_id,) in &roles {
+        let permissions = sqlx::query_as::<_, (String, String, String)>(
+            r#"SELECT pd.module, pd.resource, pd.action
+               FROM role_permissions rp
+               JOIN permission_definitions pd ON rp.permission_id = pd.id
+               WHERE rp.role_id = $1 AND pd.module = $2"#,
+        )
+        .bind(role_id)
+        .bind(required_module)
+        .fetch_all(pool)
+        .await?;
+
+        for (_mod, _resource, action) in &permissions {
+            if action == required_action.as_str() {
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
 }

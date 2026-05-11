@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path, State},
     http::request::Parts,
     routing::get,
@@ -24,7 +23,6 @@ pub struct Claims {
     pub corporation_id: Option<String>,
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for Claims {
     type Rejection = FinanceError;
 
@@ -62,8 +60,8 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), FinanceEr
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/finance/fees", get(list_fees).post(create_fee))
-        .route("/api/finance/fees/:id", get(get_fee).put(update_fee).delete(delete_fee))
-        .route("/api/finance/fees/student/:student_id", get(fees_by_student))
+        .route("/api/finance/fees/{id}", get(get_fee).put(update_fee).delete(delete_fee))
+        .route("/api/finance/fees/student/{student_id}", get(fees_by_student))
 }
 
 async fn list_fees(

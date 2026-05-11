@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{delete, get, post, put},
@@ -25,10 +24,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/auth/revoke-all", post(revoke_all))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/users", get(list_users))
-        .route("/api/auth/users/:id/role", put(update_role))
-        .route("/api/auth/users/:id/toggle", post(toggle_active))
+        .route("/api/auth/users/{id}/role", put(update_role))
+        .route("/api/auth/users/{id}/toggle", post(toggle_active))
         .route("/api/user/modules", get(list_modules))
-        .route("/api/user/favorites/:module_id", post(toggle_favorite))
+        .route("/api/user/favorites/{module_id}", post(toggle_favorite))
         .route("/api/user/profile", put(update_profile))
         .route("/api/user/password", put(change_password))
         .route("/api/user/preferences", get(get_user_preferences))
@@ -38,7 +37,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/config/branding", put(update_branding))
         .route("/api/corporations", get(list_corporations).post(create_corporation))
         .route("/api/schools", get(list_schools).post(create_school))
-        .route("/api/schools/:id", get(get_school))
+        .route("/api/schools/{id}", get(get_school))
         .merge(roles_router())
 }
 
@@ -62,7 +61,6 @@ fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), AuthError> {
     Ok(())
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for Claims {
     type Rejection = AuthError;
 
@@ -655,7 +653,6 @@ async fn update_branding(
 
 fn builtin_modules() -> Vec<schoolcbb_common::modules::Module> {
     vec![
-        schoolcbb_common::modules::Module { id: "dashboard".into(), name: "Panel de Control".into(), icon: "dashboard".into(), category: "Administración".into(), route: "/".into(), is_favorite: false },
         schoolcbb_common::modules::Module { id: "students".into(), name: "Gestión de Alumnos".into(), icon: "students".into(), category: "Académico".into(), route: "/students".into(), is_favorite: false },
         schoolcbb_common::modules::Module { id: "attendance".into(), name: "Asistencia".into(), icon: "attendance".into(), category: "Académico".into(), route: "/attendance".into(), is_favorite: false },
         schoolcbb_common::modules::Module { id: "grades".into(), name: "Calificaciones".into(), icon: "grades".into(), category: "Académico".into(), route: "/grades".into(), is_favorite: false },
@@ -968,11 +965,11 @@ async fn list_user_roles(claims: Claims, State(state): State<AppState>, Path(use
 pub fn roles_router() -> Router<AppState> {
     Router::new()
         .route("/api/roles", get(list_roles).post(create_role))
-        .route("/api/roles/:id", delete(delete_role))
-        .route("/api/roles/:id/permissions", put(update_role_permissions))
+        .route("/api/roles/{id}", delete(delete_role))
+        .route("/api/roles/{id}/permissions", put(update_role_permissions))
         .route("/api/permissions/definitions", get(list_permission_definitions))
-        .route("/api/users/:user_id/roles", get(list_user_roles).post(assign_role_to_user))
-        .route("/api/users/:user_id/roles/:role_id", delete(remove_role_from_user))
+        .route("/api/users/{user_id}/roles", get(list_user_roles).post(assign_role_to_user))
+        .route("/api/users/{user_id}/roles/{role_id}", delete(remove_role_from_user))
 }
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]

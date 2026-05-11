@@ -1,7 +1,9 @@
+use std::rc::Rc;
+
 use dioxus::prelude::*;
 use serde_json::Value;
 
-use crate::api::client::search_students;
+use crate::api::client;
 
 #[component]
 pub fn QuickSearch(is_open: Signal<bool>) -> Element {
@@ -19,9 +21,9 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
                 return;
             }
             loading.set(true);
-            match search_students(&q).await {
+            match client::fetch_json(&format!("/api/search?q={}", urlencode(&q))).await {
                 Ok(data) => {
-                    let items = data["students"].as_array().cloned().unwrap_or_default();
+                    let items = data["results"].as_array().cloned().unwrap_or_default();
                     results.set(items);
                 }
                 Err(_) => {
@@ -32,17 +34,25 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
         }
     });
 
-    let close = move |_| is_open.set(false);
+    let close = move |_: Event<MouseData>| {
+        is_open.set(false);
+        query.set(String::new());
+        results.set(Vec::new());
+    };
 
-    let on_input = move |evt: FormEvent| {
+    let on_input = move |evt: Event<FormData>| {
         query.set(evt.value());
         selected_idx.set(0);
     };
 
-    let on_key_down = move |evt: KeyboardEvent| {
+    let on_key_down = move |evt: Event<KeyboardData>| {
         let k = evt.key();
         match k {
-            Key::Escape => is_open.set(false),
+            Key::Escape => {
+                is_open.set(false);
+                query.set(String::new());
+                results.set(Vec::new());
+            }
             Key::ArrowDown => {
                 let len = results.read().len() as i32;
                 if selected_idx() < len - 1 {
@@ -55,8 +65,20 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
                 }
             }
             Key::Enter => {
-                if results.read().get(selected_idx() as usize).is_some() {
+                let items = results.read().clone();
+                if let Some(item) = items.get(selected_idx() as usize) {
+                    let entity_type = item["entity_type"].as_str().unwrap_or("");
+                    let id = item["id"].as_str().unwrap_or("");
+                    query.set(String::new());
+                    results.set(Vec::new());
                     is_open.set(false);
+                    let nav = navigator();
+                    let route = match entity_type {
+                        "student" => format!("/students/{}", id),
+                        "employee" => format!("/hr/{}", id),
+                        _ => format!("/students/{}", id),
+                    };
+                    nav.push(route);
                 }
             }
             _ => {}
@@ -65,7 +87,9 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
 
     let loading_state = loading();
     let query_text = query();
-    let student_list = results.read().clone();
+    let items_list = results.read().clone();
+    let selected = selected_idx();
+
     rsx! {
         div { class: "quick-search-overlay", onclick: close,
             div { class: "quick-search-modal", onclick: |e| e.stop_propagation(),
@@ -75,7 +99,7 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
                         line { x1: "21", y1: "21", x2: "16.65", y2: "16.65" }
                     }
                     input {
-                        placeholder: "Buscar alumnos por nombre o RUT...",
+                        placeholder: "Buscar alumnos, empleados...",
                         value: "{query_text}",
                         autofocus: "true",
                         oninput: on_input,
@@ -90,9 +114,8 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
                         div { class: "quick-search-empty", "Escribe al menos 2 caracteres" }
                     } else {
                         SearchResultsList {
-                            students: student_list,
-                            selected_idx: selected_idx(),
-                            on_select: move |_| is_open.set(false),
+                            items: items_list,
+                            selected_idx: selected,
                         }
                     }
                 }
@@ -101,54 +124,68 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
     }
 }
 
+fn urlencode(s: &str) -> String {
+    s.replace(' ', "%20")
+}
+
 #[component]
-fn SearchResultsList(students: Vec<Value>, selected_idx: i32, on_select: EventHandler<()>) -> Element {
-    if students.is_empty() {
+fn SearchResultsList(items: Vec<Value>, selected_idx: i32) -> Element {
+    if items.is_empty() {
         return rsx! {
             div { class: "quick-search-empty", "Sin resultados" }
         };
     }
 
-    rsx! {
-        for (i, s) in students.iter().enumerate() {
-            SearchResultRow {
-                key: "{i}",
-                student: s.clone(),
-                highlighted: i == selected_idx as usize,
-                on_click: on_select.clone(),
+    let rows: Vec<Element> = items.iter().enumerate().map(|(i, item)| {
+        let item = item.clone();
+        let full_name = format!("{} {}",
+            item["first_name"].as_str().unwrap_or(""),
+            item["last_name"].as_str().unwrap_or("")
+        );
+        let subtitle = item["subtitle"].as_str().unwrap_or("").to_string();
+        let rut = item["rut"].as_str().unwrap_or("").to_string();
+        let entity_type = item["entity_type"].as_str().unwrap_or("").to_string();
+        let id = item["id"].as_str().unwrap_or("").to_string();
+        let initial = item["first_name"].as_str()
+            .and_then(|n| n.chars().next())
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "?".into());
+        let highlighted = i == selected_idx as usize;
+        let badge = if entity_type == "employee" { "Employee" } else { "Student" };
+        let route = if entity_type == "employee" {
+            format!("/hr/{}", id)
+        } else {
+            format!("/students/{}", id)
+        };
+
+        let route_rc = Rc::new(route);
+        let r1 = route_rc.clone();
+
+        rsx! {
+            button {
+                class: "quick-search-result-item",
+                "data-selected": "{highlighted}",
+                onclick: {
+                    let r = r1.clone();
+                    move |_: Event<MouseData>| {
+                        let nav = navigator();
+                        nav.push((*r).clone());
+                    }
+                },
+                div { class: "avatar", "{initial}" }
+                div { class: "info",
+                    div { class: "name", "{full_name}" }
+                    div { class: "detail", "{subtitle}" }
+                }
+                div { class: "meta",
+                    span { class: "entity-badge", "{badge}" }
+                    span { class: "rut-text", "{rut}" }
+                }
             }
         }
-    }
-}
-
-#[component]
-fn SearchResultRow(student: Value, highlighted: bool, on_click: EventHandler<()>) -> Element {
-    let full_name = format!(
-        "{} {}",
-        student["first_name"].as_str().unwrap_or(""),
-        student["last_name"].as_str().unwrap_or("")
-    );
-    let detail = format!(
-        "{} {}",
-        student["grade_level"].as_str().unwrap_or(""),
-        student["section"].as_str().unwrap_or("")
-    );
-    let initial = student["first_name"]
-        .as_str()
-        .and_then(|n| n.chars().next())
-        .map(|c| c.to_string())
-        .unwrap_or_else(|| "?".into());
+    }).collect();
 
     rsx! {
-        button {
-            class: "quick-search-result-item",
-            "data-selected": "{highlighted}",
-            onclick: move |_| on_click.call(()),
-            div { class: "avatar", "{initial}" }
-            div { class: "info",
-                div { class: "name", "{full_name}" }
-                div { class: "detail", "{detail}" }
-            }
-        }
+        { rows.into_iter() }
     }
 }

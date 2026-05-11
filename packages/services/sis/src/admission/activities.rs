@@ -9,7 +9,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/activities", get(list_activities).post(create_activity))
-        .route("/api/admission/activities/:id", get(get_activity).put(update_activity).delete(delete_activity))
+        .route("/api/admission/activities/{id}", get(get_activity).put(update_activity).delete(delete_activity))
 }
 
 async fn list_activities(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {

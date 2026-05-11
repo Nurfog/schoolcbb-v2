@@ -9,7 +9,7 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/stages", get(list_stages).post(create_stage))
-        .route("/api/admission/stages/:id", get(get_stage).put(update_stage).delete(delete_stage))
+        .route("/api/admission/stages/{id}", get(get_stage).put(update_stage).delete(delete_stage))
 }
 
 pub async fn seed_pipeline_stages(pool: &sqlx::PgPool) {

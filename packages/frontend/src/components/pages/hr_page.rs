@@ -3,6 +3,10 @@ use serde_json::json;
 
 use crate::api::client;
 
+fn first_letter(s: &str) -> String {
+    s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+}
+
 #[component]
 pub fn HrPage() -> Element {
     let mut employees = use_resource(|| client::fetch_json("/api/hr/employees"));
@@ -134,6 +138,7 @@ pub fn HrPage() -> Element {
                         rsx! { div { class: "empty-state", "No hay empleados registrados" } }
                     } else {
                         let rows: Vec<Element> = list.iter().map(|emp| {
+                            let id = emp["id"].as_str().unwrap_or("").to_string();
                             let rut = emp["rut"].as_str().unwrap_or("").to_string();
                             let name = format!("{} {}",
                                 emp["first_name"].as_str().unwrap_or(""),
@@ -142,9 +147,16 @@ pub fn HrPage() -> Element {
                             let cat = emp["category"].as_str().unwrap_or("—").to_string();
                             let pos = emp["position"].as_str().unwrap_or("—").to_string();
                             let active = emp["active"].as_bool().unwrap_or(true);
+                            let avatar = first_letter(&name);
                             rsx! {
-                                tr {
-                                    td { span { class: "rut-badge", "{rut}" } }
+                                tr { class: "clickable-row", onclick: move |_| {
+                                    let nav = navigator();
+                                    nav.push(format!("/hr/{}", id));
+                                },
+                                    td { div { class: "employee-cell",
+                                        div { class: "emp-avatar-small", "{avatar}" }
+                                        span { class: "rut-badge", "{rut}" }
+                                    }}
                                     td { "{name}" }
                                     td { span { class: "role-badge", "{cat}" } }
                                     td { "{pos}" }

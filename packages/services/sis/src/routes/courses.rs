@@ -54,7 +54,7 @@ struct UpdateCoursePayload {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/courses", get(list_courses).post(create_course))
-        .route("/api/courses/:id", get(get_course).put(update_course).delete(delete_course))
+        .route("/api/courses/{id}", get(get_course).put(update_course).delete(delete_course))
 }
 
 async fn list_courses(

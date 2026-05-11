@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{get, post, put},
@@ -24,7 +23,6 @@ pub struct Claims {
     pub corporation_id: Option<String>,
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for Claims {
     type Rejection = AcademicError;
 
@@ -108,8 +106,8 @@ const LEVELS: &[&str] = &[
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades/subjects", get(list_subjects).post(create_subject))
-        .route("/api/grades/subjects/:id", get(get_subject).put(update_subject).delete(deactivate_subject))
-        .route("/api/grades/subjects/:id/hours", put(save_hours))
+        .route("/api/grades/subjects/{id}", get(get_subject).put(update_subject).delete(deactivate_subject))
+        .route("/api/grades/subjects/{id}/hours", put(save_hours))
         .route("/api/grades/subjects/import", post(import_subjects))
         .route("/api/academic/audit-log", get(get_audit_log))
 }
@@ -123,7 +121,7 @@ async fn list_subjects(
 
     let search_pattern = filter.search.as_ref().map(|q| format!("%{}%", q));
 
-    let raw_subjects = if let (Some(ref pat), Some(ref lvl)) = (&search_pattern, &filter.level) {
+    let raw_subjects = if let (Some(pat), Some(lvl)) = (&search_pattern, &filter.level) {
         sqlx::query_as::<_, RawSubject>(
             "SELECT id, code, name, level, hours_per_week, active FROM subjects WHERE (name ILIKE $1 OR code ILIKE $1) AND level = $2 ORDER BY name",
         )

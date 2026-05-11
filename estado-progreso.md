@@ -116,18 +116,134 @@ Identity, SIS, Academic, Attendance, Notifications, Finance, Reporting, Module M
 
 ### Pendiente — Mes 2 (próxima sesión)
 
-- [ ] Motor de asistencia laboral DT (ingesta API/CSV, validación jornada, geocerca)
-- [ ] Gestión de vacaciones y ausencias con flujo de aprobación
+- [x] ~~Motor de asistencia laboral DT (ingesta API/CSV, validación jornada, geocerca)~~
+- [x] ~~Gestión de vacaciones y ausencias con flujo de aprobación~~
+
+#### Detalle de lo implementado (Mes 2):
+
+##### Motor de Asistencia DT
+- [x] Tabla `employee_attendance_logs` con marcaciones (timestamp, entry_type, device_id, location_hash, source)
+- [x] Tabla `employee_attendance_modifications` (bitácora DT: valor original, nuevo, motivo, usuario)
+- [x] Tipos `AttendanceLog`, `AttendanceModification`, `AttendanceLogPayload`, `AttendanceModificationPayload` en common crate
+- [x] `POST /api/hr/attendance/sync` — ingesta de marcaciones vía API
+- [x] `GET /api/hr/employees/:id/attendance` — listar marcaciones (con filtro por fecha)
+- [x] `GET /api/hr/employees/:id/attendance/summary` — resumen mensual
+- [x] `PUT /api/hr/attendance/:att_id/modify` — modificar marcación con bitácora de auditoría DT
+
+##### Vacaciones y Ausencias
+- [x] Tabla `leave_requests` con tipos (Vacaciones, Licencia Médica, Permiso Personal, Capacitación, Otro)
+- [x] Tipos `LeaveRequest`, `CreateLeavePayload`, `LeaveApprovalPayload` en common crate
+- [x] `POST /api/hr/employees/:id/leave-requests` — crear solicitud
+- [x] `GET /api/hr/employees/:id/leave-requests` — listar solicitudes de un empleado
+- [x] `GET /api/hr/leave-requests` — listar todas (con filtros)
+- [x] `PUT /api/hr/leave-requests/:id/approve` — aprobar/rechazar con descuento automático de días de vacaciones
+
+##### Frontend
+- [x] Página `/hr/{employee_id}` con ficha del empleado
+- [x] Tabs: Contratos, Asistencia, Vacaciones y Permisos
+- [x] Tabla de contratos con histórico
+- [x] Registro manual de marcaciones
+- [x] Tabla de asistencia en tiempo real
+- [x] Solicitud de vacaciones/permisos con formulario
+- [x] Tabla de solicitudes con estado (Pendiente/Aprobado/Rechazado)
 
 ### Pendiente — Mes 3 (próxima sesión)
 
-- [ ] Módulo de Remuneraciones (cálculo líquido, AFP, ISAPRE, LRE)
-- [ ] Exportador Previred
+- [x] ~~Módulo de Remuneraciones (cálculo líquido, AFP, ISAPRE, LRE)~~
+- [x] ~~Exportador Previred~~
+
+#### Detalle de lo implementado (Mes 3):
+
+##### Módulo de Remuneraciones
+- [x] Tabla `payrolls` con todos los campos de liquidación (salary_base, gratificación, descuentos, líquido)
+- [x] Tabla `employee_pension_funds` para AFP y sistema de salud por empleado
+- [x] Tipos `Payroll`, `PayrollCalculation`, `PayrollLineItem`, `EmployeePensionFund`, `PensionFund` enum (7 AFP con comisiones reales)
+- [x] Función `calculate_payroll()` con lógica chilena: gratificación 25% (tope $500K), AFP 10% + comisión variable, Salud 7%, Seguro Cesantía 0.6%
+- [x] `POST /api/hr/payroll/calculate` — vista previa del cálculo
+- [x] `POST /api/hr/payroll` — generar y persistir liquidación
+- [x] `GET /api/hr/payroll` — listar liquidaciones por mes/año con datos del empleado
+- [x] `GET /api/hr/payroll/:id` — detalle de liquidación
+- [x] `GET /api/hr/employees/:id/payroll` — historial de un empleado
+- [x] `POST /api/hr/employees/:id/pension-fund` — configurar AFP/salud del empleado
+- [x] `GET /api/hr/employees/:id/pension-fund` — obtener datos AFP/salud
+
+##### Exportador LRE (Libro de Remuneraciones Electrónico)
+- [x] `GET /api/hr/payroll/export/lre` — CSV con formato DT: RUT, Nombre, Sueldo Base, Gratificación, Imponible, AFP, Salud, Seguro Cesantía, Líquido
+- [x] Marca `lre_exported = true` al exportar
+
+##### Exportador Previred
+- [x] `GET /api/hr/payroll/export/previred` — CSV formato Previred
+- [x] Marca `previred_exported = true` al exportar
+
+##### Frontend
+- [x] Nueva ruta `/payroll` con página completa de remuneraciones
+- [x] Selector de mes/año con filtro
+- [x] Vista previa del cálculo con detalle de conceptos
+- [x] Generación de liquidación
+- [x] Tabla de liquidaciones del periodo
+- [x] Botones de exportación LRE y Previred
 
 ### Pendiente — Mes 4 (próxima sesión)
 
-- [ ] Portal de auto-consulta del empleado (liquidaciones, certificados)
-- [ ] Flujos de aprobación (vacaciones, licencias)
+##### Vinculación Empleado ↔ Usuario
+- [x] Campo `user_id` en tabla `employees` (FK → users) para vincular cuenta de usuario con perfil laboral
+- [x] Campo `supervisor_id` en tabla `employees` (FK → employees) para cadena de aprobación
+- [x] `POST /api/hr/employees/:id/link-user` — vincular empleado con usuario del sistema
+- [x] Actualizadas todas las queries de empleados para incluir `user_id` y `supervisor_id`
+
+##### Portal de Auto-consulta (/my-portal)
+- [x] `GET /api/hr/me` — perfil del empleado (datos + contrato activo + supervisor)
+- [x] `GET /api/hr/me/payroll` — liquidaciones del empleado (últimos 12 meses)
+- [x] `GET /api/hr/me/attendance` — asistencia últimos 30 días
+- [x] `GET /api/hr/me/leave-requests` — mis solicitudes de vacaciones/permisos
+- [x] `POST /api/hr/me/leave-requests` — crear solicitud desde el portal
+- [x] Ruta frontend `/my-portal` con tabs: Mi Perfil, Liquidaciones, Asistencia, Vacaciones
+
+##### Flujos de Aprobación con Notificaciones
+- [x] `POST /api/hr/leave-requests/:id/notify` — notificar al empleado resultado de su solicitud
+- [x] Al crear solicitud desde auto-consulta: notificación automática al supervisor vía mensajería interna
+- [x] Notificaciones integradas con tabla `messages` (WebSocket en tiempo real)
+
+---
+
+## 🆕 Tercera Sesión — Bulk Import, Inline Editing y Búsqueda Global
+
+### Bulk Import CSV
+- [x] `POST /api/students/import/csv` — importación masiva de alumnos con validación de RUT, detección de duplicados y reporte detallado
+- [x] `POST /api/hr/employees/import/csv` — importación masiva de empleados
+- [x] Soporte de headers en español/inglés (nombres/nombre, apellidos/apellido, etc.)
+- [x] Rutas frontend `/import/students` y `/import/employees`
+- [x] Componente `CsvImportPage` con área de CSV, preview de template, resultado con errores
+
+### Inline Editing
+- [x] Componente `InlineEdit` reutilizable (doble clic → input/select → guardado automático)
+- [x] Integrado en columna `grade_level` y `section` de tabla de alumnos
+- [x] Soporte para input text y select con opciones
+
+### Búsqueda Global Cmd+K
+- [x] `GET /api/search?q=...` — endpoint unificado que busca alumnos y empleados simultáneamente
+- [x] Atajo global Cmd+K / Ctrl+K registrado en topbar
+- [x] QuickSearch modal mejorado con resultados mixtos (students + employees)
+- [x] Navegación por teclado (flechas + Enter) y clic
+- [x] Badge visual Student/Employee por resultado
+- [x] Ruteo inteligente: `/students/:id` o `/hr/:id`
+
+### Pendientes para próxima sesión
+- [ ] ~~**Ley Karin** — canal de denuncias anónimas con registro de medidas de resguardo~~ ✅
+- [ ] ~~**Geocerca + Reporte PDF Asistencia** — marcaje con ubicación y exportación HTML para fiscalización DT~~ ✅
+- [ ] ~~**CSV Mapper** — interfaz de mapeo de columnas (cubierto por Bulk Import CSV)~~ ✅
+- [ ] ~~**Impuesto segunda categoría** — retención de renta en liquidaciones~~ ✅
+- [ ] ~~**Días progresivos vacaciones** — cálculo según antigüedad~~ ✅
+
+### Pendientes para próxima sesión
+- [ ] ~~**Carga certificados + descarga liquidaciones** — self-service empleado~~ ✅
+- [ ] ~~**SIGE Module** — exportación de datos a MINEDUC~~ ✅
+- [ ] ~~**Kanban View** — arrastrar postulantes entre etapas de admisión~~ ✅
+- [ ] ~~**Mosaicos Dashboard** — tiles de asistencia, alertas y agenda en tiempo real~~ ✅
+
+---
+
+## 🎯 Todos los pendientes completados
 
 ---
 
