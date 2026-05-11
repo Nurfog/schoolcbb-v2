@@ -192,9 +192,18 @@ mod tests {
 
     #[test]
     fn test_condicion_matricula_serialization() {
-        assert_eq!(serde_json::to_value(&CondicionMatricula::AlumnoRegular).unwrap(), "AL");
-        assert_eq!(serde_json::to_value(&CondicionMatricula::Repitente).unwrap(), "RE");
-        assert_eq!(serde_json::to_value(&CondicionMatricula::Trasladado).unwrap(), "TR");
+        assert_eq!(
+            serde_json::to_value(&CondicionMatricula::AlumnoRegular).unwrap(),
+            "AL"
+        );
+        assert_eq!(
+            serde_json::to_value(&CondicionMatricula::Repitente).unwrap(),
+            "RE"
+        );
+        assert_eq!(
+            serde_json::to_value(&CondicionMatricula::Trasladado).unwrap(),
+            "TR"
+        );
     }
 
     #[test]

@@ -5,9 +5,7 @@ use crate::api::client;
 
 #[component]
 pub fn AcademicPerformanceWidget() -> Element {
-    let data = use_resource(|| async {
-        client::fetch_dashboard_summary().await
-    });
+    let data = use_resource(|| async { client::fetch_dashboard_summary().await });
 
     rsx! {
         div { class: "widget-card",
@@ -36,15 +34,39 @@ pub fn AcademicPerformanceWidget() -> Element {
 
 #[component]
 fn AcademicContent(data: Value) -> Element {
-    let subjects = data.get("subjects_count").and_then(|v| v.as_i64()).unwrap_or(0);
-    let students = data.get("total_students").and_then(|v| v.as_i64()).unwrap_or(0);
-    let avg_grade = data.get("average_grade").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let passing = data.get("passing_rate").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let subjects = data
+        .get("subjects_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let students = data
+        .get("total_students")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let avg_grade = data
+        .get("average_grade")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let passing = data
+        .get("passing_rate")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
     let passing_str = format!("{:.0}%", passing);
     let avg_str = format!("{:.1}", avg_grade);
 
-    let passing_class = if passing >= 90.0 { "kpi-value success" } else if passing >= 75.0 { "kpi-value warning" } else { "kpi-value danger" };
-    let bar_class = if passing >= 90.0 { "bar-fill good" } else if passing >= 75.0 { "bar-fill warn" } else { "bar-fill bad" };
+    let passing_class = if passing >= 90.0 {
+        "kpi-value success"
+    } else if passing >= 75.0 {
+        "kpi-value warning"
+    } else {
+        "kpi-value danger"
+    };
+    let bar_class = if passing >= 90.0 {
+        "bar-fill good"
+    } else if passing >= 75.0 {
+        "bar-fill warn"
+    } else {
+        "bar-fill bad"
+    };
     let bar_width = format!("{:.0}%", passing);
 
     let summary = if passing >= 90.0 {

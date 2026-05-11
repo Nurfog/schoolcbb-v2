@@ -17,8 +17,7 @@ impl Config {
                 .unwrap_or_else(|_| "3006".into())
                 .parse()
                 .expect("PORT must be a valid number"),
-            jwt_secret: env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "cambio-en-produccion".into()),
+            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "cambio-en-produccion".into()),
         }
     }
 

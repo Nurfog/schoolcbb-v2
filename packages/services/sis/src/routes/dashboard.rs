@@ -1,8 +1,8 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{Json, Router, extract::State, routing::get};
 use serde_json::Value;
 
-use crate::error::SisResult;
 use crate::AppState;
+use crate::error::SisResult;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -22,9 +22,18 @@ async fn attendance_today(State(state): State<AppState>) -> SisResult<Json<Value
     let records = crate::routes::models::get_attendance_today(&state.pool, &today).await?;
 
     let total = records.len() as i64;
-    let present = records.iter().filter(|r| r.status == schoolcbb_common::attendance::AttendanceStatus::Presente).count() as i64;
-    let absent = records.iter().filter(|r| r.status == schoolcbb_common::attendance::AttendanceStatus::Ausente).count() as i64;
-    let late = records.iter().filter(|r| r.status == schoolcbb_common::attendance::AttendanceStatus::Atraso).count() as i64;
+    let present = records
+        .iter()
+        .filter(|r| r.status == schoolcbb_common::attendance::AttendanceStatus::Presente)
+        .count() as i64;
+    let absent = records
+        .iter()
+        .filter(|r| r.status == schoolcbb_common::attendance::AttendanceStatus::Ausente)
+        .count() as i64;
+    let late = records
+        .iter()
+        .filter(|r| r.status == schoolcbb_common::attendance::AttendanceStatus::Atraso)
+        .count() as i64;
     let justified = records.iter().filter(|r| r.status.es_justificado()).count() as i64;
 
     Ok(Json(serde_json::json!({

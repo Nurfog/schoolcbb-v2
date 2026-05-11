@@ -14,22 +14,30 @@ fn jwt_claims() -> Option<Value> {
 }
 
 fn has_role(claims: &Option<Value>, roles: &[&str]) -> bool {
-    claims.as_ref().and_then(|c| c["role"].as_str()).map_or(false, |r| roles.contains(&r))
+    claims
+        .as_ref()
+        .and_then(|c| c["role"].as_str())
+        .map_or(false, |r| roles.contains(&r))
 }
 
 #[component]
 pub fn ConfigPage() -> Element {
     let claims = use_signal(jwt_claims);
-    let _role = claims().as_ref().and_then(|c| c["role"].as_str()).unwrap_or("").to_string();
-    let user_id = claims().as_ref().and_then(|c| c["sub"].as_str()).unwrap_or("").to_string();
+    let _role = claims()
+        .as_ref()
+        .and_then(|c| c["role"].as_str())
+        .unwrap_or("")
+        .to_string();
+    let user_id = claims()
+        .as_ref()
+        .and_then(|c| c["sub"].as_str())
+        .unwrap_or("")
+        .to_string();
 
-    let profile = use_resource(move || async move {
-        client::fetch_json("/api/auth/me").await
-    });
+    let profile = use_resource(move || async move { client::fetch_json("/api/auth/me").await });
 
-    let prefs = use_resource(move || async move {
-        client::fetch_json("/api/user/preferences").await
-    });
+    let prefs =
+        use_resource(move || async move { client::fetch_json("/api/user/preferences").await });
 
     let branding = use_resource(move || async move {
         if has_role(&claims(), &["Sostenedor"]) {
@@ -271,8 +279,18 @@ fn BrandingSection(branding: Resource<Result<Value, String>>) -> Element {
     if let Some(Ok(data)) = branding() {
         if school_name().is_empty() {
             school_name.set(data["school_name"].as_str().unwrap_or("").to_string());
-            primary_color.set(data["primary_color"].as_str().unwrap_or("#1A2B3C").to_string());
-            secondary_color.set(data["secondary_color"].as_str().unwrap_or("#243B4F").to_string());
+            primary_color.set(
+                data["primary_color"]
+                    .as_str()
+                    .unwrap_or("#1A2B3C")
+                    .to_string(),
+            );
+            secondary_color.set(
+                data["secondary_color"]
+                    .as_str()
+                    .unwrap_or("#243B4F")
+                    .to_string(),
+            );
         }
     }
 
@@ -357,7 +375,8 @@ fn CreateAdminSection() -> Element {
     let mut error = use_signal(|| "".to_string());
 
     let do_create = move |_| {
-        if name().is_empty() || email().is_empty() || rut_val().is_empty() || password().is_empty() {
+        if name().is_empty() || email().is_empty() || rut_val().is_empty() || password().is_empty()
+        {
             error.set("Todos los campos son obligatorios".into());
             return;
         }

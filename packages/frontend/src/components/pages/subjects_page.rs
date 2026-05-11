@@ -22,15 +22,19 @@ pub fn SubjectsPage() -> Element {
     let mut edit_value = use_signal(|| String::new());
 
     let mut reset = move || {
-        code.set("".to_string()); name.set("".to_string());
-        editing_id.set(None); show_form.set(false);
+        code.set("".to_string());
+        name.set("".to_string());
+        editing_id.set(None);
+        show_form.set(false);
     };
 
     let table_rows = match subjects() {
         Some(Ok(data)) => {
             let list = data["subjects"].as_array().cloned().unwrap_or_default();
             if list.is_empty() {
-                vec![rsx! { tr { td { colspan: "4", class: "empty-state", "No hay asignaturas" } } }]
+                vec![
+                    rsx! { tr { td { colspan: "4", class: "empty-state", "No hay asignaturas" } } },
+                ]
             } else {
                 let mut rows = Vec::new();
                 for s in &list {
@@ -155,8 +159,12 @@ pub fn SubjectsPage() -> Element {
                 rows
             }
         }
-        Some(Err(e)) => vec![rsx! { tr { td { colspan: "4", class: "empty-state", "Error: {e}" } } }],
-        None => vec![rsx! { tr { td { colspan: "4", class: "empty-state", div { class: "loading-spinner", "Cargando..." } } } }],
+        Some(Err(e)) => {
+            vec![rsx! { tr { td { colspan: "4", class: "empty-state", "Error: {e}" } } }]
+        }
+        None => vec![
+            rsx! { tr { td { colspan: "4", class: "empty-state", div { class: "loading-spinner", "Cargando..." } } } },
+        ],
     };
 
     rsx! {

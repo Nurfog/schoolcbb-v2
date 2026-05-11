@@ -1,20 +1,26 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::FinanceResult;
-use crate::routes::fees::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::FinanceResult;
+use crate::routes::fees::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/finance/payments", get(list_payments).post(create_payment))
+        .route(
+            "/api/finance/payments",
+            get(list_payments).post(create_payment),
+        )
         .route("/api/finance/payments/{id}", get(get_payment))
-        .route("/api/finance/payments/student/{student_id}", get(payments_by_student))
+        .route(
+            "/api/finance/payments/student/{student_id}",
+            get(payments_by_student),
+        )
 }
 
 async fn list_payments(
@@ -29,7 +35,9 @@ async fn list_payments(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "payments": payments, "total": payments.len() })))
+    Ok(Json(
+        json!({ "payments": payments, "total": payments.len() }),
+    ))
 }
 
 async fn get_payment(
@@ -58,7 +66,9 @@ async fn create_payment(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
     let id = Uuid::new_v4();
-    let payment_date = payload.payment_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let payment_date = payload
+        .payment_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let result = sqlx::query_as::<_, schoolcbb_common::finance::Payment>(
         r#"
@@ -92,7 +102,16 @@ async fn payments_by_student(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> FinanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Apoderado",
+        ],
+    )?;
 
     let payments = sqlx::query_as::<_, schoolcbb_common::finance::Payment>(
         "SELECT id, fee_id, student_id, amount, payment_date, payment_method, reference, created_at FROM payments WHERE student_id = $1 ORDER BY payment_date DESC",

@@ -25,7 +25,10 @@ pub fn LoginPage() -> Element {
                     if resp.get("token").is_some() {
                         nav.replace("/");
                     } else {
-                        let msg = resp.get("error").and_then(|v| v.as_str()).unwrap_or("Credenciales inválidas");
+                        let msg = resp
+                            .get("error")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Credenciales inválidas");
                         loading.set(false);
                         error.set(Some(msg.to_string()));
                     }

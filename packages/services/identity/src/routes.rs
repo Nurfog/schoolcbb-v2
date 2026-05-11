@@ -1,17 +1,17 @@
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{delete, get, post, put},
-    Json, Router,
 };
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::error::{AuthError, AuthResult};
 use crate::models::{self, Claims};
-use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -35,7 +35,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/config/branding", get(get_branding))
         .route("/api/auth/my-permissions", get(my_permissions))
         .route("/api/config/branding", put(update_branding))
-        .route("/api/corporations", get(list_corporations).post(create_corporation))
+        .route(
+            "/api/corporations",
+            get(list_corporations).post(create_corporation),
+        )
         .route("/api/schools", get(list_schools).post(create_school))
         .route("/api/schools/{id}", get(get_school))
         .merge(roles_router())
@@ -64,7 +67,10 @@ fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), AuthError> {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = AuthError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -72,8 +78,7 @@ impl FromRequestParts<AppState> for Claims {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(AuthError::Unauthorized)?;
 
-        let secret = std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| "cambio-en-produccion".into());
+        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "cambio-en-produccion".into());
 
         let token_data = jsonwebtoken::decode::<Claims>(
             auth_header,
@@ -209,9 +214,14 @@ async fn reset_password(
     Json(payload): Json<Value>,
 ) -> AuthResult<Json<Value>> {
     let token = payload.get("token").and_then(|v| v.as_str()).unwrap_or("");
-    let new_password = payload.get("new_password").and_then(|v| v.as_str()).unwrap_or("");
+    let new_password = payload
+        .get("new_password")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if token.is_empty() || new_password.len() < 6 {
-        return Err(AuthError::Internal("Token inválido o contraseña muy corta (mín. 6 caracteres)".into()));
+        return Err(AuthError::Internal(
+            "Token inválido o contraseña muy corta (mín. 6 caracteres)".into(),
+        ));
     }
 
     let token_hash = models::hash_token(token);
@@ -231,13 +241,12 @@ async fn reset_password(
 
     models::change_password(&state.pool, reset.1, new_password).await?;
 
-    Ok(Json(json!({ "message": "Contraseña actualizada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Contraseña actualizada correctamente" }),
+    ))
 }
 
-async fn me(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AuthResult<Json<Value>> {
+async fn me(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
     let id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenInvalid("Invalid user ID in token".into()))?;
 
@@ -269,7 +278,8 @@ async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthRe
     )
     .bind(user_id)
     .bind(&claims.role)
-    .fetch_all(&state.pool).await?;
+    .fetch_all(&state.pool)
+    .await?;
 
     let is_sostenedor = claims.role == "Sostenedor";
 
@@ -282,7 +292,11 @@ async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthRe
         vec![]
     } else {
         let ids: Vec<Uuid> = role_ids.iter().map(|r| r.0).collect();
-        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("${}", i + 1)).collect();
+        let placeholders: Vec<String> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("${}", i + 1))
+            .collect();
         let sql = format!(
             "SELECT pd.id, pd.module, pd.resource,
                     bool_or(rp.can_create OR rp.can_update) as can_write
@@ -304,9 +318,15 @@ async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthRe
     let mut i = 0;
     while i < perms.len() {
         let module_name = perms[i].module.clone();
-        let has_write = perms[i..].iter().take_while(|p| p.module == module_name).any(|p| p.can_write);
+        let has_write = perms[i..]
+            .iter()
+            .take_while(|p| p.module == module_name)
+            .any(|p| p.can_write);
         modules.push(json!({ "module": module_name, "write": has_write }));
-        i += perms[i..].iter().take_while(|p| p.module == module_name).count();
+        i += perms[i..]
+            .iter()
+            .take_while(|p| p.module == module_name)
+            .count();
     }
 
     Ok(Json(json!({
@@ -330,14 +350,31 @@ async fn register(
         return Err(AuthError::Internal("RUT y nombre son obligatorios".into()));
     }
 
-    if !["Sostenedor", "Director", "UTP", "Administrador", "Profesor", "Apoderado", "Alumno"]
-        .contains(&payload.role.as_str())
+    if ![
+        "Sostenedor",
+        "Director",
+        "UTP",
+        "Administrador",
+        "Profesor",
+        "Apoderado",
+        "Alumno",
+    ]
+    .contains(&payload.role.as_str())
     {
-        return Err(AuthError::Internal(format!("Rol inválido: {}", payload.role)));
+        return Err(AuthError::Internal(format!(
+            "Rol inválido: {}",
+            payload.role
+        )));
     }
 
-    let corporation_id = payload.corporation_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
-    let school_id = payload.school_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
+    let corporation_id = payload
+        .corporation_id
+        .as_ref()
+        .and_then(|s| Uuid::parse_str(s).ok());
+    let school_id = payload
+        .school_id
+        .as_ref()
+        .and_then(|s| Uuid::parse_str(s).ok());
 
     let user = models::insert_user(
         &state.pool,
@@ -381,7 +418,9 @@ async fn refresh(
 ) -> AuthResult<Json<Value>> {
     let stored = models::find_refresh_token(&state.pool, &payload.refresh_token)
         .await?
-        .ok_or(AuthError::TokenInvalid("Refresh token inválido o expirado".into()))?;
+        .ok_or(AuthError::TokenInvalid(
+            "Refresh token inválido o expirado".into(),
+        ))?;
 
     models::revoke_refresh_token(&state.pool, stored.id).await?;
 
@@ -420,10 +459,7 @@ async fn refresh(
     })))
 }
 
-async fn revoke_all(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AuthResult<Json<Value>> {
+async fn revoke_all(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
     require_role(&claims, "Administrador")?;
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenInvalid("Invalid user ID".into()))?;
@@ -431,10 +467,7 @@ async fn revoke_all(
     Ok(Json(json!({ "message": "All sessions revoked" })))
 }
 
-async fn logout(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AuthResult<Json<Value>> {
+async fn logout(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenInvalid("Invalid user ID".into()))?;
     models::revoke_all_user_tokens(&state.pool, user_id).await?;
@@ -494,8 +527,16 @@ async fn update_role(
         .get("role")
         .and_then(|v| v.as_str())
         .ok_or(AuthError::Internal("role es requerido".into()))?;
-    if !["Sostenedor", "Director", "UTP", "Administrador", "Profesor", "Apoderado", "Alumno"]
-        .contains(&new_role)
+    if ![
+        "Sostenedor",
+        "Director",
+        "UTP",
+        "Administrador",
+        "Profesor",
+        "Apoderado",
+        "Alumno",
+    ]
+    .contains(&new_role)
     {
         return Err(AuthError::Internal("Rol inválido".into()));
     }
@@ -536,7 +577,9 @@ async fn update_profile(
     let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let email = payload.get("email").and_then(|v| v.as_str()).unwrap_or("");
     if name.trim().is_empty() || email.trim().is_empty() {
-        return Err(AuthError::Internal("Nombre y email son obligatorios".into()));
+        return Err(AuthError::Internal(
+            "Nombre y email son obligatorios".into(),
+        ));
     }
     let user = models::update_user_profile(&state.pool, id, name, email)
         .await
@@ -568,19 +611,31 @@ async fn change_password(
 ) -> AuthResult<Json<Value>> {
     let id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenInvalid("Invalid user ID".into()))?;
-    let current_password = payload.get("current_password").and_then(|v| v.as_str()).unwrap_or("");
-    let new_password = payload.get("new_password").and_then(|v| v.as_str()).unwrap_or("");
+    let current_password = payload
+        .get("current_password")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let new_password = payload
+        .get("new_password")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if new_password.len() < 6 {
-        return Err(AuthError::Internal("La nueva contraseña debe tener al menos 6 caracteres".into()));
+        return Err(AuthError::Internal(
+            "La nueva contraseña debe tener al menos 6 caracteres".into(),
+        ));
     }
     let user = models::find_by_id(&state.pool, id)
         .await?
         .ok_or(AuthError::UserNotFound)?;
     if !models::verify_password(current_password, &user.password_hash) {
-        return Err(AuthError::Internal("La contraseña actual no es correcta".into()));
+        return Err(AuthError::Internal(
+            "La contraseña actual no es correcta".into(),
+        ));
     }
     models::change_password(&state.pool, id, new_password).await?;
-    Ok(Json(json!({ "message": "Contraseña actualizada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Contraseña actualizada correctamente" }),
+    ))
 }
 
 async fn get_user_preferences(
@@ -602,17 +657,17 @@ async fn update_user_preferences(
 ) -> AuthResult<Json<Value>> {
     let id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenInvalid("Invalid user ID".into()))?;
-    let show = payload.get("show_module_manager").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show = payload
+        .get("show_module_manager")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     let prefs = models::update_preferences(&state.pool, id, show).await?;
     Ok(Json(json!({
         "show_module_manager": prefs.show_module_manager
     })))
 }
 
-async fn get_branding(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AuthResult<Json<Value>> {
+async fn get_branding(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
     let config = models::get_branding(&state.pool).await?;
     if let Some(c) = config {
@@ -638,11 +693,30 @@ async fn update_branding(
     Json(payload): Json<Value>,
 ) -> AuthResult<Json<Value>> {
     require_role(&claims, "Sostenedor")?;
-    let school_name = payload.get("school_name").and_then(|v| v.as_str()).unwrap_or("");
-    let school_logo_url = payload.get("school_logo_url").and_then(|v| v.as_str()).unwrap_or("");
-    let primary_color = payload.get("primary_color").and_then(|v| v.as_str()).unwrap_or("#1A2B3C");
-    let secondary_color = payload.get("secondary_color").and_then(|v| v.as_str()).unwrap_or("#243B4F");
-    let config = models::upsert_branding(&state.pool, school_name, school_logo_url, primary_color, secondary_color).await?;
+    let school_name = payload
+        .get("school_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let school_logo_url = payload
+        .get("school_logo_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let primary_color = payload
+        .get("primary_color")
+        .and_then(|v| v.as_str())
+        .unwrap_or("#1A2B3C");
+    let secondary_color = payload
+        .get("secondary_color")
+        .and_then(|v| v.as_str())
+        .unwrap_or("#243B4F");
+    let config = models::upsert_branding(
+        &state.pool,
+        school_name,
+        school_logo_url,
+        primary_color,
+        secondary_color,
+    )
+    .await?;
     Ok(Json(json!({
         "school_name": config.school_name,
         "school_logo_url": config.school_logo_url,
@@ -653,52 +727,201 @@ async fn update_branding(
 
 fn builtin_modules() -> Vec<schoolcbb_common::modules::Module> {
     vec![
-        schoolcbb_common::modules::Module { id: "students".into(), name: "Gestión de Alumnos".into(), icon: "students".into(), category: "Académico".into(), route: "/students".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "attendance".into(), name: "Asistencia".into(), icon: "attendance".into(), category: "Académico".into(), route: "/attendance".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "grades".into(), name: "Calificaciones".into(), icon: "grades".into(), category: "Académico".into(), route: "/grades".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "agenda".into(), name: "Agenda Escolar".into(), icon: "agenda".into(), category: "Comunicaciones".into(), route: "/agenda".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "notifications".into(), name: "Centro de Mensajería".into(), icon: "notifications".into(), category: "Comunicaciones".into(), route: "/notifications".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "reports".into(), name: "Reportes".into(), icon: "reports".into(), category: "Administración".into(), route: "/reports".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "finance".into(), name: "Finanzas".into(), icon: "config".into(), category: "Administración".into(), route: "/finance".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "users".into(), name: "Usuarios y Perfiles".into(), icon: "users".into(), category: "Sistema".into(), route: "/users".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "courses".into(), name: "Cursos".into(), icon: "book".into(), category: "Académico".into(), route: "/courses".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "enrollments".into(), name: "Matrículas".into(), icon: "clipboard".into(), category: "Académico".into(), route: "/enrollments".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "subjects".into(), name: "Asignaturas".into(), icon: "book".into(), category: "Académico".into(), route: "/subjects".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "academic-years".into(), name: "Años Académicos".into(), icon: "calendar".into(), category: "Administración".into(), route: "/academic-years".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "admission".into(), name: "Admisiones".into(), icon: "users".into(), category: "Administración".into(), route: "/admission".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "grade-levels".into(), name: "Niveles".into(), icon: "book".into(), category: "Académico".into(), route: "/grade-levels".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "classrooms".into(), name: "Salas".into(), icon: "home".into(), category: "Administración".into(), route: "/classrooms".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "audit".into(), name: "Auditoría".into(), icon: "file-text".into(), category: "Sistema".into(), route: "/audit".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "roles".into(), name: "Roles y Permisos".into(), icon: "users".into(), category: "Sistema".into(), route: "/roles".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "corporations".into(), name: "Corporaciones y Colegios".into(), icon: "home".into(), category: "Sistema".into(), route: "/corporations".into(), is_favorite: false },
-        schoolcbb_common::modules::Module { id: "hr".into(), name: "Recursos Humanos".into(), icon: "users".into(), category: "Administración".into(), route: "/hr".into(), is_favorite: false },
+        schoolcbb_common::modules::Module {
+            id: "students".into(),
+            name: "Gestión de Alumnos".into(),
+            icon: "students".into(),
+            category: "Académico".into(),
+            route: "/students".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "attendance".into(),
+            name: "Asistencia".into(),
+            icon: "attendance".into(),
+            category: "Académico".into(),
+            route: "/attendance".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "grades".into(),
+            name: "Calificaciones".into(),
+            icon: "grades".into(),
+            category: "Académico".into(),
+            route: "/grades".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "agenda".into(),
+            name: "Agenda Escolar".into(),
+            icon: "agenda".into(),
+            category: "Comunicaciones".into(),
+            route: "/agenda".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "notifications".into(),
+            name: "Centro de Mensajería".into(),
+            icon: "notifications".into(),
+            category: "Comunicaciones".into(),
+            route: "/notifications".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "reports".into(),
+            name: "Reportes".into(),
+            icon: "reports".into(),
+            category: "Administración".into(),
+            route: "/reports".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "finance".into(),
+            name: "Finanzas".into(),
+            icon: "config".into(),
+            category: "Administración".into(),
+            route: "/finance".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "users".into(),
+            name: "Usuarios y Perfiles".into(),
+            icon: "users".into(),
+            category: "Sistema".into(),
+            route: "/users".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "courses".into(),
+            name: "Cursos".into(),
+            icon: "book".into(),
+            category: "Académico".into(),
+            route: "/courses".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "enrollments".into(),
+            name: "Matrículas".into(),
+            icon: "clipboard".into(),
+            category: "Académico".into(),
+            route: "/enrollments".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "subjects".into(),
+            name: "Asignaturas".into(),
+            icon: "book".into(),
+            category: "Académico".into(),
+            route: "/subjects".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "academic-years".into(),
+            name: "Años Académicos".into(),
+            icon: "calendar".into(),
+            category: "Administración".into(),
+            route: "/academic-years".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "admission".into(),
+            name: "Admisiones".into(),
+            icon: "users".into(),
+            category: "Administración".into(),
+            route: "/admission".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "grade-levels".into(),
+            name: "Niveles".into(),
+            icon: "book".into(),
+            category: "Académico".into(),
+            route: "/grade-levels".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "classrooms".into(),
+            name: "Salas".into(),
+            icon: "home".into(),
+            category: "Administración".into(),
+            route: "/classrooms".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "audit".into(),
+            name: "Auditoría".into(),
+            icon: "file-text".into(),
+            category: "Sistema".into(),
+            route: "/audit".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "roles".into(),
+            name: "Roles y Permisos".into(),
+            icon: "users".into(),
+            category: "Sistema".into(),
+            route: "/roles".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "corporations".into(),
+            name: "Corporaciones y Colegios".into(),
+            icon: "home".into(),
+            category: "Sistema".into(),
+            route: "/corporations".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "hr".into(),
+            name: "Recursos Humanos".into(),
+            icon: "users".into(),
+            category: "Administración".into(),
+            route: "/hr".into(),
+            is_favorite: false,
+        },
     ]
 }
 
 async fn list_modules(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AuthError::TokenInvalid("Invalid user".into()))?;
-    let favs: Vec<(String,)> = sqlx::query_as("SELECT module_id FROM user_favorites WHERE user_id = $1")
-        .bind(user_id).fetch_all(&state.pool).await?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| AuthError::TokenInvalid("Invalid user".into()))?;
+    let favs: Vec<(String,)> =
+        sqlx::query_as("SELECT module_id FROM user_favorites WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&state.pool)
+            .await?;
     let fav_set: std::collections::HashSet<String> = favs.into_iter().map(|r| r.0).collect();
-    let modules: Vec<schoolcbb_common::modules::Module> = builtin_modules().into_iter()
-        .map(|m| schoolcbb_common::modules::Module { is_favorite: fav_set.contains(&m.id), ..m }).collect();
+    let modules: Vec<schoolcbb_common::modules::Module> = builtin_modules()
+        .into_iter()
+        .map(|m| schoolcbb_common::modules::Module {
+            is_favorite: fav_set.contains(&m.id),
+            ..m
+        })
+        .collect();
     Ok(Json(json!({ "modules": modules })))
 }
 
 async fn toggle_favorite(
-    claims: Claims, State(state): State<AppState>,
+    claims: Claims,
+    State(state): State<AppState>,
     Path(module_id): Path<String>,
     Json(payload): Json<schoolcbb_common::modules::FavoriteToggle>,
 ) -> AuthResult<Json<Value>> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AuthError::TokenInvalid("Invalid user".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| AuthError::TokenInvalid("Invalid user".into()))?;
     if payload.favorite {
         sqlx::query("INSERT INTO user_favorites (user_id, module_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
             .bind(user_id).bind(&module_id).execute(&state.pool).await?;
     } else {
         sqlx::query("DELETE FROM user_favorites WHERE user_id = $1 AND module_id = $2")
-            .bind(user_id).bind(&module_id).execute(&state.pool).await?;
+            .bind(user_id)
+            .bind(&module_id)
+            .execute(&state.pool)
+            .await?;
     }
-    Ok(Json(json!({ "module_id": module_id, "favorite": payload.favorite })))
+    Ok(Json(
+        json!({ "module_id": module_id, "favorite": payload.favorite }),
+    ))
 }
 
 // ─── Corporations & Schools ───
@@ -819,7 +1042,8 @@ async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult
     let roles = sqlx::query_as::<_, schoolcbb_common::roles::RoleRow>(
         "SELECT id, name, description, is_system, created_at FROM roles ORDER BY name",
     )
-    .fetch_all(&state.pool).await?;
+    .fetch_all(&state.pool)
+    .await?;
 
     let mut result = Vec::new();
     for role in roles {
@@ -856,41 +1080,66 @@ async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult
     Ok(Json(json!({ "roles": result })))
 }
 
-async fn create_role(claims: Claims, State(state): State<AppState>, Json(payload): Json<schoolcbb_common::roles::CreateRolePayload>) -> AuthResult<Json<Value>> {
+async fn create_role(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::roles::CreateRolePayload>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO roles (id, name, description) VALUES ($1, $2, $3)")
-        .bind(id).bind(&payload.name).bind(&payload.description)
-        .execute(&state.pool).await?;
+        .bind(id)
+        .bind(&payload.name)
+        .bind(&payload.description)
+        .execute(&state.pool)
+        .await?;
 
     Ok(Json(json!({ "id": id })))
 }
 
-async fn delete_role(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> AuthResult<Json<Value>> {
+async fn delete_role(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     let is_system: (bool,) = sqlx::query_as("SELECT is_system FROM roles WHERE id = $1")
-        .bind(id).fetch_optional(&state.pool).await?
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await?
         .ok_or(AuthError::NotFound("Rol no encontrado".into()))?;
 
     if is_system.0 {
-        return Err(AuthError::Forbidden("No se puede eliminar un rol del sistema".into()));
+        return Err(AuthError::Forbidden(
+            "No se puede eliminar un rol del sistema".into(),
+        ));
     }
 
-    sqlx::query("DELETE FROM roles WHERE id = $1").bind(id).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM roles WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     Ok(Json(json!({ "message": "Rol eliminado" })))
 }
 
-async fn update_role_permissions(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<schoolcbb_common::roles::UpdatePermissionsPayload>) -> AuthResult<Json<Value>> {
+async fn update_role_permissions(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolcbb_common::roles::UpdatePermissionsPayload>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     for perm in &payload.permissions {
         let existing: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM role_permissions WHERE role_id = $1 AND permission_id = $2",
         )
-        .bind(id).bind(perm.permission_id)
-        .fetch_one(&state.pool).await?;
+        .bind(id)
+        .bind(perm.permission_id)
+        .fetch_one(&state.pool)
+        .await?;
 
         if existing.0 > 0 {
             sqlx::query(
@@ -912,7 +1161,10 @@ async fn update_role_permissions(claims: Claims, State(state): State<AppState>, 
     Ok(Json(json!({ "message": "Permisos actualizados" })))
 }
 
-async fn list_permission_definitions(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
+async fn list_permission_definitions(
+    claims: Claims,
+    State(state): State<AppState>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     let defs = sqlx::query_as::<_, schoolcbb_common::roles::PermissionDef>(
@@ -920,42 +1172,69 @@ async fn list_permission_definitions(claims: Claims, State(state): State<AppStat
     )
     .fetch_all(&state.pool).await?;
 
-    let defs_json: Vec<Value> = defs.into_iter().map(|d| json!({
-        "id": d.id,
-        "module": d.module,
-        "resource": d.resource,
-        "label": d.label,
-        "created_at": d.created_at,
-    })).collect();
+    let defs_json: Vec<Value> = defs
+        .into_iter()
+        .map(|d| {
+            json!({
+                "id": d.id,
+                "module": d.module,
+                "resource": d.resource,
+                "label": d.label,
+                "created_at": d.created_at,
+            })
+        })
+        .collect();
     Ok(Json(json!({ "definitions": defs_json })))
 }
 
-async fn assign_role_to_user(claims: Claims, State(state): State<AppState>, Path(user_id): Path<Uuid>, Json(payload): Json<schoolcbb_common::roles::AssignRolePayload>) -> AuthResult<Json<Value>> {
+async fn assign_role_to_user(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(user_id): Path<Uuid>,
+    Json(payload): Json<schoolcbb_common::roles::AssignRolePayload>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
-    sqlx::query("INSERT INTO user_roles (id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
-        .bind(Uuid::new_v4()).bind(user_id).bind(payload.role_id)
-        .execute(&state.pool).await?;
+    sqlx::query(
+        "INSERT INTO user_roles (id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(payload.role_id)
+    .execute(&state.pool)
+    .await?;
 
     Ok(Json(json!({ "message": "Rol asignado" })))
 }
 
-async fn remove_role_from_user(claims: Claims, State(state): State<AppState>, Path((user_id, role_id)): Path<(Uuid, Uuid)>) -> AuthResult<Json<Value>> {
+async fn remove_role_from_user(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path((user_id, role_id)): Path<(Uuid, Uuid)>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     sqlx::query("DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2")
-        .bind(user_id).bind(role_id)
-        .execute(&state.pool).await?;
+        .bind(user_id)
+        .bind(role_id)
+        .execute(&state.pool)
+        .await?;
 
     Ok(Json(json!({ "message": "Rol removido" })))
 }
 
-async fn list_user_roles(claims: Claims, State(state): State<AppState>, Path(user_id): Path<Uuid>) -> AuthResult<Json<Value>> {
+async fn list_user_roles(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(user_id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
-    let assigned: Vec<(Uuid,)> = sqlx::query_as("SELECT role_id FROM user_roles WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_all(&state.pool).await?;
+    let assigned: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT role_id FROM user_roles WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&state.pool)
+            .await?;
 
     let ids: Vec<String> = assigned.into_iter().map(|r| r.0.to_string()).collect();
     Ok(Json(json!({ "role_ids": ids })))
@@ -967,9 +1246,18 @@ pub fn roles_router() -> Router<AppState> {
         .route("/api/roles", get(list_roles).post(create_role))
         .route("/api/roles/{id}", delete(delete_role))
         .route("/api/roles/{id}/permissions", put(update_role_permissions))
-        .route("/api/permissions/definitions", get(list_permission_definitions))
-        .route("/api/users/{user_id}/roles", get(list_user_roles).post(assign_role_to_user))
-        .route("/api/users/{user_id}/roles/{role_id}", delete(remove_role_from_user))
+        .route(
+            "/api/permissions/definitions",
+            get(list_permission_definitions),
+        )
+        .route(
+            "/api/users/{user_id}/roles",
+            get(list_user_roles).post(assign_role_to_user),
+        )
+        .route(
+            "/api/users/{user_id}/roles/{role_id}",
+            delete(remove_role_from_user),
+        )
 }
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]

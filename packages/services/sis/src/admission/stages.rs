@@ -1,15 +1,22 @@
-use axum::{extract::{Path, State}, routing::get, Json, Router};
-use serde_json::{json, Value};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    routing::get,
+};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{SisError, SisResult};
-use crate::routes::students::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{SisError, SisResult};
+use crate::routes::students::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admission/stages", get(list_stages).post(create_stage))
-        .route("/api/admission/stages/{id}", get(get_stage).put(update_stage).delete(delete_stage))
+        .route(
+            "/api/admission/stages/{id}",
+            get(get_stage).put(update_stage).delete(delete_stage),
+        )
 }
 
 pub async fn seed_pipeline_stages(pool: &sqlx::PgPool) {
@@ -44,52 +51,97 @@ pub async fn seed_pipeline_stages(pool: &sqlx::PgPool) {
 }
 
 async fn list_stages(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let stages = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages ORDER BY sort_order",
     ).fetch_all(&state.pool).await?;
     Ok(Json(json!({ "stages": stages })))
 }
 
-async fn get_stage(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn get_stage(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let stage = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages WHERE id = $1",
-    ).bind(id).fetch_optional(&state.pool).await?
-        .ok_or(SisError::NotFound("Etapa no encontrada".into()))?;
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(SisError::NotFound("Etapa no encontrada".into()))?;
     Ok(Json(json!({ "stage": stage })))
 }
 
-async fn create_stage(claims: Claims, State(state): State<AppState>, Json(payload): Json<schoolcbb_common::admission::CreateStagePayload>) -> SisResult<Json<Value>> {
+async fn create_stage(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::admission::CreateStagePayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    if payload.name.trim().is_empty() { return Err(SisError::Validation("Nombre obligatorio".into())); }
+    if payload.name.trim().is_empty() {
+        return Err(SisError::Validation("Nombre obligatorio".into()));
+    }
     let id = Uuid::new_v4();
     let result = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
         "INSERT INTO pipeline_stages (id, name, sort_order, is_final) VALUES ($1, $2, $3, $4)
          RETURNING id, name, sort_order, is_final, created_at",
-    ).bind(id).bind(&payload.name).bind(payload.sort_order.unwrap_or(0)).bind(payload.is_final.unwrap_or(false))
-    .fetch_one(&state.pool).await?;
+    )
+    .bind(id)
+    .bind(&payload.name)
+    .bind(payload.sort_order.unwrap_or(0))
+    .bind(payload.is_final.unwrap_or(false))
+    .fetch_one(&state.pool)
+    .await?;
     Ok(Json(json!({ "stage": result })))
 }
 
-async fn update_stage(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<schoolcbb_common::admission::UpdateStagePayload>) -> SisResult<Json<Value>> {
+async fn update_stage(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolcbb_common::admission::UpdateStagePayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
     let current = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages WHERE id = $1",
-    ).bind(id).fetch_optional(&state.pool).await?
-        .ok_or(SisError::NotFound("Etapa no encontrada".into()))?;
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(SisError::NotFound("Etapa no encontrada".into()))?;
     let name = payload.name.unwrap_or(current.name);
     let sort_order = payload.sort_order.unwrap_or(current.sort_order);
     let is_final = payload.is_final.unwrap_or(current.is_final);
     let result = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
         "UPDATE pipeline_stages SET name = $1, sort_order = $2, is_final = $3 WHERE id = $4
          RETURNING id, name, sort_order, is_final, created_at",
-    ).bind(&name).bind(sort_order).bind(is_final).bind(id).fetch_one(&state.pool).await?;
+    )
+    .bind(&name)
+    .bind(sort_order)
+    .bind(is_final)
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
     Ok(Json(json!({ "stage": result })))
 }
 
-async fn delete_stage(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn delete_stage(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    sqlx::query("DELETE FROM pipeline_stages WHERE id = $1").bind(id).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM pipeline_stages WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     Ok(Json(json!({ "message": "Etapa eliminada" })))
 }

@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{get, post, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AcademicError, AcademicResult};
 use crate::AppState;
+use crate::error::{AcademicError, AcademicResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -26,7 +26,10 @@ pub struct Claims {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = AcademicError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -93,20 +96,41 @@ struct LevelHour {
 const PLANS: &[&str] = &["HC", "TP", "Artístico"];
 
 const LEVELS: &[&str] = &[
-    "Sala Cuna", "Medio Menor", "Medio Mayor",
-    "Pre-kinder", "Kinder",
-    "1° Básico", "2° Básico", "3° Básico", "4° Básico",
-    "5° Básico", "6° Básico", "7° Básico", "8° Básico",
-    "1° Medio", "2° Medio",
-    "3° Medio HC", "4° Medio HC",
-    "3° Medio TP", "4° Medio TP",
-    "3° Medio Artístico", "4° Medio Artístico",
+    "Sala Cuna",
+    "Medio Menor",
+    "Medio Mayor",
+    "Pre-kinder",
+    "Kinder",
+    "1° Básico",
+    "2° Básico",
+    "3° Básico",
+    "4° Básico",
+    "5° Básico",
+    "6° Básico",
+    "7° Básico",
+    "8° Básico",
+    "1° Medio",
+    "2° Medio",
+    "3° Medio HC",
+    "4° Medio HC",
+    "3° Medio TP",
+    "4° Medio TP",
+    "3° Medio Artístico",
+    "4° Medio Artístico",
 ];
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/grades/subjects", get(list_subjects).post(create_subject))
-        .route("/api/grades/subjects/{id}", get(get_subject).put(update_subject).delete(deactivate_subject))
+        .route(
+            "/api/grades/subjects",
+            get(list_subjects).post(create_subject),
+        )
+        .route(
+            "/api/grades/subjects/{id}",
+            get(get_subject)
+                .put(update_subject)
+                .delete(deactivate_subject),
+        )
         .route("/api/grades/subjects/{id}/hours", put(save_hours))
         .route("/api/grades/subjects/import", post(import_subjects))
         .route("/api/academic/audit-log", get(get_audit_log))
@@ -117,7 +141,10 @@ async fn list_subjects(
     State(state): State<AppState>,
     Query(filter): Query<SubjectFilter>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let search_pattern = filter.search.as_ref().map(|q| format!("%{}%", q));
 
@@ -135,7 +162,8 @@ async fn list_subjects(
         sqlx::query_as::<_, RawSubject>(
             "SELECT id, code, name, level, hours_per_week, active FROM subjects ORDER BY name",
         )
-        .fetch_all(&state.pool).await?
+        .fetch_all(&state.pool)
+        .await?
     };
 
     let mut result = Vec::new();
@@ -157,7 +185,9 @@ async fn list_subjects(
         }));
     }
 
-    Ok(Json(json!({ "subjects": result, "total": result.len(), "levels": LEVELS, "plans": PLANS })))
+    Ok(Json(
+        json!({ "subjects": result, "total": result.len(), "levels": LEVELS, "plans": PLANS }),
+    ))
 }
 
 async fn get_subject(
@@ -165,7 +195,10 @@ async fn get_subject(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let s = sqlx::query_as::<_, RawSubject>(
         "SELECT id, code, name, level, hours_per_week, active FROM subjects WHERE id = $1",
@@ -199,7 +232,9 @@ async fn create_subject(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
     if payload.code.trim().is_empty() || payload.name.trim().is_empty() {
-        return Err(AcademicError::Validation("Código y nombre son obligatorios".into()));
+        return Err(AcademicError::Validation(
+            "Código y nombre son obligatorios".into(),
+        ));
     }
 
     let id = Uuid::new_v4();
@@ -224,16 +259,20 @@ async fn create_subject(
     })?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-        entity_type: "subject".into(),
-        entity_id: id,
-        action: "created".into(),
-        user_id,
-        changes: Some(serde_json::json!({
-            "code": &payload.code, "name": &payload.name,
-            "level": &payload.level, "hours_per_week": payload.hours_per_week,
-        })),
-    }).await;
+    schoolcbb_common::audit::log(
+        &state.pool,
+        &schoolcbb_common::audit::AuditEntry {
+            entity_type: "subject".into(),
+            entity_id: id,
+            action: "created".into(),
+            user_id,
+            changes: Some(serde_json::json!({
+                "code": &payload.code, "name": &payload.name,
+                "level": &payload.level, "hours_per_week": payload.hours_per_week,
+            })),
+        },
+    )
+    .await;
 
     Ok(Json(json!({ "subject": result })))
 }
@@ -263,24 +302,40 @@ async fn update_subject(
         "UPDATE subjects SET code = $1, name = $2, level = $3, hours_per_week = $4 WHERE id = $5
          RETURNING id, code, name, level, hours_per_week, active",
     )
-    .bind(&code).bind(&name).bind(&level).bind(hours_per_week).bind(id)
+    .bind(&code)
+    .bind(&name)
+    .bind(&level)
+    .bind(hours_per_week)
+    .bind(id)
     .fetch_one(&state.pool)
     .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let mut changes = serde_json::json!({});
-    if code != existing.code { changes["code"] = serde_json::json!(code); }
-    if name != existing.name { changes["name"] = serde_json::json!(name); }
-    if level != existing.level { changes["level"] = serde_json::json!(level); }
-    if hours_per_week != existing.hours_per_week { changes["hours_per_week"] = serde_json::json!(hours_per_week); }
+    if code != existing.code {
+        changes["code"] = serde_json::json!(code);
+    }
+    if name != existing.name {
+        changes["name"] = serde_json::json!(name);
+    }
+    if level != existing.level {
+        changes["level"] = serde_json::json!(level);
+    }
+    if hours_per_week != existing.hours_per_week {
+        changes["hours_per_week"] = serde_json::json!(hours_per_week);
+    }
     if !changes.as_object().map(|o| o.is_empty()).unwrap_or(true) {
-        schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-            entity_type: "subject".into(),
-            entity_id: id,
-            action: "updated".into(),
-            user_id,
-            changes: Some(changes),
-        }).await;
+        schoolcbb_common::audit::log(
+            &state.pool,
+            &schoolcbb_common::audit::AuditEntry {
+                entity_type: "subject".into(),
+                entity_id: id,
+                action: "updated".into(),
+                user_id,
+                changes: Some(changes),
+            },
+        )
+        .await;
     }
 
     Ok(Json(json!({ "subject": result })))
@@ -299,7 +354,9 @@ async fn deactivate_subject(
         .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AcademicError::NotFound("Asignatura no encontrada o ya desactivada".into()));
+        return Err(AcademicError::NotFound(
+            "Asignatura no encontrada o ya desactivada".into(),
+        ));
     }
 
     sqlx::query("DELETE FROM subject_hours WHERE subject_id = $1")
@@ -308,15 +365,21 @@ async fn deactivate_subject(
         .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-        entity_type: "subject".into(),
-        entity_id: id,
-        action: "deactivated".into(),
-        user_id,
-        changes: None,
-    }).await;
+    schoolcbb_common::audit::log(
+        &state.pool,
+        &schoolcbb_common::audit::AuditEntry {
+            entity_type: "subject".into(),
+            entity_id: id,
+            action: "deactivated".into(),
+            user_id,
+            changes: None,
+        },
+    )
+    .await;
 
-    Ok(Json(json!({ "message": "Asignatura desactivada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Asignatura desactivada correctamente" }),
+    ))
 }
 
 async fn save_hours(
@@ -360,13 +423,17 @@ async fn save_hours(
     .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-        entity_type: "subject_hours".into(),
-        entity_id: id,
-        action: "hours_updated".into(),
-        user_id,
-        changes: Some(serde_json::json!({ "hours": &payload.hours })),
-    }).await;
+    schoolcbb_common::audit::log(
+        &state.pool,
+        &schoolcbb_common::audit::AuditEntry {
+            entity_type: "subject_hours".into(),
+            entity_id: id,
+            action: "hours_updated".into(),
+            user_id,
+            changes: Some(serde_json::json!({ "hours": &payload.hours })),
+        },
+    )
+    .await;
 
     Ok(Json(json!({ "hours": hours })))
 }
@@ -451,13 +518,17 @@ async fn import_subjects(
                 }
 
                 let user_id = Uuid::parse_str(&claims.sub).ok();
-                schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-                    entity_type: "subject".into(),
-                    entity_id: id,
-                    action: "bulk_imported".into(),
-                    user_id,
-                    changes: Some(json!({ "code": &row.code, "name": &row.name })),
-                }).await;
+                schoolcbb_common::audit::log(
+                    &state.pool,
+                    &schoolcbb_common::audit::AuditEntry {
+                        entity_type: "subject".into(),
+                        entity_id: id,
+                        action: "bulk_imported".into(),
+                        user_id,
+                        changes: Some(json!({ "code": &row.code, "name": &row.name })),
+                    },
+                )
+                .await;
             }
             Err(e) => {
                 errors.push(json!({ "code": &row.code, "error": e.to_string() }));

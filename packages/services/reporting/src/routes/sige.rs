@@ -1,24 +1,24 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::error::ReportResult;
-use crate::routes::certificate::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::ReportResult;
+use crate::routes::certificate::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/reports/sige/students", get(sige_students))
-        .route("/api/reports/sige/attendance/{year}/{month}", get(sige_attendance))
+        .route(
+            "/api/reports/sige/attendance/{year}/{month}",
+            get(sige_attendance),
+        )
 }
 
-async fn sige_students(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> ReportResult<Json<Value>> {
+async fn sige_students(claims: Claims, State(state): State<AppState>) -> ReportResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
     let rows = sqlx::query_as::<_, SigeStudentRow>(
@@ -76,23 +76,28 @@ async fn sige_attendance(
     .fetch_all(&state.pool)
     .await?;
 
-    let rows_with_pct: Vec<Value> = rows.iter().map(|r| {
-        let pct = if r.total_days > 0 {
-            (r.present as f64 / r.total_days as f64 * 100.0 * 10.0).round() / 10.0
-        } else { 100.0 };
-        json!({
-            "rut": r.rut,
-            "student_name": r.student_name,
-            "grade_level": r.grade_level,
-            "section": r.section,
-            "total_days": r.total_days,
-            "present": r.present,
-            "absent": r.absent,
-            "late": r.late,
-            "justified": r.justified,
-            "attendance_percentage": pct
+    let rows_with_pct: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            let pct = if r.total_days > 0 {
+                (r.present as f64 / r.total_days as f64 * 100.0 * 10.0).round() / 10.0
+            } else {
+                100.0
+            };
+            json!({
+                "rut": r.rut,
+                "student_name": r.student_name,
+                "grade_level": r.grade_level,
+                "section": r.section,
+                "total_days": r.total_days,
+                "present": r.present,
+                "absent": r.absent,
+                "late": r.late,
+                "justified": r.justified,
+                "attendance_percentage": pct
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(json!({
         "rows": rows_with_pct,

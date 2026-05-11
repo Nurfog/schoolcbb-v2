@@ -1,18 +1,20 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::ReportResult;
-use crate::routes::certificate::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::ReportResult;
+use crate::routes::certificate::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/api/reports/concentration/{student_id}/{year}", get(concentration))
+    Router::new().route(
+        "/api/reports/concentration/{student_id}/{year}",
+        get(concentration),
+    )
 }
 
 async fn concentration(
@@ -20,7 +22,18 @@ async fn concentration(
     State(state): State<AppState>,
     Path((student_id, year)): Path<(Uuid, i32)>,
 ) -> ReportResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let student = sqlx::query_as::<_, (String, String)>(
         "SELECT CONCAT(first_name, ' ', last_name), rut FROM students WHERE id = $1",
@@ -28,7 +41,9 @@ async fn concentration(
     .bind(student_id)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(crate::error::ReportError::NotFound("Estudiante no encontrado".into()))?;
+    .ok_or(crate::error::ReportError::NotFound(
+        "Estudiante no encontrado".into(),
+    ))?;
 
     let s1 = build_semester_concentration(&state.pool, student_id, 1, year).await?;
     let s2 = build_semester_concentration(&state.pool, student_id, 2, year).await?;
@@ -37,9 +52,15 @@ async fn concentration(
     let s2_avg = semester_global(&s2);
     let final_avg = if s1_avg > 0.0 && s2_avg > 0.0 {
         (s1_avg + s2_avg) / 2.0
-    } else if s1_avg > 0.0 { s1_avg } else { s2_avg };
+    } else if s1_avg > 0.0 {
+        s1_avg
+    } else {
+        s2_avg
+    };
 
-    let all_failed: Vec<String> = s1.iter().chain(s2.iter())
+    let all_failed: Vec<String> = s1
+        .iter()
+        .chain(s2.iter())
         .filter(|s| s.average < 4.0)
         .map(|s| s.subject_name.clone())
         .collect();
@@ -107,7 +128,9 @@ async fn build_semester_concentration(
 }
 
 fn semester_global(subjects: &[SubjectConcRow]) -> f64 {
-    if subjects.is_empty() { return 0.0; }
+    if subjects.is_empty() {
+        return 0.0;
+    }
     subjects.iter().map(|s| s.average).sum::<f64>() / subjects.len() as f64
 }
 

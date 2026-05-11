@@ -37,32 +37,47 @@ pub fn SearchableSelect(
     });
 
     let items = results().unwrap_or_default();
-    let display_val = if has_selected() { selected_label() } else { query() };
+    let display_val = if has_selected() {
+        selected_label()
+    } else {
+        query()
+    };
 
     let f_label_key = label_key.clone();
     let f_value_key = value_key.clone();
 
-    let rendered_items: Vec<_> = items.iter().map(|item| {
-        let label = item.get(&f_label_key).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let value = item.get(&f_value_key).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let label_c = label.clone();
-        let value_c = value.clone();
-        let key = value.clone();
-        rsx! {
-            div {
-                class: "searchable-select-item",
-                key: "{key}",
-                onmousedown: move |_| {
-                    selected_label.set(label_c.clone());
-                    has_selected.set(true);
-                    is_open.set(false);
-                    query.set("".to_string());
-                    on_select.call(value_c.clone());
-                },
-                "{label}"
+    let rendered_items: Vec<_> = items
+        .iter()
+        .map(|item| {
+            let label = item
+                .get(&f_label_key)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let value = item
+                .get(&f_value_key)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let label_c = label.clone();
+            let value_c = value.clone();
+            let key = value.clone();
+            rsx! {
+                div {
+                    class: "searchable-select-item",
+                    key: "{key}",
+                    onmousedown: move |_| {
+                        selected_label.set(label_c.clone());
+                        has_selected.set(true);
+                        is_open.set(false);
+                        query.set("".to_string());
+                        on_select.call(value_c.clone());
+                    },
+                    "{label}"
+                }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     rsx! {
         div { class: "searchable-select",

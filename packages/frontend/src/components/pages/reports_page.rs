@@ -224,14 +224,35 @@ fn IndividualReports() -> Element {
 
 #[component]
 fn CertificateResult(data: serde_json::Value) -> Element {
-    let name = data["certificate"]["student_name"].as_str().unwrap_or("").to_string();
-    let rut = data["certificate"]["rut"].as_str().unwrap_or("").to_string();
-    let grade_level = data["certificate"]["grade_level"].as_str().unwrap_or("").to_string();
-    let section = data["certificate"]["section"].as_str().unwrap_or("").to_string();
+    let name = data["certificate"]["student_name"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let rut = data["certificate"]["rut"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let grade_level = data["certificate"]["grade_level"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let section = data["certificate"]["section"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     let year = data["certificate"]["year"].as_i64().unwrap_or(0);
-    let status = data["certificate"]["enrollment_status"].as_str().unwrap_or("").to_string();
-    let issued_at = data["certificate"]["issued_at"].as_str().unwrap_or("").to_string();
-    let issuer = data["certificate"]["issuer_name"].as_str().unwrap_or("").to_string();
+    let status = data["certificate"]["enrollment_status"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let issued_at = data["certificate"]["issued_at"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let issuer = data["certificate"]["issuer_name"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
 
     rsx! {
         div { class: "report-result certificate",
@@ -250,28 +271,52 @@ fn CertificateResult(data: serde_json::Value) -> Element {
 
 #[component]
 fn ConcentrationResult(data: serde_json::Value) -> Element {
-    let student_name = data["concentration"]["student_name"].as_str().unwrap_or("").to_string();
-    let rut = data["concentration"]["rut"].as_str().unwrap_or("").to_string();
+    let student_name = data["concentration"]["student_name"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let rut = data["concentration"]["rut"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     let year = data["concentration"]["year"].as_i64().unwrap_or(0);
-    let final_avg = data["concentration"]["final_average"].as_f64().unwrap_or(0.0);
-    let final_prom = data["concentration"]["final_promotion"].as_str().unwrap_or("").to_string();
-    let semesters = data["concentration"]["semesters"].as_array().cloned().unwrap_or_default();
+    let final_avg = data["concentration"]["final_average"]
+        .as_f64()
+        .unwrap_or(0.0);
+    let final_prom = data["concentration"]["final_promotion"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let semesters = data["concentration"]["semesters"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
 
-    let semester_cards: Vec<(i64, f64, Vec<(String, i64, String, f64, f64, f64)>)> = semesters.iter().map(|sem| {
-        let sem_num = sem["semester"].as_i64().unwrap_or(0);
-        let global = sem["global_average"].as_f64().unwrap_or(0.0);
-        let subjects = sem["subjects"].as_array().cloned().unwrap_or_default();
-        let subject_rows: Vec<(String, i64, String, f64, f64, f64)> = subjects.iter().map(|s| {
-            let sname = s["subject_name"].as_str().unwrap_or("-").to_string();
-            let gcount = s["grades_count"].as_i64().unwrap_or(0);
-            let avg = s["average"].as_f64().unwrap_or(0.0);
-            let min_g = s["min_grade"].as_f64().unwrap_or(0.0);
-            let max_g = s["max_grade"].as_f64().unwrap_or(0.0);
-            let avg_class = if avg >= 4.0 { "grade-good".to_string() } else { "grade-bad".to_string() };
-            (sname, gcount, avg_class, avg, min_g, max_g)
-        }).collect();
-        (sem_num, global, subject_rows)
-    }).collect();
+    let semester_cards: Vec<(i64, f64, Vec<(String, i64, String, f64, f64, f64)>)> = semesters
+        .iter()
+        .map(|sem| {
+            let sem_num = sem["semester"].as_i64().unwrap_or(0);
+            let global = sem["global_average"].as_f64().unwrap_or(0.0);
+            let subjects = sem["subjects"].as_array().cloned().unwrap_or_default();
+            let subject_rows: Vec<(String, i64, String, f64, f64, f64)> = subjects
+                .iter()
+                .map(|s| {
+                    let sname = s["subject_name"].as_str().unwrap_or("-").to_string();
+                    let gcount = s["grades_count"].as_i64().unwrap_or(0);
+                    let avg = s["average"].as_f64().unwrap_or(0.0);
+                    let min_g = s["min_grade"].as_f64().unwrap_or(0.0);
+                    let max_g = s["max_grade"].as_f64().unwrap_or(0.0);
+                    let avg_class = if avg >= 4.0 {
+                        "grade-good".to_string()
+                    } else {
+                        "grade-bad".to_string()
+                    };
+                    (sname, gcount, avg_class, avg, min_g, max_g)
+                })
+                .collect();
+            (sem_num, global, subject_rows)
+        })
+        .collect();
 
     rsx! {
         div { class: "report-result",
@@ -345,29 +390,31 @@ fn CourseReports() -> Element {
     let course_elements: Vec<Element> = match courses() {
         Some(Ok(j)) => {
             let list = j["courses"].as_array().cloned().unwrap_or_default();
-            list.iter().map(|c| {
-                let cid = c["id"].as_str().unwrap_or("").to_string();
-                let cname = c["name"].as_str().unwrap_or("").to_string();
-                let level = c["grade_level"].as_str().unwrap_or("").to_string();
-                let section = c["section"].as_str().unwrap_or("").to_string();
-                let cinfo = format!("{} - {}", level, section);
-                let mut selected = selected_course.clone();
-                let mut search = search_course.clone();
-                rsx! {
-                    div {
-                        class: "search-result-item",
-                        onclick: move |_| {
-                            selected.set(Some(serde_json::json!({
-                                "id": cid.clone(),
-                                "name": cname.clone(),
-                            })));
-                            search.set(String::new());
-                        },
-                        span { "{cname}" }
-                        span { class: "result-rut", "{cinfo}" }
+            list.iter()
+                .map(|c| {
+                    let cid = c["id"].as_str().unwrap_or("").to_string();
+                    let cname = c["name"].as_str().unwrap_or("").to_string();
+                    let level = c["grade_level"].as_str().unwrap_or("").to_string();
+                    let section = c["section"].as_str().unwrap_or("").to_string();
+                    let cinfo = format!("{} - {}", level, section);
+                    let mut selected = selected_course.clone();
+                    let mut search = search_course.clone();
+                    rsx! {
+                        div {
+                            class: "search-result-item",
+                            onclick: move |_| {
+                                selected.set(Some(serde_json::json!({
+                                    "id": cid.clone(),
+                                    "name": cname.clone(),
+                                })));
+                                search.set(String::new());
+                            },
+                            span { "{cname}" }
+                            span { class: "result-rut", "{cinfo}" }
+                        }
                     }
-                }
-            }).collect()
+                })
+                .collect()
         }
         _ => vec![],
     };
@@ -441,17 +488,26 @@ fn FinalRecordResult(data: serde_json::Value) -> Element {
     let year = record["year"].as_i64().unwrap_or(0);
     let promoted = record["summary"]["promoted"].as_i64().unwrap_or(0);
     let failed = record["summary"]["failed"].as_i64().unwrap_or(0);
-    let rate = record["summary"]["average_promotion_rate"].as_f64().unwrap_or(0.0);
+    let rate = record["summary"]["average_promotion_rate"]
+        .as_f64()
+        .unwrap_or(0.0);
     let students = record["students"].as_array().cloned().unwrap_or_default();
 
-    let student_rows: Vec<(String, String, f64, String, String)> = students.iter().map(|s| {
-        let name = s["student_name"].as_str().unwrap_or("-").to_string();
-        let rut = s["rut"].as_str().unwrap_or("-").to_string();
-        let avg = s["final_average"].as_f64().unwrap_or(0.0);
-        let prom = s["promotion"].as_str().unwrap_or("").to_string();
-        let prom_class = if prom == "Reprobado" { "grade-bad".to_string() } else { "grade-good".to_string() };
-        (name, rut, avg, prom, prom_class)
-    }).collect();
+    let student_rows: Vec<(String, String, f64, String, String)> = students
+        .iter()
+        .map(|s| {
+            let name = s["student_name"].as_str().unwrap_or("-").to_string();
+            let rut = s["rut"].as_str().unwrap_or("-").to_string();
+            let avg = s["final_average"].as_f64().unwrap_or(0.0);
+            let prom = s["promotion"].as_str().unwrap_or("").to_string();
+            let prom_class = if prom == "Reprobado" {
+                "grade-bad".to_string()
+            } else {
+                "grade-good".to_string()
+            };
+            (name, rut, avg, prom, prom_class)
+        })
+        .collect();
 
     rsx! {
         div { class: "report-result",

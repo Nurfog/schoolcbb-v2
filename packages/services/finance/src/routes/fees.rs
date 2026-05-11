@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, Path, State},
     http::request::Parts,
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{FinanceError, FinanceResult};
 use crate::AppState;
+use crate::error::{FinanceError, FinanceResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -26,7 +26,10 @@ pub struct Claims {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = FinanceError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -60,17 +63,24 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), FinanceEr
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/finance/fees", get(list_fees).post(create_fee))
-        .route("/api/finance/fees/{id}", get(get_fee).put(update_fee).delete(delete_fee))
-        .route("/api/finance/fees/student/{student_id}", get(fees_by_student))
+        .route(
+            "/api/finance/fees/{id}",
+            get(get_fee).put(update_fee).delete(delete_fee),
+        )
+        .route(
+            "/api/finance/fees/student/{student_id}",
+            get(fees_by_student),
+        )
 }
 
-async fn list_fees(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> FinanceResult<Json<Value>> {
+async fn list_fees(claims: Claims, State(state): State<AppState>) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let school_condition = claims.school_id.as_ref().map(|sid| format!(" WHERE school_id = '{}'::uuid", sid)).unwrap_or_default();
+    let school_condition = claims
+        .school_id
+        .as_ref()
+        .map(|sid| format!(" WHERE school_id = '{}'::uuid", sid))
+        .unwrap_or_default();
 
     let fees = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
         &format!("SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees{} ORDER BY due_date DESC LIMIT 100", school_condition),
@@ -107,7 +117,9 @@ async fn create_fee(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
     if payload.description.trim().is_empty() || payload.amount <= 0.0 {
-        return Err(FinanceError::Validation("Descripción y monto válido son obligatorios".into()));
+        return Err(FinanceError::Validation(
+            "Descripción y monto válido son obligatorios".into(),
+        ));
     }
 
     let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
@@ -186,7 +198,16 @@ async fn fees_by_student(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> FinanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Apoderado",
+        ],
+    )?;
 
     let fees = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees WHERE student_id = $1 ORDER BY due_date",

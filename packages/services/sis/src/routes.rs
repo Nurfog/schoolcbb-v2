@@ -1,9 +1,9 @@
-mod models;
-mod dashboard;
-pub mod students;
 mod courses;
+mod dashboard;
 mod enrollments;
 mod import;
+mod models;
+pub mod students;
 
 pub fn router() -> axum::Router<crate::AppState> {
     axum::Router::new()

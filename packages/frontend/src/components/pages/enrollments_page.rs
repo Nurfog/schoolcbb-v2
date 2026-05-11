@@ -37,7 +37,8 @@ pub fn EnrollmentsPage() -> Element {
 
     let do_delete = move |id: String| {
         spawn(async move {
-            let _ = client::post_json(&format!("/api/enrollments/{}", id), &serde_json::json!({})).await;
+            let _ = client::post_json(&format!("/api/enrollments/{}", id), &serde_json::json!({}))
+                .await;
             enrollments.restart();
         });
     };

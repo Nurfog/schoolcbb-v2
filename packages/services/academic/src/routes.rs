@@ -1,11 +1,11 @@
-mod subjects;
-mod periods;
-mod categories;
-mod grades;
-mod reports;
 mod academic_years;
-pub mod grade_levels;
+mod categories;
 mod course_subjects;
+pub mod grade_levels;
+mod grades;
+mod periods;
+mod reports;
+mod subjects;
 
 pub fn router() -> axum::Router<crate::AppState> {
     axum::Router::new()

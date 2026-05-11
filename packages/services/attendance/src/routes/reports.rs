@@ -1,21 +1,33 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::AttendanceResult;
-use crate::routes::attendance::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::AttendanceResult;
+use crate::routes::attendance::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/attendance/monthly/{year}/{month}", get(monthly_report))
-        .route("/api/attendance/monthly/{year}/{month}/{course_id}", get(monthly_report_by_course))
-        .route("/api/attendance/student/{student_id}/summary/{year}", get(student_yearly_summary))
-        .route("/api/attendance/report/export/{year}/{month}", get(export_supereduc))
+        .route(
+            "/api/attendance/monthly/{year}/{month}",
+            get(monthly_report),
+        )
+        .route(
+            "/api/attendance/monthly/{year}/{month}/{course_id}",
+            get(monthly_report_by_course),
+        )
+        .route(
+            "/api/attendance/student/{student_id}/summary/{year}",
+            get(student_yearly_summary),
+        )
+        .route(
+            "/api/attendance/report/export/{year}/{month}",
+            get(export_supereduc),
+        )
 }
 
 async fn monthly_report(
@@ -23,13 +35,22 @@ async fn monthly_report(
     State(state): State<AppState>,
     Path((year, month)): Path<(i32, u32)>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let summary = get_monthly_summary(&state.pool, year, month).await?;
 
     let total_students = summary.len();
-    let total_below_85 = summary.iter().filter(|s| s.attendance_percentage() < 85.0).count();
-    let total_below_75 = summary.iter().filter(|s| s.attendance_percentage() < 75.0).count();
+    let total_below_85 = summary
+        .iter()
+        .filter(|s| s.attendance_percentage() < 85.0)
+        .count();
+    let total_below_75 = summary
+        .iter()
+        .filter(|s| s.attendance_percentage() < 75.0)
+        .count();
 
     Ok(Json(json!({
         "year": year,
@@ -48,7 +69,10 @@ async fn monthly_report_by_course(
     State(state): State<AppState>,
     Path((year, month, course_id)): Path<(i32, u32, Uuid)>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let summary = get_monthly_summary_by_course(&state.pool, year, month, course_id).await?;
 
@@ -66,7 +90,18 @@ async fn student_yearly_summary(
     State(state): State<AppState>,
     Path((student_id, year)): Path<(Uuid, i32)>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let mut months = vec![];
     let mut total_days = 0i32;
@@ -117,7 +152,9 @@ async fn student_yearly_summary(
 
     let attendance_pct = if total_days > 0 {
         (present as f64 / total_days as f64 * 100.0 * 10.0).round() / 10.0
-    } else { 100.0 };
+    } else {
+        100.0
+    };
 
     Ok(Json(json!({
         "student_id": student_id,
@@ -167,23 +204,28 @@ async fn export_supereduc(
     .fetch_all(&state.pool)
     .await?;
 
-    let rows_with_pct: Vec<Value> = rows.iter().map(|r| {
-        let pct = if r.total_days > 0 {
-            (r.present as f64 / r.total_days as f64 * 100.0 * 10.0).round() / 10.0
-        } else { 100.0 };
-        json!({
-            "rut": r.rut,
-            "student_name": r.student_name,
-            "grade_level": r.grade_level,
-            "section": r.section,
-            "total_days": r.total_days,
-            "present": r.present,
-            "absent": r.absent,
-            "late": r.late,
-            "justified": r.justified,
-            "attendance_percentage": pct
+    let rows_with_pct: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            let pct = if r.total_days > 0 {
+                (r.present as f64 / r.total_days as f64 * 100.0 * 10.0).round() / 10.0
+            } else {
+                100.0
+            };
+            json!({
+                "rut": r.rut,
+                "student_name": r.student_name,
+                "grade_level": r.grade_level,
+                "section": r.section,
+                "total_days": r.total_days,
+                "present": r.present,
+                "absent": r.absent,
+                "late": r.late,
+                "justified": r.justified,
+                "attendance_percentage": pct
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(json!({
         "year": year,
@@ -279,7 +321,9 @@ struct MonthlySummaryRow {
 
 impl MonthlySummaryRow {
     fn attendance_percentage(&self) -> f64 {
-        if self.total_days == 0 { return 100.0; }
+        if self.total_days == 0 {
+            return 100.0;
+        }
         (self.present as f64 / self.total_days as f64) * 100.0
     }
 }

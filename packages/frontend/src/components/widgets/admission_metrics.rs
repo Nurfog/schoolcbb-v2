@@ -33,32 +33,43 @@ fn MetricsContent(data: Value) -> Element {
     let stages = data["stages"].as_array().cloned().unwrap_or_default();
     let sources = data["sources"].as_array().cloned().unwrap_or_default();
 
-    let stage_bars: Vec<Element> = stages.iter().map(|s| {
-        let name = s["stage_name"].as_str().unwrap_or("").to_string();
-        let count = s["count"].as_i64().unwrap_or(0);
-        let max_count = stages.iter().map(|x| x["count"].as_i64().unwrap_or(0)).max().unwrap_or(1).max(1);
-        let pct = (count as f64 / max_count as f64) * 100.0;
-        rsx! {
-            div { class: "metric-bar-row",
-                span { class: "metric-bar-label", "{name}" }
-                div { class: "metric-bar-track",
-                    div { class: "metric-bar-fill", style: "width: {pct}%" }
+    let stage_bars: Vec<Element> = stages
+        .iter()
+        .map(|s| {
+            let name = s["stage_name"].as_str().unwrap_or("").to_string();
+            let count = s["count"].as_i64().unwrap_or(0);
+            let max_count = stages
+                .iter()
+                .map(|x| x["count"].as_i64().unwrap_or(0))
+                .max()
+                .unwrap_or(1)
+                .max(1);
+            let pct = (count as f64 / max_count as f64) * 100.0;
+            rsx! {
+                div { class: "metric-bar-row",
+                    span { class: "metric-bar-label", "{name}" }
+                    div { class: "metric-bar-track",
+                        div { class: "metric-bar-fill", style: "width: {pct}%" }
+                    }
+                    span { class: "metric-bar-value", "{count}" }
                 }
-                span { class: "metric-bar-value", "{count}" }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
-    let source_items: Vec<Element> = sources.iter().map(|s| {
-        let name = s["source"].as_str().unwrap_or("sin origen").to_string();
-        let count = s["count"].as_i64().unwrap_or(0);
-        rsx! {
-            div { class: "source-item",
-                span { "{name}" }
-                span { class: "source-count", "{count}" }
+    let source_items: Vec<Element> = sources
+        .iter()
+        .map(|s| {
+            let name = s["source"].as_str().unwrap_or("sin origen").to_string();
+            let count = s["count"].as_i64().unwrap_or(0);
+            rsx! {
+                div { class: "source-item",
+                    span { "{name}" }
+                    span { class: "source-count", "{count}" }
+                }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     rsx! {
         div { class: "kpi-grid",

@@ -111,15 +111,9 @@ impl QueryRoot {
             Ok(resp) => {
                 if let Ok(data) = resp.json::<Value>().await {
                     Some(StudentReportGql {
-                        student_name: data["student_name"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_string(),
+                        student_name: data["student_name"].as_str().unwrap_or("").to_string(),
                         year,
-                        final_promotion: data["final_promotion"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_string(),
+                        final_promotion: data["final_promotion"].as_str().unwrap_or("").to_string(),
                     })
                 } else {
                     None

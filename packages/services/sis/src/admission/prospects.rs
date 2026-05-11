@@ -1,17 +1,29 @@
-use axum::{extract::{Path, Query, State}, routing::{get, put}, Json, Router};
+use axum::{
+    Json, Router,
+    extract::{Path, Query, State},
+    routing::{get, put},
+};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{SisError, SisResult};
-use crate::routes::students::{require_any_role, Claims};
-use crate::workflow::CrmEvent;
 use crate::AppState;
+use crate::error::{SisError, SisResult};
+use crate::routes::students::{Claims, require_any_role};
+use crate::workflow::CrmEvent;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admission/prospects", get(list_prospects).post(create_prospect))
-        .route("/api/admission/prospects/{id}", get(get_prospect).put(update_prospect).delete(delete_prospect))
+        .route(
+            "/api/admission/prospects",
+            get(list_prospects).post(create_prospect),
+        )
+        .route(
+            "/api/admission/prospects/{id}",
+            get(get_prospect)
+                .put(update_prospect)
+                .delete(delete_prospect),
+        )
         .route("/api/admission/prospects/{id}/stage", put(change_stage))
 }
 
@@ -22,8 +34,15 @@ struct ProspectFilter {
     assigned_to: Option<Uuid>,
 }
 
-async fn list_prospects(claims: Claims, State(state): State<AppState>, Query(q): Query<ProspectFilter>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn list_prospects(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<ProspectFilter>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
 
     let mut sql = "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects".to_string();
     let mut clauses: Vec<String> = vec![];
@@ -33,7 +52,9 @@ async fn list_prospects(claims: Claims, State(state): State<AppState>, Query(q):
     }
     if q.search.is_some() {
         let n = clauses.len() + 1;
-        clauses.push(format!("(first_name ILIKE ${n} OR last_name ILIKE ${n} OR rut ILIKE ${n})"));
+        clauses.push(format!(
+            "(first_name ILIKE ${n} OR last_name ILIKE ${n} OR rut ILIKE ${n})"
+        ));
     }
     if q.assigned_to.is_some() {
         clauses.push(format!("assigned_user_id = ${}", clauses.len() + 1));
@@ -56,11 +77,20 @@ async fn list_prospects(claims: Claims, State(state): State<AppState>, Query(q):
     }
 
     let prospects = query.fetch_all(&state.pool).await?;
-    Ok(Json(json!({ "prospects": prospects, "total": prospects.len() })))
+    Ok(Json(
+        json!({ "prospects": prospects, "total": prospects.len() }),
+    ))
 }
 
-async fn get_prospect(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn get_prospect(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let prospect = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
         "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
@@ -74,19 +104,31 @@ async fn get_prospect(claims: Claims, State(state): State<AppState>, Path(id): P
         "SELECT id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at FROM prospect_documents WHERE prospect_id = $1 ORDER BY created_at DESC",
     ).bind(id).fetch_all(&state.pool).await?;
 
-    Ok(Json(json!({ "prospect": prospect, "activities": activities, "documents": documents })))
+    Ok(Json(
+        json!({ "prospect": prospect, "activities": activities, "documents": documents }),
+    ))
 }
 
-async fn create_prospect(claims: Claims, State(state): State<AppState>, Json(payload): Json<schoolcbb_common::admission::CreateProspectPayload>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn create_prospect(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::admission::CreateProspectPayload>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     if payload.first_name.trim().is_empty() || payload.last_name.trim().is_empty() {
-        return Err(SisError::Validation("Nombre y apellido obligatorios".into()));
+        return Err(SisError::Validation(
+            "Nombre y apellido obligatorios".into(),
+        ));
     }
 
     let id = Uuid::new_v4();
-    let first_stage: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM pipeline_stages ORDER BY sort_order LIMIT 1",
-    ).fetch_optional(&state.pool).await?;
+    let first_stage: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM pipeline_stages ORDER BY sort_order LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await?;
 
     let result = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
         r#"INSERT INTO prospects (id, first_name, last_name, rut, email, phone, current_stage_id, source, notes)
@@ -100,8 +142,16 @@ async fn create_prospect(claims: Claims, State(state): State<AppState>, Json(pay
     Ok(Json(json!({ "prospect": result })))
 }
 
-async fn update_prospect(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<schoolcbb_common::admission::UpdateProspectPayload>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn update_prospect(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolcbb_common::admission::UpdateProspectPayload>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let current = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
         "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
@@ -123,38 +173,59 @@ async fn update_prospect(claims: Claims, State(state): State<AppState>, Path(id)
     Ok(Json(json!({ "prospect": result })))
 }
 
-async fn delete_prospect(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn delete_prospect(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    sqlx::query("DELETE FROM prospects WHERE id = $1").bind(id).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM prospects WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     Ok(Json(json!({ "message": "Postulante eliminado" })))
 }
 
-async fn change_stage(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<ChangeStagePayload>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn change_stage(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<ChangeStagePayload>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
 
     let old_stage: Option<Uuid> = sqlx::query_as::<_, (Option<Uuid>,)>(
         "SELECT current_stage_id FROM prospects WHERE id = $1",
     )
     .bind(id)
-    .fetch_optional(&state.pool).await?
+    .fetch_optional(&state.pool)
+    .await?
     .and_then(|r| r.0);
 
-    let stage_info: Option<(String, bool)> = sqlx::query_as(
-        "SELECT name, is_final FROM pipeline_stages WHERE id = $1",
-    )
-    .bind(payload.stage_id)
-    .fetch_optional(&state.pool).await?;
+    let stage_info: Option<(String, bool)> =
+        sqlx::query_as("SELECT name, is_final FROM pipeline_stages WHERE id = $1")
+            .bind(payload.stage_id)
+            .fetch_optional(&state.pool)
+            .await?;
 
-    let (stage_name, is_final) = stage_info.ok_or_else(|| SisError::Validation("La etapa no existe".into()))?;
+    let (stage_name, is_final) =
+        stage_info.ok_or_else(|| SisError::Validation("La etapa no existe".into()))?;
 
     if is_final {
-        let rut: Option<String> = sqlx::query_as::<_, (Option<String>,)>("SELECT rut FROM prospects WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&state.pool).await?
-            .and_then(|r| r.0)
-            .filter(|r| !r.is_empty());
+        let rut: Option<String> =
+            sqlx::query_as::<_, (Option<String>,)>("SELECT rut FROM prospects WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&state.pool)
+                .await?
+                .and_then(|r| r.0)
+                .filter(|r| !r.is_empty());
         if rut.is_none() {
-            return Err(SisError::Validation("El postulante debe tener RUT para ser matriculado".into()));
+            return Err(SisError::Validation(
+                "El postulante debe tener RUT para ser matriculado".into(),
+            ));
         }
     }
 

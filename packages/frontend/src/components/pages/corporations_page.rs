@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::api::client;
 
@@ -15,7 +15,9 @@ pub fn CorporationsPage() -> Element {
     let do_create_corp = move |_| {
         let name = corp_name();
         let rut = corp_rut();
-        if name.trim().is_empty() || rut.trim().is_empty() { return; }
+        if name.trim().is_empty() || rut.trim().is_empty() {
+            return;
+        }
         saving_corp.set(true);
         spawn({
             async move {
@@ -163,7 +165,9 @@ fn SchoolSection(corporation_id: String) -> Element {
 
     let do_create = move |_| {
         let name = school_name();
-        if name.trim().is_empty() { return; }
+        if name.trim().is_empty() {
+            return;
+        }
         saving.set(true);
         let cid = corporation_id.clone();
         spawn(async move {

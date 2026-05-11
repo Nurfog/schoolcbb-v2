@@ -34,7 +34,10 @@ pub fn StudentAlertsWidget() -> Element {
 
 #[component]
 fn AlertsContent(data: Value) -> Element {
-    let alerts = data["alerts"].as_array().map(|a| a.clone()).unwrap_or_default();
+    let alerts = data["alerts"]
+        .as_array()
+        .map(|a| a.clone())
+        .unwrap_or_default();
 
     if alerts.is_empty() {
         return rsx! {

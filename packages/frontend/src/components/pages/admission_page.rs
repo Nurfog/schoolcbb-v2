@@ -1,8 +1,8 @@
-use dioxus::prelude::*;
 use crate::api::client;
 use crate::components::widgets::admission_metrics::AdmissionMetricsWidget;
 use crate::components::widgets::business_process_flow::BusinessProcessFlow;
 use crate::components::widgets::custom_fields_section::CustomFieldsSection;
+use dioxus::prelude::*;
 
 #[component]
 pub fn AdmissionPage() -> Element {
@@ -53,9 +53,13 @@ pub fn AdmissionPage() -> Element {
             let _ = client::create_prospect(&payload).await;
             saving.set(false);
             show_new.set(false);
-            first_name.set(String::new()); last_name.set(String::new());
-            rut.set(String::new()); email.set(String::new()); phone.set(String::new());
-            source.set(String::new()); notes.set(String::new());
+            first_name.set(String::new());
+            last_name.set(String::new());
+            rut.set(String::new());
+            email.set(String::new());
+            phone.set(String::new());
+            source.set(String::new());
+            notes.set(String::new());
             prospects.restart();
         });
     };

@@ -21,7 +21,10 @@ impl AttendanceStatus {
     }
 
     pub fn es_justificado(&self) -> bool {
-        matches!(self, AttendanceStatus::Justificado | AttendanceStatus::Licencia)
+        matches!(
+            self,
+            AttendanceStatus::Justificado | AttendanceStatus::Licencia
+        )
     }
 
     #[allow(clippy::should_implement_trait)]
@@ -227,15 +230,30 @@ mod tests {
 
     #[test]
     fn test_from_str_defaults_to_presente() {
-        assert_eq!(AttendanceStatus::from_str("Desconocido"), AttendanceStatus::Presente);
+        assert_eq!(
+            AttendanceStatus::from_str("Desconocido"),
+            AttendanceStatus::Presente
+        );
     }
 
     #[test]
     fn test_from_str_parses_all() {
-        assert_eq!(AttendanceStatus::from_str("Ausente"), AttendanceStatus::Ausente);
-        assert_eq!(AttendanceStatus::from_str("Atraso"), AttendanceStatus::Atraso);
-        assert_eq!(AttendanceStatus::from_str("Justificado"), AttendanceStatus::Justificado);
-        assert_eq!(AttendanceStatus::from_str("Licencia"), AttendanceStatus::Licencia);
+        assert_eq!(
+            AttendanceStatus::from_str("Ausente"),
+            AttendanceStatus::Ausente
+        );
+        assert_eq!(
+            AttendanceStatus::from_str("Atraso"),
+            AttendanceStatus::Atraso
+        );
+        assert_eq!(
+            AttendanceStatus::from_str("Justificado"),
+            AttendanceStatus::Justificado
+        );
+        assert_eq!(
+            AttendanceStatus::from_str("Licencia"),
+            AttendanceStatus::Licencia
+        );
     }
 
     #[test]

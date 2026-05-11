@@ -10,11 +10,18 @@ pub struct WorkflowService {
 
 #[tonic::async_trait]
 impl WorkflowEvents for WorkflowService {
-    async fn notify_event(&self, req: Request<EventNotification>) -> Result<Response<EventAck>, Status> {
+    async fn notify_event(
+        &self,
+        req: Request<EventNotification>,
+    ) -> Result<Response<EventAck>, Status> {
         let event = req.into_inner();
         tracing::info!(
             "gRPC event received: type={} source={} prospect={} student={} stage={}",
-            event.event_type, event.source_service, event.prospect_id, event.student_id, event.stage_name,
+            event.event_type,
+            event.source_service,
+            event.prospect_id,
+            event.student_id,
+            event.stage_name,
         );
 
         match event.event_type.as_str() {
@@ -49,9 +56,7 @@ impl WorkflowEvents for WorkflowService {
 }
 
 pub async fn start_grpc_server(pool: PgPool, addr: String) {
-    let service = WorkflowService {
-        pool,
-    };
+    let service = WorkflowService { pool };
 
     tracing::info!("gRPC server starting on {addr}");
 

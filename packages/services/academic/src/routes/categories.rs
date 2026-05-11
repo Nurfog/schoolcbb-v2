@@ -1,27 +1,41 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AcademicError, AcademicResult};
-use crate::routes::subjects::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{AcademicError, AcademicResult};
+use crate::routes::subjects::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/grades/categories", get(list_categories).post(create_category))
-        .route("/api/grades/categories/{id}", get(get_category).put(update_category).delete(delete_category))
-        .route("/api/grades/course-subjects/{course_subject_id}/categories", get(categories_by_course_subject))
+        .route(
+            "/api/grades/categories",
+            get(list_categories).post(create_category),
+        )
+        .route(
+            "/api/grades/categories/{id}",
+            get(get_category)
+                .put(update_category)
+                .delete(delete_category),
+        )
+        .route(
+            "/api/grades/course-subjects/{course_subject_id}/categories",
+            get(categories_by_course_subject),
+        )
 }
 
 async fn list_categories(
     claims: Claims,
     State(state): State<AppState>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let categories = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories ORDER BY name",
@@ -37,7 +51,10 @@ async fn get_category(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let category = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE id = $1",
@@ -55,7 +72,10 @@ async fn categories_by_course_subject(
     State(state): State<AppState>,
     Path(course_subject_id): Path<Uuid>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let categories = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE course_subject_id = $1 ORDER BY name",
@@ -75,10 +95,14 @@ async fn create_category(
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
     if payload.name.trim().is_empty() {
-        return Err(AcademicError::Validation("El nombre de la categoría es obligatorio".into()));
+        return Err(AcademicError::Validation(
+            "El nombre de la categoría es obligatorio".into(),
+        ));
     }
     if payload.weight_percentage <= 0.0 || payload.weight_percentage > 100.0 {
-        return Err(AcademicError::Validation("El porcentaje debe estar entre 0 y 100".into()));
+        return Err(AcademicError::Validation(
+            "El porcentaje debe estar entre 0 y 100".into(),
+        ));
     }
 
     let existing: Vec<schoolcbb_common::academic::GradeCategory> = sqlx::query_as(
@@ -132,8 +156,12 @@ async fn update_category(
     .ok_or(AcademicError::NotFound("Categoría no encontrada".into()))?;
 
     let name = payload.name.unwrap_or(existing.name);
-    let weight_percentage = payload.weight_percentage.unwrap_or(existing.weight_percentage);
-    let evaluation_count = payload.evaluation_count.unwrap_or(existing.evaluation_count);
+    let weight_percentage = payload
+        .weight_percentage
+        .unwrap_or(existing.weight_percentage);
+    let evaluation_count = payload
+        .evaluation_count
+        .unwrap_or(existing.evaluation_count);
 
     let result = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
         r#"
@@ -168,5 +196,7 @@ async fn delete_category(
         return Err(AcademicError::NotFound("Categoría no encontrada".into()));
     }
 
-    Ok(Json(json!({ "message": "Categoría eliminada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Categoría eliminada correctamente" }),
+    ))
 }

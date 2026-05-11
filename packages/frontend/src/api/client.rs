@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::OnceLock;
 
 fn base_url() -> String {
@@ -115,12 +115,26 @@ pub async fn search_students(query: &str) -> Result<Value, String> {
     let q = urlencoding(query);
     fetch_json(&format!("/api/students?search={q}")).await
 }
-pub async fn fetch_students(grade_level: Option<&str>, section: Option<&str>, search: Option<&str>) -> Result<Value, String> {
+pub async fn fetch_students(
+    grade_level: Option<&str>,
+    section: Option<&str>,
+    search: Option<&str>,
+) -> Result<Value, String> {
     let mut params = vec![];
-    if let Some(gl) = grade_level { params.push(format!("grade_level={}", urlencoding(gl))); }
-    if let Some(sec) = section { params.push(format!("section={}", urlencoding(sec))); }
-    if let Some(q) = search { params.push(format!("search={}", urlencoding(q))); }
-    let qs = if params.is_empty() { String::new() } else { format!("?{}", params.join("&")) };
+    if let Some(gl) = grade_level {
+        params.push(format!("grade_level={}", urlencoding(gl)));
+    }
+    if let Some(sec) = section {
+        params.push(format!("section={}", urlencoding(sec)));
+    }
+    if let Some(q) = search {
+        params.push(format!("search={}", urlencoding(q)));
+    }
+    let qs = if params.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", params.join("&"))
+    };
     fetch_json(&format!("/api/students{}", qs)).await
 }
 #[allow(dead_code)]
@@ -132,15 +146,31 @@ pub async fn fetch_student_full(student_id: &str) -> Result<Value, String> {
 pub async fn fetch_subjects() -> Result<Value, String> {
     fetch_json("/api/grades/subjects").await
 }
-pub async fn fetch_grades_student(student_id: &str, semester: i32, year: i32) -> Result<Value, String> {
-    fetch_json(&format!("/api/grades/student/{}/{}/{}", student_id, semester, year)).await
+pub async fn fetch_grades_student(
+    student_id: &str,
+    semester: i32,
+    year: i32,
+) -> Result<Value, String> {
+    fetch_json(&format!(
+        "/api/grades/student/{}/{}/{}",
+        student_id, semester, year
+    ))
+    .await
 }
 pub async fn fetch_student_report(student_id: &str, year: i32) -> Result<Value, String> {
-    fetch_json(&format!("/api/grades/reports/student/{}/{}", student_id, year)).await
+    fetch_json(&format!(
+        "/api/grades/reports/student/{}/{}",
+        student_id, year
+    ))
+    .await
 }
 #[allow(dead_code)]
 pub async fn fetch_course_performance(course_id: &str, year: i32) -> Result<Value, String> {
-    fetch_json(&format!("/api/grades/reports/course/{}/{}", course_id, year)).await
+    fetch_json(&format!(
+        "/api/grades/reports/course/{}/{}",
+        course_id, year
+    ))
+    .await
 }
 pub async fn fetch_grades_by_subject(subject_id: &str, year: i32) -> Result<Value, String> {
     fetch_json(&format!("/api/grades/by-subject/{}/{}", subject_id, year)).await
@@ -152,11 +182,19 @@ pub async fn fetch_attendance_monthly(year: i32, month: u32) -> Result<Value, St
 }
 #[allow(dead_code)]
 pub async fn fetch_attendance_by_course_date(course_id: &str, date: &str) -> Result<Value, String> {
-    fetch_json(&format!("/api/attendance/course/{}/date/{}", course_id, date)).await
+    fetch_json(&format!(
+        "/api/attendance/course/{}/date/{}",
+        course_id, date
+    ))
+    .await
 }
 // ─── Communications ───
 pub async fn fetch_interviews_student(student_id: &str) -> Result<Value, String> {
-    fetch_json(&format!("/api/communications/interviews/student/{}", student_id)).await
+    fetch_json(&format!(
+        "/api/communications/interviews/student/{}",
+        student_id
+    ))
+    .await
 }
 
 // ─── Finance ───
@@ -170,7 +208,11 @@ pub async fn create_fee(payload: &Value) -> Result<Value, String> {
     post_json("/api/finance/fees", payload).await
 }
 pub async fn mark_fee_paid(fee_id: &str) -> Result<Value, String> {
-    put_json(&format!("/api/finance/fees/{}", fee_id), &serde_json::json!({"paid": true})).await
+    put_json(
+        &format!("/api/finance/fees/{}", fee_id),
+        &serde_json::json!({"paid": true}),
+    )
+    .await
 }
 pub async fn delete_fee(fee_id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/finance/fees/{}", fee_id)).await
@@ -188,7 +230,11 @@ pub async fn create_scholarship(payload: &Value) -> Result<Value, String> {
     post_json("/api/finance/scholarships", payload).await
 }
 pub async fn approve_scholarship(scholarship_id: &str) -> Result<Value, String> {
-    put_json(&format!("/api/finance/scholarships/{}", scholarship_id), &serde_json::json!({})).await
+    put_json(
+        &format!("/api/finance/scholarships/{}", scholarship_id),
+        &serde_json::json!({}),
+    )
+    .await
 }
 pub async fn delete_scholarship(scholarship_id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/finance/scholarships/{}", scholarship_id)).await
@@ -199,7 +245,11 @@ pub async fn fetch_student_certificate(student_id: &str) -> Result<Value, String
     fetch_json(&format!("/api/reports/certificate/student/{}", student_id)).await
 }
 pub async fn fetch_student_concentration(student_id: &str, year: i32) -> Result<Value, String> {
-    fetch_json(&format!("/api/reports/concentration/{}/{}", student_id, year)).await
+    fetch_json(&format!(
+        "/api/reports/concentration/{}/{}",
+        student_id, year
+    ))
+    .await
 }
 pub async fn fetch_final_record(course_id: &str, year: i32) -> Result<Value, String> {
     fetch_json(&format!("/api/reports/final-record/{}/{}", course_id, year)).await
@@ -246,7 +296,11 @@ pub async fn delete_academic_year(id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/academic-years/{}", id)).await
 }
 pub async fn activate_academic_year(id: &str) -> Result<Value, String> {
-    post_json(&format!("/api/academic-years/{}/activate", id), &serde_json::json!({})).await
+    post_json(
+        &format!("/api/academic-years/{}/activate", id),
+        &serde_json::json!({}),
+    )
+    .await
 }
 pub async fn clone_academic_year(payload: &Value) -> Result<Value, String> {
     post_json("/api/academic-years/clone", payload).await
@@ -289,7 +343,11 @@ pub async fn delete_prospect(id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/admission/prospects/{}", id)).await
 }
 pub async fn change_prospect_stage(id: &str, stage_id: &str) -> Result<Value, String> {
-    put_json(&format!("/api/admission/prospects/{}/stage", id), &serde_json::json!({ "stage_id": stage_id })).await
+    put_json(
+        &format!("/api/admission/prospects/{}/stage", id),
+        &serde_json::json!({ "stage_id": stage_id }),
+    )
+    .await
 }
 pub async fn fetch_classrooms() -> Result<Value, String> {
     fetch_json("/api/admission/classrooms").await
@@ -307,10 +365,18 @@ pub async fn fetch_audit_logs() -> Result<Value, String> {
     fetch_json("/api/academic/audit-log").await
 }
 pub async fn fetch_custom_field_definitions(entity_type: &str) -> Result<Value, String> {
-    fetch_json(&format!("/api/admission/custom-fields/definitions?entity_type={}", entity_type)).await
+    fetch_json(&format!(
+        "/api/admission/custom-fields/definitions?entity_type={}",
+        entity_type
+    ))
+    .await
 }
 pub async fn fetch_custom_field_values(entity_id: &str) -> Result<Value, String> {
-    fetch_json(&format!("/api/admission/custom-fields/values/{}", entity_id)).await
+    fetch_json(&format!(
+        "/api/admission/custom-fields/values/{}",
+        entity_id
+    ))
+    .await
 }
 pub async fn fetch_my_permissions() -> Result<Value, String> {
     fetch_json("/api/auth/my-permissions").await
@@ -336,14 +402,22 @@ pub async fn fetch_user_roles(user_id: &str) -> Result<Value, String> {
 }
 #[allow(dead_code)]
 pub async fn assign_role(user_id: &str, role_id: &str) -> Result<Value, String> {
-    post_json(&format!("/api/users/{}/roles", user_id), &json!({"role_id": role_id})).await
+    post_json(
+        &format!("/api/users/{}/roles", user_id),
+        &json!({"role_id": role_id}),
+    )
+    .await
 }
 #[allow(dead_code)]
 pub async fn remove_role(user_id: &str, role_id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/users/{}/roles/{}", user_id, role_id)).await
 }
 pub async fn save_custom_field_values(entity_id: &str, payload: &Value) -> Result<Value, String> {
-    put_json(&format!("/api/admission/custom-fields/values/{}", entity_id), payload).await
+    put_json(
+        &format!("/api/admission/custom-fields/values/{}", entity_id),
+        payload,
+    )
+    .await
 }
 pub async fn init_online_payment(fee_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/finance/payment/init/{}", fee_id)).await

@@ -4,7 +4,12 @@ use crate::api::client;
 
 fn format_date(date_str: &str) -> String {
     if date_str.len() >= 10 {
-        format!("{}/{}/{}", &date_str[8..10], &date_str[5..7], &date_str[0..4])
+        format!(
+            "{}/{}/{}",
+            &date_str[8..10],
+            &date_str[5..7],
+            &date_str[0..4]
+        )
     } else {
         date_str.to_string()
     }

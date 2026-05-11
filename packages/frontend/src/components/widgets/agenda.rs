@@ -33,7 +33,10 @@ pub fn AgendaWidget() -> Element {
 
 #[component]
 fn AgendaContent(data: Value) -> Element {
-    let events = data["events"].as_array().map(|a| a.clone()).unwrap_or_default();
+    let events = data["events"]
+        .as_array()
+        .map(|a| a.clone())
+        .unwrap_or_default();
 
     if events.is_empty() {
         return rsx! {
@@ -83,10 +86,12 @@ fn parse_date(date_str: &str) -> (String, String) {
         let day = parts[2].to_string();
         let month_num: u32 = parts[1].parse().unwrap_or(1);
         let months = [
-            "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-            "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+            "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
         ];
-        let month = months.get(month_num as usize - 1).unwrap_or(&"---").to_string();
+        let month = months
+            .get(month_num as usize - 1)
+            .unwrap_or(&"---")
+            .to_string();
         (day, month)
     } else {
         ("--".into(), "---".into())

@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     routing::{get, put},
-    Json, Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::SisResult;
-use crate::routes::students::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::SisResult;
+use crate::routes::students::{Claims, require_any_role};
 
 #[derive(Deserialize)]
 struct FieldDefinitionPayload {
@@ -34,9 +34,18 @@ struct FieldValuePayload {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admission/custom-fields/definitions", get(list_definitions).post(create_definition))
-        .route("/api/admission/custom-fields/definitions/{id}", put(update_definition).delete(delete_definition))
-        .route("/api/admission/custom-fields/values/{entity_id}", get(get_values).put(save_values))
+        .route(
+            "/api/admission/custom-fields/definitions",
+            get(list_definitions).post(create_definition),
+        )
+        .route(
+            "/api/admission/custom-fields/definitions/{id}",
+            put(update_definition).delete(delete_definition),
+        )
+        .route(
+            "/api/admission/custom-fields/values/{entity_id}",
+            get(get_values).put(save_values),
+        )
 }
 
 #[derive(Deserialize)]
@@ -44,7 +53,11 @@ struct ListDefinitionsFilter {
     entity_type: Option<String>,
 }
 
-async fn list_definitions(claims: Claims, State(state): State<AppState>, Query(q): Query<ListDefinitionsFilter>) -> SisResult<Json<Value>> {
+async fn list_definitions(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<ListDefinitionsFilter>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     let rows = match q.entity_type {
@@ -62,7 +75,11 @@ async fn list_definitions(claims: Claims, State(state): State<AppState>, Query(q
     Ok(Json(json!({ "definitions": rows })))
 }
 
-async fn create_definition(claims: Claims, State(state): State<AppState>, Json(payload): Json<FieldDefinitionPayload>) -> SisResult<Json<Value>> {
+async fn create_definition(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<FieldDefinitionPayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     let id = Uuid::new_v4();
@@ -86,7 +103,12 @@ async fn create_definition(claims: Claims, State(state): State<AppState>, Json(p
     Ok(Json(json!({ "id": id })))
 }
 
-async fn update_definition(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<FieldDefinitionPayload>) -> SisResult<Json<Value>> {
+async fn update_definition(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<FieldDefinitionPayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     sqlx::query(
@@ -103,30 +125,53 @@ async fn update_definition(claims: Claims, State(state): State<AppState>, Path(i
     Ok(Json(json!({ "message": "Campo actualizado" })))
 }
 
-async fn delete_definition(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn delete_definition(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     sqlx::query("DELETE FROM custom_field_definitions WHERE id = $1")
         .bind(id)
-        .execute(&state.pool).await?;
+        .execute(&state.pool)
+        .await?;
 
     Ok(Json(json!({ "message": "Campo eliminado" })))
 }
 
-async fn get_values(claims: Claims, State(state): State<AppState>, Path(entity_id): Path<Uuid>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn get_values(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(entity_id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
 
     let values = sqlx::query_as::<_, (Uuid, Option<String>)>(
         "SELECT field_definition_id, value FROM custom_field_values WHERE entity_id = $1",
     )
     .bind(entity_id)
-    .fetch_all(&state.pool).await?;
+    .fetch_all(&state.pool)
+    .await?;
 
-    Ok(Json(json!({ "values": values.into_iter().map(|(fid, val)| json!({"field_definition_id": fid, "value": val})).collect::<Vec<_>>() })))
+    Ok(Json(
+        json!({ "values": values.into_iter().map(|(fid, val)| json!({"field_definition_id": fid, "value": val})).collect::<Vec<_>>() }),
+    ))
 }
 
-async fn save_values(claims: Claims, State(state): State<AppState>, Path(entity_id): Path<Uuid>, Json(payload): Json<SaveValuesPayload>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn save_values(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(entity_id): Path<Uuid>,
+    Json(payload): Json<SaveValuesPayload>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
 
     for fv in &payload.values {
         let existing: (i64,) = sqlx::query_as(

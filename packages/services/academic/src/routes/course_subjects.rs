@@ -1,21 +1,27 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::{delete, get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::subjects::{require_any_role, Claims};
-use crate::error::AcademicResult;
+use super::subjects::{Claims, require_any_role};
 use crate::AppState;
+use crate::error::AcademicResult;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/grades/course-subjects/{course_id}/{year}", get(list_course_subjects))
+        .route(
+            "/api/grades/course-subjects/{course_id}/{year}",
+            get(list_course_subjects),
+        )
         .route("/api/grades/course-subjects", post(assign_course_subject))
-        .route("/api/grades/course-subjects/{id}", delete(remove_course_subject))
+        .route(
+            "/api/grades/course-subjects/{id}",
+            delete(remove_course_subject),
+        )
 }
 
 #[derive(sqlx::FromRow, Serialize)]
@@ -43,7 +49,10 @@ async fn list_course_subjects(
     State(state): State<AppState>,
     Path((course_id, year)): Path<(Uuid, i32)>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let rows = sqlx::query_as::<_, CourseSubjectRow>(
         r#"SELECT cs.id, cs.course_id, cs.subject_id, cs.teacher_id,
@@ -59,19 +68,17 @@ async fn list_course_subjects(
 
     let mut result = Vec::new();
     for r in rows {
-        let subject = sqlx::query_as::<_, (String, String)>(
-            "SELECT code, name FROM subjects WHERE id = $1",
-        )
-        .bind(r.subject_id)
-        .fetch_optional(&state.pool)
-        .await?;
+        let subject =
+            sqlx::query_as::<_, (String, String)>("SELECT code, name FROM subjects WHERE id = $1")
+                .bind(r.subject_id)
+                .fetch_optional(&state.pool)
+                .await?;
 
-        let teacher_name: Option<String> = sqlx::query_scalar(
-            "SELECT name FROM users WHERE id = $1",
-        )
-        .bind(r.teacher_id)
-        .fetch_optional(&state.pool)
-        .await?;
+        let teacher_name: Option<String> =
+            sqlx::query_scalar("SELECT name FROM users WHERE id = $1")
+                .bind(r.teacher_id)
+                .fetch_optional(&state.pool)
+                .await?;
 
         result.push(json!({
             "id": r.id,
@@ -124,19 +131,23 @@ async fn assign_course_subject(
     })?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-        entity_type: "course_subject".into(),
-        entity_id: id,
-        action: "assigned".into(),
-        user_id,
-        changes: Some(serde_json::json!({
-            "course_id": payload.course_id,
-            "subject_id": payload.subject_id,
-            "teacher_id": payload.teacher_id,
-            "academic_year": payload.academic_year,
-            "hours_per_week": hours,
-        })),
-    }).await;
+    schoolcbb_common::audit::log(
+        &state.pool,
+        &schoolcbb_common::audit::AuditEntry {
+            entity_type: "course_subject".into(),
+            entity_id: id,
+            action: "assigned".into(),
+            user_id,
+            changes: Some(serde_json::json!({
+                "course_id": payload.course_id,
+                "subject_id": payload.subject_id,
+                "teacher_id": payload.teacher_id,
+                "academic_year": payload.academic_year,
+                "hours_per_week": hours,
+            })),
+        },
+    )
+    .await;
 
     Ok(Json(json!({ "course_subject": result })))
 }
@@ -165,17 +176,23 @@ async fn remove_course_subject(
         .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(&state.pool, &schoolcbb_common::audit::AuditEntry {
-        entity_type: "course_subject".into(),
-        entity_id: id,
-        action: "removed".into(),
-        user_id,
-        changes: Some(serde_json::json!({
-            "course_id": existing.course_id,
-            "subject_id": existing.subject_id,
-            "academic_year": existing.academic_year,
-        })),
-    }).await;
+    schoolcbb_common::audit::log(
+        &state.pool,
+        &schoolcbb_common::audit::AuditEntry {
+            entity_type: "course_subject".into(),
+            entity_id: id,
+            action: "removed".into(),
+            user_id,
+            changes: Some(serde_json::json!({
+                "course_id": existing.course_id,
+                "subject_id": existing.subject_id,
+                "academic_year": existing.academic_year,
+            })),
+        },
+    )
+    .await;
 
-    Ok(Json(json!({ "message": "Asignatura removida del curso correctamente" })))
+    Ok(Json(
+        json!({ "message": "Asignatura removida del curso correctamente" }),
+    ))
 }

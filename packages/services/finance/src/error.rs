@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
@@ -32,7 +32,10 @@ impl IntoResponse for FinanceError {
         let (status, message) = match &self {
             FinanceError::Database(e) => {
                 tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Error interno del servidor".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Error interno del servidor".into(),
+                )
             }
             FinanceError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
             FinanceError::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),

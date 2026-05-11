@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::api::client;
 
@@ -14,7 +14,9 @@ pub fn RolesPage() -> Element {
 
     let do_create = move |_| {
         let name = new_name();
-        if name.trim().is_empty() { return; }
+        if name.trim().is_empty() {
+            return;
+        }
         saving.set(true);
         spawn({
             let name = name.clone();
@@ -109,12 +111,21 @@ pub fn RolesPage() -> Element {
 }
 
 #[component]
-fn RoleCard(role: Value, is_selected: bool, on_select: EventHandler<String>, on_delete: EventHandler<String>) -> Element {
+fn RoleCard(
+    role: Value,
+    is_selected: bool,
+    on_select: EventHandler<String>,
+    on_delete: EventHandler<String>,
+) -> Element {
     let name = role["name"].as_str().unwrap_or("").to_string();
     let desc = role["description"].as_str().unwrap_or("").to_string();
     let is_system = role["is_system"].as_bool().unwrap_or(false);
     let rid = role["id"].as_str().unwrap_or("").to_string();
-    let sel_class = if is_selected { "role-item selected" } else { "role-item" };
+    let sel_class = if is_selected {
+        "role-item selected"
+    } else {
+        "role-item"
+    };
 
     let rid1 = rid.clone();
     let rid2 = rid.clone();
@@ -226,31 +237,40 @@ fn PermCheck2(label: String, checked: bool, on_toggle: EventHandler<bool>) -> El
     }
 }
 
-fn build_perms_state(definitions: &Option<Result<Value, String>>, existing_perms: &[Value]) -> Vec<Value> {
+fn build_perms_state(
+    definitions: &Option<Result<Value, String>>,
+    existing_perms: &[Value],
+) -> Vec<Value> {
     let defs = match definitions {
         Some(Ok(d)) => d,
         _ => return vec![],
     };
 
-    let existing_map: std::collections::HashMap<String, &Value> = existing_perms.iter()
+    let existing_map: std::collections::HashMap<String, &Value> = existing_perms
+        .iter()
         .map(|p| (p["permission_id"].as_str().unwrap_or("").to_string(), p))
         .collect();
 
-    defs["definitions"].as_array().map(|arr| {
-        arr.iter().map(|d| {
-            let pid = d["id"].as_str().unwrap_or("").to_string();
-            let ep = existing_map.get(&pid);
-            json!({
-                "permission_id": pid,
-                "module": d["module"],
-                "resource": d["resource"],
-                "can_create": ep.and_then(|p| p["can_create"].as_bool()).unwrap_or(false),
-                "can_read": ep.and_then(|p| p["can_read"].as_bool()).unwrap_or(true),
-                "can_update": ep.and_then(|p| p["can_update"].as_bool()).unwrap_or(false),
-                "can_delete": ep.and_then(|p| p["can_delete"].as_bool()).unwrap_or(false),
-            })
-        }).collect()
-    }).unwrap_or_default()
+    defs["definitions"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|d| {
+                    let pid = d["id"].as_str().unwrap_or("").to_string();
+                    let ep = existing_map.get(&pid);
+                    json!({
+                        "permission_id": pid,
+                        "module": d["module"],
+                        "resource": d["resource"],
+                        "can_create": ep.and_then(|p| p["can_create"].as_bool()).unwrap_or(false),
+                        "can_read": ep.and_then(|p| p["can_read"].as_bool()).unwrap_or(true),
+                        "can_update": ep.and_then(|p| p["can_update"].as_bool()).unwrap_or(false),
+                        "can_delete": ep.and_then(|p| p["can_delete"].as_bool()).unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn compute_modules(definitions: &Option<Result<Value, String>>) -> Vec<(String, Vec<usize>)> {

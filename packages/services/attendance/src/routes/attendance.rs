@@ -1,16 +1,16 @@
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{get, post},
-    Json, Router,
 };
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AttendanceError, AttendanceResult};
 use crate::AppState;
+use crate::error::{AttendanceError, AttendanceResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -27,7 +27,10 @@ pub struct Claims {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = AttendanceError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -81,13 +84,27 @@ pub struct RawAttendance {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/attendance", get(list_attendance).post(create_attendance))
-        .route("/api/attendance/{id}", get(get_attendance).put(update_attendance).delete(delete_attendance))
+        .route(
+            "/api/attendance",
+            get(list_attendance).post(create_attendance),
+        )
+        .route(
+            "/api/attendance/{id}",
+            get(get_attendance)
+                .put(update_attendance)
+                .delete(delete_attendance),
+        )
         .route("/api/attendance/bulk", post(bulk_create_attendance))
         .route("/api/attendance/today", get(today_attendance))
         .route("/api/attendance/date/{date}", get(attendance_by_date))
-        .route("/api/attendance/student/{student_id}", get(attendance_by_student))
-        .route("/api/attendance/course/{course_id}/date/{date}", get(attendance_by_course_date))
+        .route(
+            "/api/attendance/student/{student_id}",
+            get(attendance_by_student),
+        )
+        .route(
+            "/api/attendance/course/{course_id}/date/{date}",
+            get(attendance_by_course_date),
+        )
 }
 
 async fn list_attendance(
@@ -95,9 +112,16 @@ async fn list_attendance(
     State(state): State<AppState>,
     Query(filter): Query<DateRangeFilter>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
-    let school_condition = claims.school_id.as_ref().map(|sid| format!(" AND a.school_id = '{}'::uuid", sid)).unwrap_or_default();
+    let school_condition = claims
+        .school_id
+        .as_ref()
+        .map(|sid| format!(" AND a.school_id = '{}'::uuid", sid))
+        .unwrap_or_default();
 
     let records = if let (Some(sid), Some(cid)) = (filter.student_id, filter.course_id) {
         if let (Some(from), Some(to)) = (filter.from, filter.to) {
@@ -112,20 +136,31 @@ async fn list_attendance(
             ).bind(sid).bind(cid).fetch_all(&state.pool).await?
         }
     } else if let Some(sid) = filter.student_id {
-        sqlx::query_as::<_, RawAttendance>(
-            &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE student_id = $1{} ORDER BY date DESC", school_condition)
-        ).bind(sid).fetch_all(&state.pool).await?
+        sqlx::query_as::<_, RawAttendance>(&format!(
+            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+             FROM attendance WHERE student_id = $1{} ORDER BY date DESC",
+            school_condition
+        ))
+        .bind(sid)
+        .fetch_all(&state.pool)
+        .await?
     } else if let Some(cid) = filter.course_id {
-        sqlx::query_as::<_, RawAttendance>(
-            &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE course_id = $1{} ORDER BY date DESC", school_condition)
-        ).bind(cid).fetch_all(&state.pool).await?
+        sqlx::query_as::<_, RawAttendance>(&format!(
+            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+             FROM attendance WHERE course_id = $1{} ORDER BY date DESC",
+            school_condition
+        ))
+        .bind(cid)
+        .fetch_all(&state.pool)
+        .await?
     } else {
-        sqlx::query_as::<_, RawAttendance>(
-            &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE 1=1{} ORDER BY date DESC LIMIT 100", school_condition)
-        ).fetch_all(&state.pool).await?
+        sqlx::query_as::<_, RawAttendance>(&format!(
+            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
+             FROM attendance WHERE 1=1{} ORDER BY date DESC LIMIT 100",
+            school_condition
+        ))
+        .fetch_all(&state.pool)
+        .await?
     };
 
     Ok(Json(json!({ "records": records, "total": records.len() })))
@@ -136,7 +171,10 @@ async fn get_attendance(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let record = sqlx::query_as::<_, RawAttendance>(
         "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE id = $1",
@@ -157,10 +195,14 @@ async fn create_attendance(
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
     if payload.student_id.is_nil() || payload.course_id.is_nil() || payload.teacher_id.is_nil() {
-        return Err(AttendanceError::Validation("IDs de estudiante, curso y profesor son obligatorios".into()));
+        return Err(AttendanceError::Validation(
+            "IDs de estudiante, curso y profesor son obligatorios".into(),
+        ));
     }
     if payload.subject.trim().is_empty() {
-        return Err(AttendanceError::Validation("La asignatura es obligatoria".into()));
+        return Err(AttendanceError::Validation(
+            "La asignatura es obligatoria".into(),
+        ));
     }
 
     let status = schoolcbb_common::attendance::AttendanceStatus::from_str(&payload.status);
@@ -212,8 +254,13 @@ async fn update_attendance(
     .await?
     .ok_or(AttendanceError::NotFound("Registro de asistencia no encontrado".into()))?;
 
-    let status = payload.status.as_deref().map(schoolcbb_common::attendance::AttendanceStatus::from_str)
-        .unwrap_or(schoolcbb_common::attendance::AttendanceStatus::from_str(&existing.status));
+    let status = payload
+        .status
+        .as_deref()
+        .map(schoolcbb_common::attendance::AttendanceStatus::from_str)
+        .unwrap_or(schoolcbb_common::attendance::AttendanceStatus::from_str(
+            &existing.status,
+        ));
     let time = payload.time.or(existing.time);
     let observation = payload.observation.or(existing.observation);
 
@@ -247,10 +294,14 @@ async fn delete_attendance(
         .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AttendanceError::NotFound("Registro de asistencia no encontrado".into()));
+        return Err(AttendanceError::NotFound(
+            "Registro de asistencia no encontrado".into(),
+        ));
     }
 
-    Ok(Json(json!({ "message": "Registro de asistencia eliminado correctamente" })))
+    Ok(Json(
+        json!({ "message": "Registro de asistencia eliminado correctamente" }),
+    ))
 }
 
 async fn bulk_create_attendance(
@@ -261,7 +312,9 @@ async fn bulk_create_attendance(
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
     if payload.records.is_empty() {
-        return Err(AttendanceError::Validation("Debe incluir al menos un registro de asistencia".into()));
+        return Err(AttendanceError::Validation(
+            "Debe incluir al menos un registro de asistencia".into(),
+        ));
     }
 
     let mut imported = 0;
@@ -313,7 +366,10 @@ async fn today_attendance(
     claims: Claims,
     State(state): State<AppState>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let today = chrono::Utc::now().date_naive();
     let records = sqlx::query_as::<_, RawAttendance>(
@@ -324,7 +380,9 @@ async fn today_attendance(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "date": today.to_string(), "records": records, "total": records.len() })))
+    Ok(Json(
+        json!({ "date": today.to_string(), "records": records, "total": records.len() }),
+    ))
 }
 
 async fn attendance_by_date(
@@ -332,7 +390,10 @@ async fn attendance_by_date(
     State(state): State<AppState>,
     Path(date): Path<NaiveDate>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let records = sqlx::query_as::<_, RawAttendance>(
         "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
@@ -342,7 +403,9 @@ async fn attendance_by_date(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "date": date.to_string(), "records": records, "total": records.len() })))
+    Ok(Json(
+        json!({ "date": date.to_string(), "records": records, "total": records.len() }),
+    ))
 }
 
 async fn attendance_by_student(
@@ -350,7 +413,18 @@ async fn attendance_by_student(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let records = sqlx::query_as::<_, RawAttendance>(
         "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
@@ -368,7 +442,10 @@ async fn attendance_by_course_date(
     State(state): State<AppState>,
     Path((course_id, date)): Path<(Uuid, NaiveDate)>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let records = sqlx::query_as::<_, RawAttendance>(
         "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation

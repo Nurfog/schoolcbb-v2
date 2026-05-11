@@ -13,24 +13,27 @@ struct StepInfo {
 
 #[component]
 pub fn BusinessProcessFlow(stages: Vec<Value>, current_stage_id: String) -> Element {
-    let current_idx = stages.iter().position(|s| {
-        s["id"].as_str().unwrap_or("") == current_stage_id
-    });
+    let current_idx = stages
+        .iter()
+        .position(|s| s["id"].as_str().unwrap_or("") == current_stage_id);
 
     let total = stages.len();
 
-    let steps: Vec<StepInfo> = stages.iter().enumerate().map(|(i, s)| {
-        StepInfo {
+    let steps: Vec<StepInfo> = stages
+        .iter()
+        .enumerate()
+        .map(|(i, s)| StepInfo {
             stage_id: s["id"].as_str().unwrap_or("").to_string(),
             name: s["name"].as_str().unwrap_or("").to_string(),
             is_completed: current_idx.map(|idx| i < idx).unwrap_or(false),
             is_current: current_idx.map(|idx| i == idx).unwrap_or(false),
             is_final: s["is_final"].as_bool().unwrap_or(false),
             is_last: i == total - 1,
-        }
-    }).collect();
+        })
+        .collect();
 
-    let steps_with_keys: Vec<(String, StepInfo)> = steps.into_iter().map(|s| (s.stage_id.clone(), s)).collect();
+    let steps_with_keys: Vec<(String, StepInfo)> =
+        steps.into_iter().map(|s| (s.stage_id.clone(), s)).collect();
 
     rsx! {
         div { class: "bpf-container",
@@ -52,7 +55,14 @@ pub fn BusinessProcessFlow(stages: Vec<Value>, current_stage_id: String) -> Elem
 }
 
 #[component]
-fn BpfStep(stage_id: String, name: String, is_completed: bool, is_current: bool, is_final: bool, is_last: bool) -> Element {
+fn BpfStep(
+    stage_id: String,
+    name: String,
+    is_completed: bool,
+    is_current: bool,
+    is_final: bool,
+    is_last: bool,
+) -> Element {
     let circle_class = if is_current {
         "bpf-circle current"
     } else if is_completed {

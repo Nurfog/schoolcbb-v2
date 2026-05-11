@@ -1,18 +1,20 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::ReportResult;
-use crate::routes::certificate::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::ReportResult;
+use crate::routes::certificate::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/api/reports/final-record/{course_id}/{year}", get(final_record))
+    Router::new().route(
+        "/api/reports/final-record/{course_id}/{year}",
+        get(final_record),
+    )
 }
 
 async fn final_record(
@@ -28,7 +30,9 @@ async fn final_record(
     .bind(course_id)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(crate::error::ReportError::NotFound("Curso no encontrado".into()))?;
+    .ok_or(crate::error::ReportError::NotFound(
+        "Curso no encontrado".into(),
+    ))?;
 
     let subject_list: Vec<(Uuid, String, String)> = sqlx::query_as(
         r#"
@@ -81,7 +85,11 @@ async fn final_record(
             let s2 = s2_avg.unwrap_or(0.0);
             let final_avg = if s1 > 0.0 && s2 > 0.0 {
                 (s1 + s2) / 2.0
-            } else if s1 > 0.0 { s1 } else { s2 };
+            } else if s1 > 0.0 {
+                s1
+            } else {
+                s2
+            };
 
             subjects.push(json!({
                 "subject_name": subj_name,
@@ -92,14 +100,18 @@ async fn final_record(
             }));
         }
 
-        let all_avgs: Vec<f64> = subjects.iter()
+        let all_avgs: Vec<f64> = subjects
+            .iter()
             .filter_map(|s| s["final_avg"].as_f64())
             .collect();
-        let final_avg = if all_avgs.is_empty() { 0.0 } else {
+        let final_avg = if all_avgs.is_empty() {
+            0.0
+        } else {
             all_avgs.iter().sum::<f64>() / all_avgs.len() as f64
         };
 
-        let failed_count = subjects.iter()
+        let failed_count = subjects
+            .iter()
             .filter(|s| s["final_avg"].as_f64().unwrap_or(0.0) < 4.0)
             .count();
 
@@ -109,7 +121,11 @@ async fn final_record(
             _ => "Reprobado",
         };
 
-        if promotion.starts_with("Promovido") { total_promoted += 1; } else { total_failed += 1; }
+        if promotion.starts_with("Promovido") {
+            total_promoted += 1;
+        } else {
+            total_failed += 1;
+        }
 
         student_results.push(json!({
             "student_id": sid,
@@ -124,7 +140,9 @@ async fn final_record(
     let total = student_results.len();
     let promotion_rate = if total > 0 {
         (total_promoted as f64 / total as f64 * 100.0 * 10.0).round() / 10.0
-    } else { 0.0 };
+    } else {
+        0.0
+    };
 
     Ok(Json(json!({
         "final_record": {

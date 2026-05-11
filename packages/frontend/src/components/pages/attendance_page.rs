@@ -18,7 +18,8 @@ fn get_students(json: &serde_json::Value) -> Vec<serde_json::Value> {
 pub fn AttendancePage() -> Element {
     let mut selected_year = use_signal(current_year);
     let mut selected_month = use_signal(current_month);
-    let mut data = use_resource(move || client::fetch_attendance_monthly(selected_year(), selected_month()));
+    let mut data =
+        use_resource(move || client::fetch_attendance_monthly(selected_year(), selected_month()));
 
     let on_year_change = move |evt: Event<FormData>| {
         if let Ok(y) = evt.value().parse::<i32>() {
@@ -131,9 +132,19 @@ fn AttendanceRow(student: serde_json::Value) -> Element {
     let absent = student["absent"].as_i64().unwrap_or(0);
     let late = student["late"].as_i64().unwrap_or(0);
     let justified = student["justified"].as_i64().unwrap_or(0);
-    let pct = if total_days > 0 { present as f64 / total_days as f64 * 100.0 } else { 100.0 };
+    let pct = if total_days > 0 {
+        present as f64 / total_days as f64 * 100.0
+    } else {
+        100.0
+    };
     let pct_str = format!("{:.1}%", pct);
-    let pct_class = if pct < 75.0 { "pct-danger" } else if pct < 85.0 { "pct-warning" } else { "pct-good" };
+    let pct_class = if pct < 75.0 {
+        "pct-danger"
+    } else if pct < 85.0 {
+        "pct-warning"
+    } else {
+        "pct-good"
+    };
 
     rsx! {
         tr {

@@ -64,7 +64,8 @@ pub fn CoursesPage() -> Element {
 
     let do_delete = move |id: String| {
         spawn(async move {
-            let _ = client::post_json(&format!("/api/courses/{}", id), &serde_json::json!({})).await;
+            let _ =
+                client::post_json(&format!("/api/courses/{}", id), &serde_json::json!({})).await;
             courses.restart();
         });
     };
@@ -226,14 +227,23 @@ pub fn CoursesPage() -> Element {
 }
 
 #[component]
-fn CourseRow(course: Value, on_edit: EventHandler<Value>, on_delete: EventHandler<String>, on_manage_subjects: EventHandler<()>) -> Element {
+fn CourseRow(
+    course: Value,
+    on_edit: EventHandler<Value>,
+    on_delete: EventHandler<String>,
+    on_manage_subjects: EventHandler<()>,
+) -> Element {
     let id = course["id"].as_str().unwrap_or("").to_string();
     let name = course["name"].as_str().unwrap_or("").to_string();
     let grade_level = course["grade_level"].as_str().unwrap_or("").to_string();
     let plan = course["plan"].as_str().unwrap_or("").to_string();
     let section = course["section"].as_str().unwrap_or("").to_string();
     let teacher_id = course["teacher_id"].as_str().unwrap_or("").to_string();
-    let plan_display = if plan.is_empty() { "-".to_string() } else { plan.clone() };
+    let plan_display = if plan.is_empty() {
+        "-".to_string()
+    } else {
+        plan.clone()
+    };
 
     rsx! {
         tr {
@@ -285,17 +295,44 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
     let mut saving = use_signal(|| false);
 
     let subject_rows = match &subjects() {
-        Some(Ok(data)) => data["course_subjects"].as_array().map(|arr| {
-            arr.iter().map(|cs| {
-                let subj_name = cs.get("subject_name").and_then(|v| v.as_str()).unwrap_or("-").to_string();
-                let subj_code = cs.get("subject_code").and_then(|v| v.as_str()).unwrap_or("-").to_string();
-                let teacher_name = cs.get("teacher_name").and_then(|v| v.as_str()).unwrap_or("-").to_string();
-                let hpw = cs.get("hours_per_week").and_then(|v| v.as_i64()).unwrap_or(0);
-                let year = cs.get("academic_year").and_then(|v| v.as_i64()).unwrap_or(0);
-                let cs_id = cs.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                (subj_name, subj_code, teacher_name, hpw, year, cs_id)
-            }).collect::<Vec<_>>()
-        }).unwrap_or_default(),
+        Some(Ok(data)) => data["course_subjects"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .map(|cs| {
+                        let subj_name = cs
+                            .get("subject_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-")
+                            .to_string();
+                        let subj_code = cs
+                            .get("subject_code")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-")
+                            .to_string();
+                        let teacher_name = cs
+                            .get("teacher_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-")
+                            .to_string();
+                        let hpw = cs
+                            .get("hours_per_week")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0);
+                        let year = cs
+                            .get("academic_year")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0);
+                        let cs_id = cs
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        (subj_name, subj_code, teacher_name, hpw, year, cs_id)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
         _ => vec![],
     };
 

@@ -1,21 +1,32 @@
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     routing::get,
-    Json, Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{SisError, SisResult};
-use crate::routes::students::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{SisError, SisResult};
+use crate::routes::students::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/hr/employees", get(list_employees).post(create_employee))
-        .route("/api/hr/employees/{id}", get(get_employee).put(update_employee).delete(deactivate_employee))
-        .route("/api/hr/employees/{id}/contracts", get(list_contracts).post(create_contract))
+        .route(
+            "/api/hr/employees",
+            get(list_employees).post(create_employee),
+        )
+        .route(
+            "/api/hr/employees/{id}",
+            get(get_employee)
+                .put(update_employee)
+                .delete(deactivate_employee),
+        )
+        .route(
+            "/api/hr/employees/{id}/contracts",
+            get(list_contracts).post(create_contract),
+        )
 }
 
 #[derive(Deserialize)]
@@ -23,7 +34,11 @@ struct EmployeeFilter {
     search: Option<String>,
 }
 
-async fn list_employees(claims: Claims, State(state): State<AppState>, Query(q): Query<EmployeeFilter>) -> SisResult<Json<Value>> {
+async fn list_employees(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<EmployeeFilter>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let mut sql = "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at FROM employees".to_string();
@@ -31,7 +46,9 @@ async fn list_employees(claims: Claims, State(state): State<AppState>, Query(q):
 
     if let Some(ref _search) = q.search {
         let n = clauses.len() + 1;
-        clauses.push(format!("(rut ILIKE ${n} OR first_name ILIKE ${n} OR last_name ILIKE ${n})"));
+        clauses.push(format!(
+            "(rut ILIKE ${n} OR first_name ILIKE ${n} OR last_name ILIKE ${n})"
+        ));
     }
     if !clauses.is_empty() {
         sql.push_str(&format!(" WHERE {}", clauses.join(" AND ")));
@@ -45,10 +62,16 @@ async fn list_employees(claims: Claims, State(state): State<AppState>, Query(q):
     }
 
     let employees = query.fetch_all(&state.pool).await?;
-    Ok(Json(json!({ "employees": employees, "total": employees.len() })))
+    Ok(Json(
+        json!({ "employees": employees, "total": employees.len() }),
+    ))
 }
 
-async fn get_employee(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn get_employee(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let employee = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
@@ -64,14 +87,25 @@ async fn get_employee(claims: Claims, State(state): State<AppState>, Path(id): P
         "SELECT id, employee_id, doc_type, file_name, file_url, created_at FROM employee_documents WHERE employee_id = $1 ORDER BY created_at DESC",
     ).bind(id).fetch_all(&state.pool).await?;
 
-    Ok(Json(json!({ "employee": employee, "contracts": contracts, "documents": documents })))
+    Ok(Json(
+        json!({ "employee": employee, "contracts": contracts, "documents": documents }),
+    ))
 }
 
-async fn create_employee(claims: Claims, State(state): State<AppState>, Json(payload): Json<schoolcbb_common::hr::CreateEmployeePayload>) -> SisResult<Json<Value>> {
+async fn create_employee(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::hr::CreateEmployeePayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    if payload.rut.trim().is_empty() || payload.first_name.trim().is_empty() || payload.last_name.trim().is_empty() {
-        return Err(SisError::Validation("RUT, nombre y apellido son obligatorios".into()));
+    if payload.rut.trim().is_empty()
+        || payload.first_name.trim().is_empty()
+        || payload.last_name.trim().is_empty()
+    {
+        return Err(SisError::Validation(
+            "RUT, nombre y apellido son obligatorios".into(),
+        ));
     }
 
     let id = Uuid::new_v4();
@@ -86,7 +120,12 @@ async fn create_employee(claims: Claims, State(state): State<AppState>, Json(pay
     Ok(Json(json!({ "employee": result })))
 }
 
-async fn update_employee(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<schoolcbb_common::hr::UpdateEmployeePayload>) -> SisResult<Json<Value>> {
+async fn update_employee(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolcbb_common::hr::UpdateEmployeePayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let current = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
@@ -111,7 +150,11 @@ async fn update_employee(claims: Claims, State(state): State<AppState>, Path(id)
     Ok(Json(json!({ "employee": result })))
 }
 
-async fn deactivate_employee(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn deactivate_employee(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
     let result = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
@@ -120,10 +163,16 @@ async fn deactivate_employee(claims: Claims, State(state): State<AppState>, Path
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Funcionario no encontrado".into()))?;
 
-    Ok(Json(json!({ "employee": result, "message": "Funcionario desactivado" })))
+    Ok(Json(
+        json!({ "employee": result, "message": "Funcionario desactivado" }),
+    ))
 }
 
-async fn list_contracts(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn list_contracts(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let contracts = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeContract>(
@@ -133,20 +182,32 @@ async fn list_contracts(claims: Claims, State(state): State<AppState>, Path(id):
     Ok(Json(json!({ "contracts": contracts })))
 }
 
-async fn create_contract(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<schoolcbb_common::hr::CreateContractPayload>) -> SisResult<Json<Value>> {
+async fn create_contract(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolcbb_common::hr::CreateContractPayload>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     if payload.weekly_hours > 40 {
-        return Err(SisError::Validation("Las horas semanales no pueden exceder 40 (Ley 40 Horas)".into()));
+        return Err(SisError::Validation(
+            "Las horas semanales no pueden exceder 40 (Ley 40 Horas)".into(),
+        ));
     }
 
     if payload.salary_base <= 0.0 {
-        return Err(SisError::Validation("El salario base debe ser mayor a cero".into()));
+        return Err(SisError::Validation(
+            "El salario base debe ser mayor a cero".into(),
+        ));
     }
 
-    sqlx::query("UPDATE employee_contracts SET active = false WHERE employee_id = $1 AND active = true")
-        .bind(id)
-        .execute(&state.pool).await?;
+    sqlx::query(
+        "UPDATE employee_contracts SET active = false WHERE employee_id = $1 AND active = true",
+    )
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
 
     let contract_id = Uuid::new_v4();
     let result = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeContract>(

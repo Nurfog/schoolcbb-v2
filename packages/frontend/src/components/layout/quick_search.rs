@@ -136,54 +136,64 @@ fn SearchResultsList(items: Vec<Value>, selected_idx: i32) -> Element {
         };
     }
 
-    let rows: Vec<Element> = items.iter().enumerate().map(|(i, item)| {
-        let item = item.clone();
-        let full_name = format!("{} {}",
-            item["first_name"].as_str().unwrap_or(""),
-            item["last_name"].as_str().unwrap_or("")
-        );
-        let subtitle = item["subtitle"].as_str().unwrap_or("").to_string();
-        let rut = item["rut"].as_str().unwrap_or("").to_string();
-        let entity_type = item["entity_type"].as_str().unwrap_or("").to_string();
-        let id = item["id"].as_str().unwrap_or("").to_string();
-        let initial = item["first_name"].as_str()
-            .and_then(|n| n.chars().next())
-            .map(|c| c.to_string())
-            .unwrap_or_else(|| "?".into());
-        let highlighted = i == selected_idx as usize;
-        let badge = if entity_type == "employee" { "Employee" } else { "Student" };
-        let route = if entity_type == "employee" {
-            format!("/hr/{}", id)
-        } else {
-            format!("/students/{}", id)
-        };
+    let rows: Vec<Element> = items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let item = item.clone();
+            let full_name = format!(
+                "{} {}",
+                item["first_name"].as_str().unwrap_or(""),
+                item["last_name"].as_str().unwrap_or("")
+            );
+            let subtitle = item["subtitle"].as_str().unwrap_or("").to_string();
+            let rut = item["rut"].as_str().unwrap_or("").to_string();
+            let entity_type = item["entity_type"].as_str().unwrap_or("").to_string();
+            let id = item["id"].as_str().unwrap_or("").to_string();
+            let initial = item["first_name"]
+                .as_str()
+                .and_then(|n| n.chars().next())
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "?".into());
+            let highlighted = i == selected_idx as usize;
+            let badge = if entity_type == "employee" {
+                "Employee"
+            } else {
+                "Student"
+            };
+            let route = if entity_type == "employee" {
+                format!("/hr/{}", id)
+            } else {
+                format!("/students/{}", id)
+            };
 
-        let route_rc = Rc::new(route);
-        let r1 = route_rc.clone();
+            let route_rc = Rc::new(route);
+            let r1 = route_rc.clone();
 
-        rsx! {
-            button {
-                class: "quick-search-result-item",
-                "data-selected": "{highlighted}",
-                onclick: {
-                    let r = r1.clone();
-                    move |_: Event<MouseData>| {
-                        let nav = navigator();
-                        nav.push((*r).clone());
+            rsx! {
+                button {
+                    class: "quick-search-result-item",
+                    "data-selected": "{highlighted}",
+                    onclick: {
+                        let r = r1.clone();
+                        move |_: Event<MouseData>| {
+                            let nav = navigator();
+                            nav.push((*r).clone());
+                        }
+                    },
+                    div { class: "avatar", "{initial}" }
+                    div { class: "info",
+                        div { class: "name", "{full_name}" }
+                        div { class: "detail", "{subtitle}" }
                     }
-                },
-                div { class: "avatar", "{initial}" }
-                div { class: "info",
-                    div { class: "name", "{full_name}" }
-                    div { class: "detail", "{subtitle}" }
-                }
-                div { class: "meta",
-                    span { class: "entity-badge", "{badge}" }
-                    span { class: "rut-text", "{rut}" }
+                    div { class: "meta",
+                        span { class: "entity-badge", "{badge}" }
+                        span { class: "rut-text", "{rut}" }
+                    }
                 }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     rsx! {
         { rows.into_iter() }

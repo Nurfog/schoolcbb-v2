@@ -1,16 +1,16 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     routing::get,
-    Json, Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::error::FinanceResult;
 use crate::payment_gateway::PaymentInitRequest;
-use crate::routes::fees::{require_any_role, Claims};
-use crate::AppState;
+use crate::routes::fees::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -29,7 +29,16 @@ async fn init_payment(
     State(state): State<AppState>,
     axum::extract::Path(fee_id): axum::extract::Path<Uuid>,
 ) -> FinanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Apoderado",
+        ],
+    )?;
 
     let gateway = state.gateway.ok_or_else(|| {
         crate::error::FinanceError::Internal("Pasarela de pago no configurada".into())
@@ -44,7 +53,9 @@ async fn init_payment(
     .ok_or(crate::error::FinanceError::NotFound("Cuota no encontrada".into()))?;
 
     if fee.paid {
-        return Err(crate::error::FinanceError::Conflict("La cuota ya está pagada".into()));
+        return Err(crate::error::FinanceError::Conflict(
+            "La cuota ya está pagada".into(),
+        ));
     }
 
     let req = PaymentInitRequest {
@@ -85,7 +96,9 @@ async fn payment_return(
     let token = params.token_ws.unwrap_or_default();
 
     if token.is_empty() {
-        return Err(crate::error::FinanceError::Validation("Token no proporcionado".into()));
+        return Err(crate::error::FinanceError::Validation(
+            "Token no proporcionado".into(),
+        ));
     }
 
     let gateway = state.gateway.ok_or_else(|| {

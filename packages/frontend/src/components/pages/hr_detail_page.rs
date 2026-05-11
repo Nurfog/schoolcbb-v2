@@ -148,7 +148,9 @@ fn AttendanceSection(data: Resource<Result<Value, String>>, employee_id: String)
     });
 
     let do_sync = move |_| {
-        if sync_timestamp().trim().is_empty() { return; }
+        if sync_timestamp().trim().is_empty() {
+            return;
+        }
         syncing.set(true);
         let payload = serde_json::json!({
             "employee_id": employee_id.clone(),
@@ -253,7 +255,9 @@ fn LeaveSection(employee_id: String) -> Element {
     });
 
     let do_request = move |_| {
-        if start_date().trim().is_empty() || end_date().trim().is_empty() { return; }
+        if start_date().trim().is_empty() || end_date().trim().is_empty() {
+            return;
+        }
         saving.set(true);
         let payload = serde_json::json!({
             "employee_id": employee_id.clone(),
@@ -264,7 +268,11 @@ fn LeaveSection(employee_id: String) -> Element {
         });
         let eid2 = employee_id.clone();
         spawn(async move {
-            let _ = client::post_json(&format!("/api/hr/employees/{}/leave-requests", eid2), &payload).await;
+            let _ = client::post_json(
+                &format!("/api/hr/employees/{}/leave-requests", eid2),
+                &payload,
+            )
+            .await;
             saving.set(false);
             show_request.set(false);
             start_date.set(String::new());

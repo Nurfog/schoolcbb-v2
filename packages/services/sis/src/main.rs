@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use axum::Router;
 use schoolcbb_common::event_bus::BroadcastBus;
-use tokio::sync::broadcast;
 use sqlx::PgPool;
+use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -49,7 +49,7 @@ async fn main() {
     let finance_grpc = std::env::var("FINANCE_GRPC_URL").ok();
     let workflow = Arc::new(
         WorkflowEngine::with_grpc(pool.clone(), finance_grpc, "sis".into())
-            .with_event_bus(event_bus.clone())
+            .with_event_bus(event_bus.clone()),
     );
     let bus_rx = event_bus.subscribe();
     let _pool_for_bus = pool.clone();
@@ -58,7 +58,12 @@ async fn main() {
         loop {
             match rx.recv().await {
                 Ok(event) => {
-                    tracing::info!("[EventBus] {} from {}: {:?}", event.event_type, event.source, event.payload);
+                    tracing::info!(
+                        "[EventBus] {} from {}: {:?}",
+                        event.event_type,
+                        event.source,
+                        event.payload
+                    );
                     let _ = sqlx::query(
                         "INSERT INTO event_log (id, event_type, payload) VALUES ($1, $2, $3)",
                     )

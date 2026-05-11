@@ -17,7 +17,10 @@ pub enum UserRole {
 
 impl UserRole {
     pub fn es_admin(&self) -> bool {
-        matches!(self, UserRole::Administrador | UserRole::Sostenedor | UserRole::Director)
+        matches!(
+            self,
+            UserRole::Administrador | UserRole::Sostenedor | UserRole::Director
+        )
     }
 
     pub fn as_str(&self) -> &'static str {

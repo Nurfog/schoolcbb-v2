@@ -1,5 +1,5 @@
-use dioxus::prelude::*;
 use crate::api::client;
+use dioxus::prelude::*;
 
 #[component]
 pub fn AuditPage() -> Element {

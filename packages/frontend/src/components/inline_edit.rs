@@ -81,10 +81,13 @@ pub fn InlineEdit(
         if input_type.as_deref() == Some("select") {
             if let Some(ref opts) = options {
                 let val = edit_value();
-                let opt_elements: Vec<Element> = opts.iter().map(|opt| {
-                    let selected = opt == &val;
-                    rsx! { option { selected: "{selected}", value: "{opt}", "{opt}" } }
-                }).collect();
+                let opt_elements: Vec<Element> = opts
+                    .iter()
+                    .map(|opt| {
+                        let selected = opt == &val;
+                        rsx! { option { selected: "{selected}", value: "{opt}", "{opt}" } }
+                    })
+                    .collect();
                 return rsx! {
                     select {
                         class: "inline-edit-input",

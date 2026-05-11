@@ -21,13 +21,12 @@ impl AcademicService for AcademicGrpc {
         let student_id = Uuid::parse_str(&inner.student_id)
             .map_err(|_| Status::invalid_argument("Invalid student_id"))?;
 
-        let name: Option<(String,)> = sqlx::query_as(
-            "SELECT CONCAT(first_name, ' ', last_name) FROM students WHERE id = $1",
-        )
-        .bind(student_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        let name: Option<(String,)> =
+            sqlx::query_as("SELECT CONCAT(first_name, ' ', last_name) FROM students WHERE id = $1")
+                .bind(student_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
 
         let student_name = name.map(|r| r.0).unwrap_or_default();
 

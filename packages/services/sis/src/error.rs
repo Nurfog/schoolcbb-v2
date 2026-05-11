@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
@@ -33,7 +33,10 @@ impl IntoResponse for SisError {
         let (status, message) = match &self {
             SisError::Database(e) => {
                 tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Error interno del servidor".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Error interno del servidor".into(),
+                )
             }
             SisError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
             SisError::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),

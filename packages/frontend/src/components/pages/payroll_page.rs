@@ -4,7 +4,10 @@ use serde_json::json;
 use crate::api::client;
 
 fn first_letter(s: &str) -> String {
-    s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+    s.chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "?".to_string())
 }
 
 #[component]
@@ -27,12 +30,12 @@ pub fn PayrollPage() -> Element {
         async move { client::fetch_json(&format!("/api/hr/payroll?month={}&year={}", m, y)).await }
     });
 
-    let employees = use_resource(|| async move {
-        client::fetch_json("/api/hr/employees").await
-    });
+    let employees = use_resource(|| async move { client::fetch_json("/api/hr/employees").await });
 
     let do_calculate = move |_| {
-        if gen_employee_id().trim().is_empty() { return; }
+        if gen_employee_id().trim().is_empty() {
+            return;
+        }
         generating.set(true);
         let payload = json!({
             "employee_id": gen_employee_id(),
@@ -49,7 +52,9 @@ pub fn PayrollPage() -> Element {
     };
 
     let do_generate = move |_| {
-        if gen_employee_id().trim().is_empty() { return; }
+        if gen_employee_id().trim().is_empty() {
+            return;
+        }
         generating.set(true);
         let payload = json!({
             "employee_id": gen_employee_id(),
@@ -76,13 +81,19 @@ pub fn PayrollPage() -> Element {
         let m = selected_month();
         let y = selected_year();
         spawn(async move {
-            let result = client::fetch_json(&format!("/api/hr/payroll/export/lre?month={}&year={}", m, y)).await;
+            let result = client::fetch_json(&format!(
+                "/api/hr/payroll/export/lre?month={}&year={}",
+                m, y
+            ))
+            .await;
             match result {
                 Ok(data) => {
                     exported.set(format!("LRE exportado - {} registros", data["count"]));
                     payrolls.restart();
                 }
-                Err(e) => { exported.set(format!("Error: {}", e)); }
+                Err(e) => {
+                    exported.set(format!("Error: {}", e));
+                }
             }
         });
     };
@@ -91,13 +102,19 @@ pub fn PayrollPage() -> Element {
         let m = selected_month();
         let y = selected_year();
         spawn(async move {
-            let result = client::fetch_json(&format!("/api/hr/payroll/export/previred?month={}&year={}", m, y)).await;
+            let result = client::fetch_json(&format!(
+                "/api/hr/payroll/export/previred?month={}&year={}",
+                m, y
+            ))
+            .await;
             match result {
                 Ok(data) => {
                     exported.set(format!("Previred exportado - {} registros", data["count"]));
                     payrolls.restart();
                 }
-                Err(e) => { exported.set(format!("Error: {}", e)); }
+                Err(e) => {
+                    exported.set(format!("Error: {}", e));
+                }
             }
         });
     };

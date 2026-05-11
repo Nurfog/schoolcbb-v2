@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::students::{require_any_role, Claims};
-use crate::error::{SisError, SisResult};
+use super::students::{Claims, require_any_role};
 use crate::AppState;
+use crate::error::{SisError, SisResult};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 struct RawCourse {
@@ -54,7 +54,10 @@ struct UpdateCoursePayload {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/courses", get(list_courses).post(create_course))
-        .route("/api/courses/{id}", get(get_course).put(update_course).delete(delete_course))
+        .route(
+            "/api/courses/{id}",
+            get(get_course).put(update_course).delete(delete_course),
+        )
 }
 
 async fn list_courses(
@@ -62,7 +65,10 @@ async fn list_courses(
     State(state): State<AppState>,
     Query(q): Query<CourseQuery>,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"],
+    )?;
 
     let (where_clause, _param_idx) = build_filters(&q, &claims);
     let sql = format!(
@@ -81,7 +87,8 @@ async fn list_courses(
         query = query.bind(p);
     }
     if let Some(ref tid) = q.teacher_id {
-        let uid = Uuid::parse_str(tid).map_err(|_| SisError::Validation("teacher_id inválido".into()))?;
+        let uid =
+            Uuid::parse_str(tid).map_err(|_| SisError::Validation("teacher_id inválido".into()))?;
         query = query.bind(uid);
     }
     if let Some(ref s) = q.search {
@@ -100,11 +107,27 @@ fn build_filters(q: &CourseQuery, claims: &Claims) -> (String, u32) {
         clauses.push(format!("school_id = ${}::uuid", idx));
         idx += 1;
     }
-    if q.grade_level.is_some() { clauses.push(format!("grade_level = ${}", idx)); idx += 1; }
-    if q.plan.is_some() { clauses.push(format!("plan = ${}", idx)); idx += 1; }
-    if q.teacher_id.is_some() { clauses.push(format!("teacher_id = ${}", idx)); idx += 1; }
-    if q.search.is_some() { clauses.push(format!("name ILIKE ${}", idx)); idx += 1; }
-    let where_clause = if clauses.is_empty() { String::new() } else { format!("WHERE {}", clauses.join(" AND ")) };
+    if q.grade_level.is_some() {
+        clauses.push(format!("grade_level = ${}", idx));
+        idx += 1;
+    }
+    if q.plan.is_some() {
+        clauses.push(format!("plan = ${}", idx));
+        idx += 1;
+    }
+    if q.teacher_id.is_some() {
+        clauses.push(format!("teacher_id = ${}", idx));
+        idx += 1;
+    }
+    if q.search.is_some() {
+        clauses.push(format!("name ILIKE ${}", idx));
+        idx += 1;
+    }
+    let where_clause = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", clauses.join(" AND "))
+    };
     (where_clause, idx)
 }
 
@@ -116,7 +139,9 @@ async fn create_course(
     require_any_role(&claims, &["Sostenedor", "Administrador", "Director", "UTP"])?;
 
     if payload.name.trim().is_empty() {
-        return Err(SisError::Validation("El nombre del curso es obligatorio".into()));
+        return Err(SisError::Validation(
+            "El nombre del curso es obligatorio".into(),
+        ));
     }
 
     let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
@@ -144,7 +169,10 @@ async fn get_course(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"],
+    )?;
 
     let course = sqlx::query_as::<_, RawCourse>(
         "SELECT id, name, subject, grade_level, section, teacher_id, plan, classroom_id FROM courses WHERE id = $1",
@@ -204,13 +232,16 @@ async fn delete_course(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM enrollments WHERE course_id = $1")
-        .bind(id)
-        .fetch_one(&state.pool)
-        .await?;
+    let exists =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM enrollments WHERE course_id = $1")
+            .bind(id)
+            .fetch_one(&state.pool)
+            .await?;
 
     if exists > 0 {
-        return Err(SisError::Conflict("No se puede eliminar un curso con alumnos matriculados".into()));
+        return Err(SisError::Conflict(
+            "No se puede eliminar un curso con alumnos matriculados".into(),
+        ));
     }
 
     sqlx::query("DELETE FROM course_subjects WHERE course_id = $1")

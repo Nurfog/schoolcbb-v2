@@ -1,44 +1,50 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AcademicError, AcademicResult};
-use crate::routes::subjects::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{AcademicError, AcademicResult};
+use crate::routes::subjects::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/academic/grade-levels", get(list_levels).post(create_level))
-        .route("/api/academic/grade-levels/{id}", get(get_level).put(update_level).delete(delete_level))
+        .route(
+            "/api/academic/grade-levels",
+            get(list_levels).post(create_level),
+        )
+        .route(
+            "/api/academic/grade-levels/{id}",
+            get(get_level).put(update_level).delete(delete_level),
+        )
 }
 
 pub async fn seed_grade_levels(pool: &sqlx::PgPool) {
     let default_levels = vec![
-        ("SALA_CUNA",        "Sala Cuna",        None,          0),
-        ("MEDIO_MENOR",      "Medio Menor",      None,          1),
-        ("MEDIO_MAYOR",      "Medio Mayor",      None,          2),
-        ("PREKINDER",        "Pre-kinder",       None,          3),
-        ("KINDER",           "Kinder",           None,          4),
-        ("1_BASICO",         "1° Básico",        None,          5),
-        ("2_BASICO",         "2° Básico",        None,          6),
-        ("3_BASICO",         "3° Básico",        None,          7),
-        ("4_BASICO",         "4° Básico",        None,          8),
-        ("5_BASICO",         "5° Básico",        None,          9),
-        ("6_BASICO",         "6° Básico",        None,         10),
-        ("7_BASICO",         "7° Básico",        None,         11),
-        ("8_BASICO",         "8° Básico",        None,         12),
-        ("1_MEDIO",          "1° Medio",         None,         13),
-        ("2_MEDIO",          "2° Medio",         None,         14),
-        ("3_MEDIO_HC",       "3° Medio HC",      Some("HC"),  15),
-        ("4_MEDIO_HC",       "4° Medio HC",      Some("HC"),  16),
-        ("3_MEDIO_TP",       "3° Medio TP",      Some("TP"),  17),
-        ("4_MEDIO_TP",       "4° Medio TP",      Some("TP"),  18),
-        ("3_MEDIO_ART",      "3° Medio Artístico", Some("Artístico"), 19),
-        ("4_MEDIO_ART",      "4° Medio Artístico", Some("Artístico"), 20),
+        ("SALA_CUNA", "Sala Cuna", None, 0),
+        ("MEDIO_MENOR", "Medio Menor", None, 1),
+        ("MEDIO_MAYOR", "Medio Mayor", None, 2),
+        ("PREKINDER", "Pre-kinder", None, 3),
+        ("KINDER", "Kinder", None, 4),
+        ("1_BASICO", "1° Básico", None, 5),
+        ("2_BASICO", "2° Básico", None, 6),
+        ("3_BASICO", "3° Básico", None, 7),
+        ("4_BASICO", "4° Básico", None, 8),
+        ("5_BASICO", "5° Básico", None, 9),
+        ("6_BASICO", "6° Básico", None, 10),
+        ("7_BASICO", "7° Básico", None, 11),
+        ("8_BASICO", "8° Básico", None, 12),
+        ("1_MEDIO", "1° Medio", None, 13),
+        ("2_MEDIO", "2° Medio", None, 14),
+        ("3_MEDIO_HC", "3° Medio HC", Some("HC"), 15),
+        ("4_MEDIO_HC", "4° Medio HC", Some("HC"), 16),
+        ("3_MEDIO_TP", "3° Medio TP", Some("TP"), 17),
+        ("4_MEDIO_TP", "4° Medio TP", Some("TP"), 18),
+        ("3_MEDIO_ART", "3° Medio Artístico", Some("Artístico"), 19),
+        ("4_MEDIO_ART", "4° Medio Artístico", Some("Artístico"), 20),
     ];
 
     for (code, name, plan, order) in default_levels {
@@ -70,11 +76,11 @@ pub async fn seed_grade_levels(pool: &sqlx::PgPool) {
     }
 }
 
-async fn list_levels(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+async fn list_levels(claims: Claims, State(state): State<AppState>) -> AcademicResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let levels = sqlx::query_as::<_, schoolcbb_common::academic::GradeLevel>(
         "SELECT id, code, name, plan, sort_order, active, created_at FROM grade_levels ORDER BY sort_order",
@@ -111,7 +117,9 @@ async fn create_level(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     if payload.code.trim().is_empty() || payload.name.trim().is_empty() {
-        return Err(AcademicError::Validation("Código y nombre son obligatorios".into()));
+        return Err(AcademicError::Validation(
+            "Código y nombre son obligatorios".into(),
+        ));
     }
 
     let id = Uuid::new_v4();

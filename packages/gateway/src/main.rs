@@ -3,14 +3,14 @@ mod graphql;
 use std::env;
 
 use axum::{
+    Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Extension, Json, Request, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{any, get},
-    Router,
 };
 use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
@@ -44,21 +44,36 @@ async fn main() {
         identity_url: env::var("IDENTITY_URL").unwrap_or_else(|_| "http://localhost:3001".into()),
         sis_url: env::var("SIS_URL").unwrap_or_else(|_| "http://localhost:3002".into()),
         academic_url: env::var("ACADEMIC_URL").unwrap_or_else(|_| "http://localhost:3003".into()),
-        attendance_url: env::var("ATTENDANCE_URL").unwrap_or_else(|_| "http://localhost:3004".into()),
-        notifications_url: env::var("NOTIFICATIONS_URL").unwrap_or_else(|_| "http://localhost:3005".into()),
+        attendance_url: env::var("ATTENDANCE_URL")
+            .unwrap_or_else(|_| "http://localhost:3004".into()),
+        notifications_url: env::var("NOTIFICATIONS_URL")
+            .unwrap_or_else(|_| "http://localhost:3005".into()),
         frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:8080".into()),
         finance_url: env::var("FINANCE_URL").unwrap_or_else(|_| "http://localhost:3006".into()),
         reporting_url: env::var("REPORTING_URL").unwrap_or_else(|_| "http://localhost:3007".into()),
     };
     let cors = CorsLayer::new()
-        .allow_origin(state.frontend_url.parse::<axum::http::HeaderValue>().unwrap())
+        .allow_origin(
+            state
+                .frontend_url
+                .parse::<axum::http::HeaderValue>()
+                .unwrap(),
+        )
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any);
 
     let schema = graphql::build_schema(&state.sis_url, &state.academic_url, state.client.clone());
 
     let app = Router::new()
-        .route("/health", get(|| async { (StatusCode::OK, axum::Json(serde_json::json!({"status": "ok", "service": "gateway"}))) }))
+        .route(
+            "/health",
+            get(|| async {
+                (
+                    StatusCode::OK,
+                    axum::Json(serde_json::json!({"status": "ok", "service": "gateway"})),
+                )
+            }),
+        )
         .route("/api/auth", any(proxy_identity))
         .route("/api/auth/{*path}", any(proxy_identity))
         .route("/api/user", any(proxy_identity))
@@ -120,10 +135,7 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn ws_proxy(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn ws_proxy(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     let upstream = state.notifications_url.clone();
     ws.on_upgrade(move |socket| handle_ws_proxy(socket, upstream))
 }
@@ -164,7 +176,9 @@ async fn graphql_handler(
 }
 
 async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
-    let ws_url = upstream_url.replace("http://", "ws://").replace("https://", "wss://");
+    let ws_url = upstream_url
+        .replace("http://", "ws://")
+        .replace("https://", "wss://");
     let ws_url = format!("{}/ws", ws_url.trim_end_matches('/'));
 
     match tokio_tungstenite::connect_async(&ws_url).await {
@@ -175,7 +189,11 @@ async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
             let c2u = tokio::spawn(async move {
                 while let Some(Ok(msg)) = client_receiver.next().await {
                     let data = msg.into_data();
-                    if upstream_sender.send(tungstenite::Message::Binary(data.to_vec())).await.is_err() {
+                    if upstream_sender
+                        .send(tungstenite::Message::Binary(data.to_vec()))
+                        .await
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -184,7 +202,11 @@ async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
             let u2c = tokio::spawn(async move {
                 while let Some(Ok(msg)) = upstream_receiver.next().await {
                     let data = msg.into_data();
-                    if client_sender.send(Message::Binary(axum::body::Bytes::from(data))).await.is_err() {
+                    if client_sender
+                        .send(Message::Binary(axum::body::Bytes::from(data)))
+                        .await
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -230,12 +252,21 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
     };
 
     let path = req.uri().path();
-    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
     let upstream_url = format!("{base_url}{path}{query}");
 
     let method = req.method().clone();
     let headers = req.headers().clone();
-    let body_bytes = req.into_body().collect().await.unwrap_or_default().to_bytes();
+    let body_bytes = req
+        .into_body()
+        .collect()
+        .await
+        .unwrap_or_default()
+        .to_bytes();
 
     let upstream_req = state
         .client
@@ -259,7 +290,11 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
         }
         Err(e) => {
             tracing::error!("Proxy error to {service}: {e}");
-            (StatusCode::BAD_GATEWAY, format!("Service {service} unavailable")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Service {service} unavailable"),
+            )
+                .into_response()
         }
     }
 }

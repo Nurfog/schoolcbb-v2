@@ -4,7 +4,10 @@ use serde_json::json;
 use crate::api::client;
 
 fn first_letter(s: &str) -> String {
-    s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+    s.chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "?".to_string())
 }
 
 #[component]
@@ -23,7 +26,10 @@ pub fn HrPage() -> Element {
     let mut saving = use_signal(|| false);
 
     let do_create = move |_| {
-        if rut().trim().is_empty() || first_name().trim().is_empty() || last_name().trim().is_empty() {
+        if rut().trim().is_empty()
+            || first_name().trim().is_empty()
+            || last_name().trim().is_empty()
+        {
             return;
         }
         saving.set(true);
@@ -41,8 +47,12 @@ pub fn HrPage() -> Element {
             let _ = client::post_json("/api/hr/employees", &payload).await;
             saving.set(false);
             show_form.set(false);
-            rut.set(String::new()); first_name.set(String::new()); last_name.set(String::new());
-            email.set(String::new()); phone.set(String::new()); position.set(String::new());
+            rut.set(String::new());
+            first_name.set(String::new());
+            last_name.set(String::new());
+            email.set(String::new());
+            phone.set(String::new());
+            position.set(String::new());
             hire_date.set(String::new());
             employees.restart();
         });

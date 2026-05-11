@@ -1,5 +1,5 @@
-use dioxus::prelude::*;
 use crate::api::client;
+use dioxus::prelude::*;
 
 #[component]
 pub fn GradeLevelsPage() -> Element {
@@ -11,21 +11,46 @@ pub fn GradeLevelsPage() -> Element {
     let mut editing_id = use_signal(|| None::<String>);
     let mut show_form = use_signal(|| false);
     let mut saving = use_signal(|| false);
-    let mut reset_form = move || { code.set(String::new()); name.set(String::new()); plan.set(String::new()); sort_order.set(0); editing_id.set(None); show_form.set(false); };
+    let mut reset_form = move || {
+        code.set(String::new());
+        name.set(String::new());
+        plan.set(String::new());
+        sort_order.set(0);
+        editing_id.set(None);
+        show_form.set(false);
+    };
 
     let do_save = move |_| {
         saving.set(true);
         let payload = serde_json::json!({ "code": code(), "name": name(), "plan": if plan().is_empty() { serde_json::Value::Null } else { serde_json::json!(plan()) }, "sort_order": sort_order() });
         let is_edit = editing_id().is_some();
-        let ep = if let Some(ref id) = editing_id() { format!("/api/academic/grade-levels/{}", id) } else { "/api/academic/grade-levels".to_string() };
+        let ep = if let Some(ref id) = editing_id() {
+            format!("/api/academic/grade-levels/{}", id)
+        } else {
+            "/api/academic/grade-levels".to_string()
+        };
         spawn(async move {
-            if is_edit { let _ = client::update_grade_level(&ep.replace("/api/academic/grade-levels/", ""), &payload).await; }
-            else { let _ = client::create_grade_level(&payload).await; }
-            saving.set(false); reset_form(); levels.restart();
+            if is_edit {
+                let _ = client::update_grade_level(
+                    &ep.replace("/api/academic/grade-levels/", ""),
+                    &payload,
+                )
+                .await;
+            } else {
+                let _ = client::create_grade_level(&payload).await;
+            }
+            saving.set(false);
+            reset_form();
+            levels.restart();
         });
     };
 
-    let do_delete = move |id: String| { spawn(async move { let _ = client::delete_grade_level(&id).await; levels.restart(); }); };
+    let do_delete = move |id: String| {
+        spawn(async move {
+            let _ = client::delete_grade_level(&id).await;
+            levels.restart();
+        });
+    };
 
     rsx! {
         div { class: "page-header", h1 { "Niveles" } p { "Gestión de niveles educativos y planes" } }

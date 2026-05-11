@@ -1,21 +1,33 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::AcademicResult;
-use crate::routes::subjects::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::AcademicResult;
+use crate::routes::subjects::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/grades/reports/student/{student_id}/{year}", get(student_yearly_report))
-        .route("/api/grades/reports/student/{student_id}/{year}/{semester}", get(student_semester_report))
-        .route("/api/grades/reports/course/{course_id}/{year}", get(course_performance))
-        .route("/api/grades/reports/promotion/{course_id}/{year}", get(promotion_status))
+        .route(
+            "/api/grades/reports/student/{student_id}/{year}",
+            get(student_yearly_report),
+        )
+        .route(
+            "/api/grades/reports/student/{student_id}/{year}/{semester}",
+            get(student_semester_report),
+        )
+        .route(
+            "/api/grades/reports/course/{course_id}/{year}",
+            get(course_performance),
+        )
+        .route(
+            "/api/grades/reports/promotion/{course_id}/{year}",
+            get(promotion_status),
+        )
 }
 
 async fn student_yearly_report(
@@ -23,23 +35,58 @@ async fn student_yearly_report(
     State(state): State<AppState>,
     Path((student_id, year)): Path<(Uuid, i32)>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let student_name = get_student_name(&state.pool, student_id).await?;
 
     let s1 = build_semester_report(&state.pool, student_id, 1, year).await?;
     let s2 = build_semester_report(&state.pool, student_id, 2, year).await?;
 
-    let s1_subjects = s1.as_ref().map(|r| &r.subjects).map(|v| v.as_slice()).unwrap_or(&[]);
+    let s1_subjects = s1
+        .as_ref()
+        .map(|r| &r.subjects)
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
     let all_subjects_s1: Vec<f64> = s1_subjects.iter().map(|s| s.weighted_average).collect();
-    let s1_global = if all_subjects_s1.is_empty() { 0.0 } else { all_subjects_s1.iter().sum::<f64>() / all_subjects_s1.len() as f64 };
+    let s1_global = if all_subjects_s1.is_empty() {
+        0.0
+    } else {
+        all_subjects_s1.iter().sum::<f64>() / all_subjects_s1.len() as f64
+    };
 
     let final_promotion = if let Some(ref s2_report) = s2 {
-        let s2_subjects: Vec<f64> = s2_report.subjects.iter().map(|s| s.weighted_average).collect();
-        let s2_global = if s2_subjects.is_empty() { 0.0 } else { s2_subjects.iter().sum::<f64>() / s2_subjects.len() as f64 };
+        let s2_subjects: Vec<f64> = s2_report
+            .subjects
+            .iter()
+            .map(|s| s.weighted_average)
+            .collect();
+        let s2_global = if s2_subjects.is_empty() {
+            0.0
+        } else {
+            s2_subjects.iter().sum::<f64>() / s2_subjects.len() as f64
+        };
         let yearly_avg = (s1_global + s2_global) / 2.0;
-        if yearly_avg >= 4.0 { "Promovido" } else { "Reprobado" }
-    } else if s1_global >= 4.0 { "Pendiente (S2)" } else { "Riesgo" };
+        if yearly_avg >= 4.0 {
+            "Promovido"
+        } else {
+            "Reprobado"
+        }
+    } else if s1_global >= 4.0 {
+        "Pendiente (S2)"
+    } else {
+        "Riesgo"
+    };
 
     Ok(Json(json!({
         "student_id": student_id,
@@ -56,7 +103,18 @@ async fn student_semester_report(
     State(state): State<AppState>,
     Path((student_id, year, semester)): Path<(Uuid, i32, i32)>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let student_name = get_student_name(&state.pool, student_id).await?;
     let report = build_semester_report(&state.pool, student_id, semester, year).await?;
@@ -75,7 +133,10 @@ async fn course_performance(
     State(state): State<AppState>,
     Path((course_id, year)): Path<(Uuid, i32)>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let course_subjects: Vec<schoolcbb_common::academic::CourseSubject> = sqlx::query_as(
         "SELECT id, course_id, subject_id, teacher_id, academic_year, hours_per_week FROM course_subjects WHERE course_id = $1 AND academic_year = $2",
@@ -99,15 +160,20 @@ async fn course_performance(
     let mut subject_performance: Vec<Value> = vec![];
 
     for cs in &course_subjects {
-        let subject_info: Option<(String, String)> = sqlx::query_as(
-            "SELECT code, name FROM subjects WHERE id = $1",
-        )
-        .bind(cs.subject_id)
-        .fetch_optional(&state.pool)
-        .await?;
+        let subject_info: Option<(String, String)> =
+            sqlx::query_as("SELECT code, name FROM subjects WHERE id = $1")
+                .bind(cs.subject_id)
+                .fetch_optional(&state.pool)
+                .await?;
 
-        let subject_code = subject_info.as_ref().map(|s| s.0.clone()).unwrap_or_default();
-        let subject_name = subject_info.as_ref().map(|s| s.1.clone()).unwrap_or_default();
+        let subject_code = subject_info
+            .as_ref()
+            .map(|s| s.0.clone())
+            .unwrap_or_default();
+        let subject_name = subject_info
+            .as_ref()
+            .map(|s| s.1.clone())
+            .unwrap_or_default();
 
         let mut student_grades: Vec<Value> = vec![];
         for (sid, sname, srut) in &students {
@@ -120,7 +186,11 @@ async fn course_performance(
             .fetch_all(&state.pool)
             .await?;
 
-            let avg = if grades.is_empty() { 0.0 } else { grades.iter().sum::<f64>() / grades.len() as f64 };
+            let avg = if grades.is_empty() {
+                0.0
+            } else {
+                grades.iter().sum::<f64>() / grades.len() as f64
+            };
             student_grades.push(json!({
                 "student_id": sid,
                 "student_name": sname,
@@ -176,12 +246,16 @@ async fn promotion_status(
         let s2_ref = s2.as_ref();
 
         let failed_subjects: Vec<String> = if let Some(s2_report) = s2_ref {
-            s2_report.subjects.iter()
+            s2_report
+                .subjects
+                .iter()
                 .filter(|s| s.weighted_average < 4.0)
                 .map(|s| s.subject_name.clone())
                 .collect()
         } else {
-            s1_ref.subjects.iter()
+            s1_ref
+                .subjects
+                .iter()
                 .filter(|s| s.weighted_average < 4.0)
                 .map(|s| s.subject_name.clone())
                 .collect()
@@ -208,8 +282,14 @@ async fn promotion_status(
         }));
     }
 
-    let promoted = results.iter().filter(|r| r["promotion"] == "Promovido").count();
-    let failed = results.iter().filter(|r| r["promotion"] == "Reprobado").count();
+    let promoted = results
+        .iter()
+        .filter(|r| r["promotion"] == "Promovido")
+        .count();
+    let failed = results
+        .iter()
+        .filter(|r| r["promotion"] == "Reprobado")
+        .count();
     let pending = results.len() - promoted - failed;
 
     Ok(Json(json!({
@@ -226,7 +306,9 @@ async fn promotion_status(
 }
 
 fn subject_average(subjects: &[schoolcbb_common::academic::WeightedSubjectAverage]) -> f64 {
-    if subjects.is_empty() { return 0.0; }
+    if subjects.is_empty() {
+        return 0.0;
+    }
     let sum: f64 = subjects.iter().map(|s| s.weighted_average).sum();
     sum / subjects.len() as f64
 }
@@ -265,12 +347,11 @@ async fn build_semester_report(
     let mut subjects: Vec<schoolcbb_common::academic::WeightedSubjectAverage> = vec![];
 
     for (cs_id, subject_id) in &course_subjects {
-        let subject_info: (String, String) = sqlx::query_as(
-            "SELECT code, name FROM subjects WHERE id = $1",
-        )
-        .bind(subject_id)
-        .fetch_one(pool)
-        .await?;
+        let subject_info: (String, String) =
+            sqlx::query_as("SELECT code, name FROM subjects WHERE id = $1")
+                .bind(subject_id)
+                .fetch_one(pool)
+                .await?;
 
         let categories: Vec<schoolcbb_common::academic::GradeCategory> = sqlx::query_as(
             "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE course_subject_id = $1",
@@ -296,12 +377,20 @@ async fn build_semester_report(
             .fetch_all(pool)
             .await?;
 
-            let cat_avg = if cat_grades.is_empty() { 0.0 } else { cat_grades.iter().sum::<f64>() / cat_grades.len() as f64 };
+            let cat_avg = if cat_grades.is_empty() {
+                0.0
+            } else {
+                cat_grades.iter().sum::<f64>() / cat_grades.len() as f64
+            };
 
             for &g in &cat_grades {
                 all_grades.push(g);
-                if g < min_grade { min_grade = g; }
-                if g > max_grade { max_grade = g; }
+                if g < min_grade {
+                    min_grade = g;
+                }
+                if g > max_grade {
+                    max_grade = g;
+                }
             }
 
             category_breakdowns.push(schoolcbb_common::academic::CategoryBreakdown {
@@ -309,7 +398,8 @@ async fn build_semester_report(
                 weight: cat.weight_percentage,
                 grades: cat_grades,
                 category_average: (cat_avg * 10.0).round() / 10.0,
-                weighted_contribution: ((cat_avg * cat.weight_percentage / 100.0) * 10.0).round() / 10.0,
+                weighted_contribution: ((cat_avg * cat.weight_percentage / 100.0) * 10.0).round()
+                    / 10.0,
             });
         }
 
@@ -326,19 +416,34 @@ async fn build_semester_report(
 
             for &g in &raw_grades {
                 all_grades.push(g);
-                if g < min_grade { min_grade = g; }
-                if g > max_grade { max_grade = g; }
+                if g < min_grade {
+                    min_grade = g;
+                }
+                if g > max_grade {
+                    max_grade = g;
+                }
             }
         }
 
         let grades_count = all_grades.len() as i32;
-        let simple_avg = if all_grades.is_empty() { 0.0 } else { all_grades.iter().sum::<f64>() / all_grades.len() as f64 };
+        let simple_avg = if all_grades.is_empty() {
+            0.0
+        } else {
+            all_grades.iter().sum::<f64>() / all_grades.len() as f64
+        };
 
         let weighted_avg: f64 = if categories.is_empty() {
             simple_avg
         } else {
-            let weighted_sum: f64 = category_breakdowns.iter().map(|c| c.weighted_contribution).sum();
-            if weighted_sum == 0.0 { simple_avg } else { weighted_sum }
+            let weighted_sum: f64 = category_breakdowns
+                .iter()
+                .map(|c| c.weighted_contribution)
+                .sum();
+            if weighted_sum == 0.0 {
+                simple_avg
+            } else {
+                weighted_sum
+            }
         };
 
         subjects.push(schoolcbb_common::academic::WeightedSubjectAverage {
@@ -354,7 +459,10 @@ async fn build_semester_report(
     }
 
     let global_avg = subject_average(&subjects);
-    let failed_subjects: Vec<&schoolcbb_common::academic::WeightedSubjectAverage> = subjects.iter().filter(|s| s.weighted_average < 4.0).collect();
+    let failed_subjects: Vec<&schoolcbb_common::academic::WeightedSubjectAverage> = subjects
+        .iter()
+        .filter(|s| s.weighted_average < 4.0)
+        .collect();
     let is_promoted = failed_subjects.is_empty();
     let has_min_grades = subjects.iter().all(|s| s.grades_count >= 2);
 
@@ -378,12 +486,13 @@ fn empty_semester(semester: i32) -> schoolcbb_common::academic::SemesterReport {
 }
 
 async fn get_student_name(pool: &sqlx::PgPool, student_id: Uuid) -> Result<String, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT first_name || ' ' || last_name FROM students WHERE id = $1",
-    )
-    .bind(student_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT first_name || ' ' || last_name FROM students WHERE id = $1")
+            .bind(student_id)
+            .fetch_optional(pool)
+            .await?;
 
-    Ok(row.map(|r| r.0).unwrap_or_else(|| "Desconocido".to_string()))
+    Ok(row
+        .map(|r| r.0)
+        .unwrap_or_else(|| "Desconocido".to_string()))
 }

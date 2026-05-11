@@ -160,7 +160,10 @@ fn SubjectOption(subject: serde_json::Value) -> Element {
 
 #[component]
 fn CourseGradesSection(course: serde_json::Value, semester: i32) -> Element {
-    let course_name = course["course_name"].as_str().unwrap_or("Curso").to_string();
+    let course_name = course["course_name"]
+        .as_str()
+        .unwrap_or("Curso")
+        .to_string();
     let students = course["students"].as_array().cloned().unwrap_or_default();
     let total = course["total_students"].as_i64().unwrap_or(0);
 
@@ -205,23 +208,65 @@ fn StudentGradeRow(student: serde_json::Value, semester: i32) -> Element {
     let name = student["student_name"].as_str().unwrap_or("-").to_string();
     let rut = student["rut"].as_str().unwrap_or("-").to_string();
 
-    let grades_s1_str = student["grades_s1"].as_array()
-        .map(|a| a.iter().map(|g| format!("{:.1}", g.as_f64().unwrap_or(0.0))).collect::<Vec<_>>().join(", "))
+    let grades_s1_str = student["grades_s1"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|g| format!("{:.1}", g.as_f64().unwrap_or(0.0)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
         .unwrap_or_default();
     let avg_s1 = student["average_s1"].as_f64().unwrap_or(0.0);
-    let avg_s1_str = if avg_s1 > 0.0 { format!("{:.1}", avg_s1) } else { "-".to_string() };
-    let avg_s1_class = if avg_s1 >= 4.0 { "grade-good" } else if avg_s1 > 0.0 { "grade-bad" } else { "" };
+    let avg_s1_str = if avg_s1 > 0.0 {
+        format!("{:.1}", avg_s1)
+    } else {
+        "-".to_string()
+    };
+    let avg_s1_class = if avg_s1 >= 4.0 {
+        "grade-good"
+    } else if avg_s1 > 0.0 {
+        "grade-bad"
+    } else {
+        ""
+    };
 
-    let grades_s2_str = student["grades_s2"].as_array()
-        .map(|a| a.iter().map(|g| format!("{:.1}", g.as_f64().unwrap_or(0.0))).collect::<Vec<_>>().join(", "))
+    let grades_s2_str = student["grades_s2"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|g| format!("{:.1}", g.as_f64().unwrap_or(0.0)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
         .unwrap_or_default();
     let avg_s2 = student["average_s2"].as_f64().unwrap_or(0.0);
-    let avg_s2_str = if avg_s2 > 0.0 { format!("{:.1}", avg_s2) } else { "-".to_string() };
-    let avg_s2_class = if avg_s2 >= 4.0 { "grade-good" } else if avg_s2 > 0.0 { "grade-bad" } else { "" };
+    let avg_s2_str = if avg_s2 > 0.0 {
+        format!("{:.1}", avg_s2)
+    } else {
+        "-".to_string()
+    };
+    let avg_s2_class = if avg_s2 >= 4.0 {
+        "grade-good"
+    } else if avg_s2 > 0.0 {
+        "grade-bad"
+    } else {
+        ""
+    };
 
     let final_avg = student["final_average"].as_f64().unwrap_or(0.0);
-    let final_str = if final_avg > 0.0 { format!("{:.1}", final_avg) } else { "-".to_string() };
-    let final_class = if final_avg >= 4.0 { "grade-good" } else if final_avg > 0.0 { "grade-bad" } else { "" };
+    let final_str = if final_avg > 0.0 {
+        format!("{:.1}", final_avg)
+    } else {
+        "-".to_string()
+    };
+    let final_class = if final_avg >= 4.0 {
+        "grade-good"
+    } else if final_avg > 0.0 {
+        "grade-bad"
+    } else {
+        ""
+    };
 
     rsx! {
         tr {

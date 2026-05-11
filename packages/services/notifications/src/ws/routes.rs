@@ -1,21 +1,20 @@
-
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         FromRequestParts, Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::request::Parts,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{NotifError, NotifResult};
 use crate::AppState;
+use crate::error::{NotifError, NotifResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -32,7 +31,10 @@ pub struct Claims {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = NotifError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -66,19 +68,33 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), NotifErro
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/ws", get(ws_handler))
-        .route("/api/communications/messages", get(list_messages).post(send_message))
-        .route("/api/communications/messages/unread-count", get(unread_count))
+        .route(
+            "/api/communications/messages",
+            get(list_messages).post(send_message),
+        )
+        .route(
+            "/api/communications/messages/unread-count",
+            get(unread_count),
+        )
         .route("/api/communications/messages/{id}", get(get_message))
         .route("/api/communications/messages/{id}/read", post(mark_read))
-        .route("/api/communications/interviews", get(list_interviews).post(create_interview))
-        .route("/api/communications/interviews/{id}", get(get_interview).put(update_interview).delete(delete_interview))
-        .route("/api/communications/interviews/student/{student_id}", get(interviews_by_student))
+        .route(
+            "/api/communications/interviews",
+            get(list_interviews).post(create_interview),
+        )
+        .route(
+            "/api/communications/interviews/{id}",
+            get(get_interview)
+                .put(update_interview)
+                .delete(delete_interview),
+        )
+        .route(
+            "/api/communications/interviews/student/{student_id}",
+            get(interviews_by_student),
+        )
 }
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state.ws_hub))
 }
 
@@ -108,11 +124,18 @@ async fn handle_socket(socket: WebSocket, hub: std::sync::Arc<crate::ws::hub::Ws
     }
 }
 
-async fn list_messages(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+async fn list_messages(claims: Claims, State(state): State<AppState>) -> NotifResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
     let user_id: Uuid = claims.sub.parse().map_err(|_| NotifError::Unauthorized)?;
 
@@ -127,7 +150,9 @@ async fn list_messages(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "messages": messages, "total": messages.len() })))
+    Ok(Json(
+        json!({ "messages": messages, "total": messages.len() }),
+    ))
 }
 
 async fn send_message(
@@ -135,18 +160,25 @@ async fn send_message(
     State(state): State<AppState>,
     Json(payload): Json<schoolcbb_common::communication::CreateMessagePayload>,
 ) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let sender_id: Uuid = claims.sub.parse().map_err(|_| NotifError::Unauthorized)?;
 
     if payload.subject.trim().is_empty() || payload.body.trim().is_empty() {
-        return Err(NotifError::Validation("Asunto y cuerpo son obligatorios".into()));
+        return Err(NotifError::Validation(
+            "Asunto y cuerpo son obligatorios".into(),
+        ));
     }
 
     let recipients: Vec<Uuid> = resolve_recipients(&state.pool, &payload.audience).await?;
 
     if recipients.is_empty() {
-        return Err(NotifError::Validation("No hay destinatarios para la audiencia seleccionada".into()));
+        return Err(NotifError::Validation(
+            "No hay destinatarios para la audiencia seleccionada".into(),
+        ));
     }
 
     let mut sent: Vec<schoolcbb_common::communication::Message> = vec![];
@@ -167,11 +199,14 @@ async fn send_message(
         .fetch_one(&state.pool)
         .await?;
 
-        state.ws_hub.broadcast(&json!({
-            "type": "new_message",
-            "receiver_id": recv_id,
-            "message": &msg
-        }).to_string());
+        state.ws_hub.broadcast(
+            &json!({
+                "type": "new_message",
+                "receiver_id": recv_id,
+                "message": &msg
+            })
+            .to_string(),
+        );
 
         sent.push(msg);
     }
@@ -179,14 +214,17 @@ async fn send_message(
     Ok(Json(json!({ "messages": sent, "total": sent.len() })))
 }
 
-async fn resolve_recipients(pool: &sqlx::PgPool, audience: &schoolcbb_common::communication::AudienceTarget) -> Result<Vec<Uuid>, NotifError> {
+async fn resolve_recipients(
+    pool: &sqlx::PgPool,
+    audience: &schoolcbb_common::communication::AudienceTarget,
+) -> Result<Vec<Uuid>, NotifError> {
     match audience {
         schoolcbb_common::communication::AudienceTarget::User(uid) => Ok(vec![*uid]),
         schoolcbb_common::communication::AudienceTarget::Course(course_id) => {
             let rows: Vec<(Uuid,)> = sqlx::query_as(
                 "SELECT DISTINCT u.id FROM users u \
                  JOIN enrollments e ON e.student_id = u.id \
-                 WHERE e.course_id = $1 AND e.active = true"
+                 WHERE e.course_id = $1 AND e.active = true",
             )
             .bind(course_id)
             .fetch_all(pool)
@@ -194,19 +232,15 @@ async fn resolve_recipients(pool: &sqlx::PgPool, audience: &schoolcbb_common::co
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
         schoolcbb_common::communication::AudienceTarget::AllStudents => {
-            let rows: Vec<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM users WHERE role = 'Alumno'"
-            )
-            .fetch_all(pool)
-            .await?;
+            let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE role = 'Alumno'")
+                .fetch_all(pool)
+                .await?;
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
         schoolcbb_common::communication::AudienceTarget::AllTeachers => {
-            let rows: Vec<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM users WHERE role = 'Profesor'"
-            )
-            .fetch_all(pool)
-            .await?;
+            let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE role = 'Profesor'")
+                .fetch_all(pool)
+                .await?;
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
         schoolcbb_common::communication::AudienceTarget::AllStaff => {
@@ -225,7 +259,17 @@ async fn get_message(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
     let msg = sqlx::query_as::<_, schoolcbb_common::communication::Message>(
         "SELECT id, sender_id, receiver_id, subject, body, read, created_at FROM messages WHERE id = $1",
@@ -243,7 +287,17 @@ async fn mark_read(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
     let result = sqlx::query("UPDATE messages SET read = true WHERE id = $1 AND read = false")
         .bind(id)
@@ -253,18 +307,14 @@ async fn mark_read(
     Ok(Json(json!({ "updated": result.rows_affected() > 0 })))
 }
 
-async fn unread_count(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> NotifResult<Json<Value>> {
+async fn unread_count(claims: Claims, State(state): State<AppState>) -> NotifResult<Json<Value>> {
     let user_id: Uuid = claims.sub.parse().map_err(|_| NotifError::Unauthorized)?;
 
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM messages WHERE receiver_id = $1 AND read = false",
-    )
-    .bind(user_id)
-    .fetch_one(&state.pool)
-    .await?;
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM messages WHERE receiver_id = $1 AND read = false")
+            .bind(user_id)
+            .fetch_one(&state.pool)
+            .await?;
 
     Ok(Json(json!({ "unread": count.0 })))
 }
@@ -273,7 +323,10 @@ async fn list_interviews(
     claims: Claims,
     State(state): State<AppState>,
 ) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let interviews = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
         r#"
@@ -285,7 +338,9 @@ async fn list_interviews(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "interviews": interviews, "total": interviews.len() })))
+    Ok(Json(
+        json!({ "interviews": interviews, "total": interviews.len() }),
+    ))
 }
 
 async fn create_interview(
@@ -298,11 +353,15 @@ async fn create_interview(
     let teacher_id: Uuid = claims.sub.parse().map_err(|_| NotifError::Unauthorized)?;
 
     if payload.reason.trim().is_empty() || payload.notes.trim().is_empty() {
-        return Err(NotifError::Validation("Motivo y notas son obligatorios".into()));
+        return Err(NotifError::Validation(
+            "Motivo y notas son obligatorios".into(),
+        ));
     }
 
     let id = Uuid::new_v4();
-    let date = payload.date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let date = payload
+        .date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let result = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
         r#"
@@ -329,7 +388,10 @@ async fn get_interview(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let interview = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
         "SELECT id, student_id, teacher_id, date, reason, notes, follow_up, created_at FROM interview_logs WHERE id = $1",
@@ -395,7 +457,9 @@ async fn delete_interview(
         return Err(NotifError::NotFound("Entrevista no encontrada".into()));
     }
 
-    Ok(Json(json!({ "message": "Entrevista eliminada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Entrevista eliminada correctamente" }),
+    ))
 }
 
 async fn interviews_by_student(
@@ -403,7 +467,17 @@ async fn interviews_by_student(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> NotifResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
     let interviews = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
         "SELECT id, student_id, teacher_id, date, reason, notes, follow_up, created_at FROM interview_logs WHERE student_id = $1 ORDER BY date DESC",

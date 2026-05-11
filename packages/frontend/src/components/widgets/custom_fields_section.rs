@@ -22,31 +22,39 @@ pub fn CustomFieldsSection(entity_id: String, entity_type: String) -> Element {
 
     use_effect(move || {
         if let (Some(Ok(v)), Some(Ok(d))) = (values(), definitions()) {
-            let existing: std::collections::HashMap<String, String> = v["values"].as_array()
+            let existing: std::collections::HashMap<String, String> = v["values"]
+                .as_array()
                 .map(|arr| {
-                    arr.iter().filter_map(|item| {
-                        let fid = item["field_definition_id"].as_str()?.to_string();
-                        let val = item["value"].as_str().unwrap_or("").to_string();
-                        Some((fid, val))
-                    }).collect()
+                    arr.iter()
+                        .filter_map(|item| {
+                            let fid = item["field_definition_id"].as_str()?.to_string();
+                            let val = item["value"].as_str().unwrap_or("").to_string();
+                            Some((fid, val))
+                        })
+                        .collect()
                 })
                 .unwrap_or_default();
 
             let defs = d["definitions"].as_array().cloned().unwrap_or_default();
-            let new_vals: Vec<(String, String)> = defs.iter().map(|d| {
-                let fid = d["id"].as_str().unwrap_or("").to_string();
-                let val = existing.get(&fid).cloned().unwrap_or_default();
-                (fid, val)
-            }).collect();
+            let new_vals: Vec<(String, String)> = defs
+                .iter()
+                .map(|d| {
+                    let fid = d["id"].as_str().unwrap_or("").to_string();
+                    let val = existing.get(&fid).cloned().unwrap_or_default();
+                    (fid, val)
+                })
+                .collect();
             field_values.set(new_vals);
         }
     });
 
     let on_save = move |_| {
         saved.set(false);
-        let vals: Vec<Value> = field_values.read().iter().map(|(fid, val)| {
-            serde_json::json!({"field_definition_id": fid, "value": val})
-        }).collect();
+        let vals: Vec<Value> = field_values
+            .read()
+            .iter()
+            .map(|(fid, val)| serde_json::json!({"field_definition_id": fid, "value": val}))
+            .collect();
         let payload = serde_json::json!({"values": vals});
         let eid = entity_id.clone();
         spawn(async move {
@@ -89,10 +97,13 @@ fn RenderCustomFields(defs: Vec<Value>, field_values: Signal<Vec<(String, String
         let options = def["options"].as_array().cloned().unwrap_or_default();
 
         let input_element: Element = if ftype == "select" && !options.is_empty() {
-            let opt_elements: Vec<Element> = options.iter().map(|opt| {
-                let opt_val = opt.as_str().unwrap_or("").to_string();
-                rsx! { option { value: "{opt_val}", "{opt_val}" } }
-            }).collect();
+            let opt_elements: Vec<Element> = options
+                .iter()
+                .map(|opt| {
+                    let opt_val = opt.as_str().unwrap_or("").to_string();
+                    rsx! { option { value: "{opt_val}", "{opt_val}" } }
+                })
+                .collect();
             rsx! {
                 select {
                     class: "form-input",

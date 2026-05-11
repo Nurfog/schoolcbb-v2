@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, Path, State},
     http::request::Parts,
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{ReportError, ReportResult};
 use crate::AppState;
+use crate::error::{ReportError, ReportResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -26,7 +26,10 @@ pub struct Claims {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = ReportError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -58,8 +61,10 @@ pub fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), ReportErr
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/api/reports/certificate/student/{student_id}", get(certificate_student))
+    Router::new().route(
+        "/api/reports/certificate/student/{student_id}",
+        get(certificate_student),
+    )
 }
 
 async fn certificate_student(
@@ -67,7 +72,17 @@ async fn certificate_student(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> ReportResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
     let student = sqlx::query_as::<_, StudentRow>(
         r#"
@@ -82,7 +97,9 @@ async fn certificate_student(
     .ok_or(ReportError::NotFound("Estudiante no encontrado".into()))?;
 
     if !student.enrolled {
-        return Err(ReportError::Validation("El estudiante no se encuentra matriculado actualmente".into()));
+        return Err(ReportError::Validation(
+            "El estudiante no se encuentra matriculado actualmente".into(),
+        ));
     }
 
     let enrollment_year: Option<i32> = sqlx::query_scalar(

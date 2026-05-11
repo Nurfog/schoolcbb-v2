@@ -4,7 +4,12 @@ use serde_json::Value;
 use crate::api::client;
 
 #[component]
-fn RoleAssignRow(name: String, has_role: bool, on_assign: EventHandler<()>, on_remove: EventHandler<()>) -> Element {
+fn RoleAssignRow(
+    name: String,
+    has_role: bool,
+    on_assign: EventHandler<()>,
+    on_remove: EventHandler<()>,
+) -> Element {
     rsx! {
         div { class: "role-assign-row",
             span { "{name}" }
@@ -64,11 +69,13 @@ pub fn UsersPage() -> Element {
                     let school_options: Vec<Element> = match schools() {
                         Some(Ok(s)) => {
                             let list = s["schools"].as_array().cloned().unwrap_or_default();
-                            list.iter().map(|sc| {
-                                let sid = sc["id"].as_str().unwrap_or("").to_string();
-                                let sname = sc["name"].as_str().unwrap_or("").to_string();
-                                rsx! { option { value: "{sid}", "{sname}" } }
-                            }).collect()
+                            list.iter()
+                                .map(|sc| {
+                                    let sid = sc["id"].as_str().unwrap_or("").to_string();
+                                    let sname = sc["name"].as_str().unwrap_or("").to_string();
+                                    rsx! { option { value: "{sid}", "{sname}" } }
+                                })
+                                .collect()
                         }
                         _ => vec![],
                     };
@@ -115,10 +122,14 @@ pub fn UsersPage() -> Element {
                         }
                     }
                 }
-                None => rsx! { div { class: "role-assignment-panel", div { class: "empty-state", "Seleccione un usuario" } } },
+                None => {
+                    rsx! { div { class: "role-assignment-panel", div { class: "empty-state", "Seleccione un usuario" } } }
+                }
             }
         }
-        _ => rsx! { div { class: "role-assignment-panel", div { class: "empty-state", "Sin permisos para asignar roles" } } },
+        _ => {
+            rsx! { div { class: "role-assignment-panel", div { class: "empty-state", "Sin permisos para asignar roles" } } }
+        }
     };
 
     rsx! {
@@ -173,7 +184,11 @@ fn UserRow(user: Value, is_selected: bool, on_select: EventHandler<String>) -> E
     let rut = user["rut"].as_str().unwrap_or("").to_string();
     let role = user["role"].as_str().unwrap_or("").to_string();
     let sid = user["school_id"].as_str().unwrap_or("").to_string();
-    let school_display = if sid.is_empty() { "—".to_string() } else { sid.chars().take(8).collect::<String>() + "…" };
+    let school_display = if sid.is_empty() {
+        "—".to_string()
+    } else {
+        sid.chars().take(8).collect::<String>() + "…"
+    };
     let active = user["active"].as_bool().unwrap_or(true);
     let uid = user["id"].as_str().unwrap_or("").to_string();
     let row_class = if is_selected { "selected" } else { "" };

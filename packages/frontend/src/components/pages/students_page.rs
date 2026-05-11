@@ -4,7 +4,10 @@ use crate::api::client;
 use crate::components::inline_edit::InlineEdit;
 
 fn first_letter(s: &str) -> String {
-    s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+    s.chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "?".to_string())
 }
 
 #[component]

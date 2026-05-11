@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
@@ -38,7 +38,10 @@ impl IntoResponse for AuthError {
         let (status, message) = match &self {
             AuthError::Database(e) => {
                 tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Error interno del servidor".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Error interno del servidor".into(),
+                )
             }
             AuthError::InvalidCredentials => {
                 (StatusCode::UNAUTHORIZED, "Credenciales inválidas".into())

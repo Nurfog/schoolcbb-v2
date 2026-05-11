@@ -1,29 +1,52 @@
-use axum::{extract::{Path, State}, routing::{get, post}, Json, Router};
-use serde_json::{json, Value};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    routing::{get, post},
+};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::SisResult;
-use crate::routes::students::{require_any_role, Claims};
-use crate::workflow::CrmEvent;
 use crate::AppState;
+use crate::error::SisResult;
+use crate::routes::students::{Claims, require_any_role};
+use crate::workflow::CrmEvent;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admission/documents", get(list_documents).post(create_document))
-        .route("/api/admission/documents/{id}", get(get_document).delete(delete_document))
-        .route("/api/admission/documents/{id}/verify", post(verify_document))
+        .route(
+            "/api/admission/documents",
+            get(list_documents).post(create_document),
+        )
+        .route(
+            "/api/admission/documents/{id}",
+            get(get_document).delete(delete_document),
+        )
+        .route(
+            "/api/admission/documents/{id}/verify",
+            post(verify_document),
+        )
 }
 
 async fn list_documents(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let docs = sqlx::query_as::<_, schoolcbb_common::admission::ProspectDocument>(
         "SELECT id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at FROM prospect_documents ORDER BY created_at DESC LIMIT 200",
     ).fetch_all(&state.pool).await?;
     Ok(Json(json!({ "documents": docs })))
 }
 
-async fn get_document(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn get_document(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let doc = sqlx::query_as::<_, schoolcbb_common::admission::ProspectDocument>(
         "SELECT id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at FROM prospect_documents WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
@@ -31,8 +54,15 @@ async fn get_document(claims: Claims, State(state): State<AppState>, Path(id): P
     Ok(Json(json!({ "document": doc })))
 }
 
-async fn create_document(claims: Claims, State(state): State<AppState>, Json(payload): Json<schoolcbb_common::admission::CreateDocumentPayload>) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+async fn create_document(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolcbb_common::admission::CreateDocumentPayload>,
+) -> SisResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
     let id = Uuid::new_v4();
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let result = sqlx::query_as::<_, schoolcbb_common::admission::ProspectDocument>(
@@ -56,7 +86,11 @@ async fn create_document(claims: Claims, State(state): State<AppState>, Json(pay
     Ok(Json(json!({ "document": result })))
 }
 
-async fn verify_document(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn verify_document(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
     let result = sqlx::query_as::<_, schoolcbb_common::admission::ProspectDocument>(
         "UPDATE prospect_documents SET is_verified = true WHERE id = $1
@@ -75,8 +109,15 @@ async fn verify_document(claims: Claims, State(state): State<AppState>, Path(id)
     Ok(Json(json!({ "document": result })))
 }
 
-async fn delete_document(claims: Claims, State(state): State<AppState>, Path(id): Path<Uuid>) -> SisResult<Json<Value>> {
+async fn delete_document(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    sqlx::query("DELETE FROM prospect_documents WHERE id = $1").bind(id).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM prospect_documents WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     Ok(Json(json!({ "message": "Documento eliminado" })))
 }

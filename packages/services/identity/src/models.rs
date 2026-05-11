@@ -1,6 +1,6 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -172,12 +172,10 @@ pub fn hash_password(password: &str) -> String {
 }
 
 pub async fn seed_admin(pool: &PgPool) -> Result<(), sqlx::Error> {
-    let exists: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM users WHERE email = $1",
-    )
-    .bind("admin@colegio.cl")
-    .fetch_one(pool)
-    .await?;
+    let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = $1")
+        .bind("admin@colegio.cl")
+        .fetch_one(pool)
+        .await?;
 
     if exists.0 > 0 {
         return Ok(());
@@ -205,7 +203,11 @@ pub async fn seed_admin(pool: &PgPool) -> Result<(), sqlx::Error> {
 pub fn verify_password(password: &str, hash: &str) -> bool {
     PasswordHash::new(hash)
         .ok()
-        .map(|parsed| Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
+        .map(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .is_ok()
+        })
         .unwrap_or(false)
 }
 
@@ -299,29 +301,50 @@ pub struct UserPreferenceRow {
     pub show_module_manager: bool,
 }
 
-pub async fn get_preferences(pool: &PgPool, user_id: Uuid) -> Result<UserPreferenceRow, sqlx::Error> {
+pub async fn get_preferences(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<UserPreferenceRow, sqlx::Error> {
     sqlx::query_as::<_, UserPreferenceRow>(
         "SELECT user_id, show_module_manager FROM user_preferences WHERE user_id = $1",
     )
     .bind(user_id)
     .fetch_optional(pool)
     .await
-    .map(|opt| opt.unwrap_or(UserPreferenceRow {
-        user_id,
-        show_module_manager: true,
-    }))
+    .map(|opt| {
+        opt.unwrap_or(UserPreferenceRow {
+            user_id,
+            show_module_manager: true,
+        })
+    })
 }
 
 pub async fn seed_roles(pool: &PgPool) {
     let default_roles = [
-        ("Sostenedor", "Dueño del colegio, acceso total al sistema", true),
-        ("Administrador", "Administrador del sistema, gestión completa", true),
+        (
+            "Sostenedor",
+            "Dueño del colegio, acceso total al sistema",
+            true,
+        ),
+        (
+            "Administrador",
+            "Administrador del sistema, gestión completa",
+            true,
+        ),
         ("Director", "Director académico, supervisión general", true),
         ("UTP", "Unidad Técnico Pedagógica, gestión curricular", true),
         ("Profesor", "Docente, gestión de cursos y notas", true),
-        ("Apoderado", "Padre/madre/apoderado, consulta de pupilos", true),
+        (
+            "Apoderado",
+            "Padre/madre/apoderado, consulta de pupilos",
+            true,
+        ),
         ("Alumno", "Estudiante, consulta de notas y asistencia", true),
-        ("Admision", "Equipo de admisión, gestión de postulantes", true),
+        (
+            "Admision",
+            "Equipo de admisión, gestión de postulantes",
+            true,
+        ),
     ];
 
     for (name, description, is_system) in &default_roles {
@@ -332,17 +355,19 @@ pub async fn seed_roles(pool: &PgPool) {
             .unwrap_or((0,));
 
         if existing.0 == 0 {
-            sqlx::query("INSERT INTO roles (id, name, description, is_system) VALUES ($1, $2, $3, $4)")
-                .bind(uuid::Uuid::new_v4())
-                .bind(name)
-                .bind(description)
-                .bind(is_system)
-                .execute(pool)
-                .await
-                .unwrap_or_else(|_| {
-                    tracing::warn!("Could not seed role: {}", name);
-                    Default::default()
-                });
+            sqlx::query(
+                "INSERT INTO roles (id, name, description, is_system) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(uuid::Uuid::new_v4())
+            .bind(name)
+            .bind(description)
+            .bind(is_system)
+            .execute(pool)
+            .await
+            .unwrap_or_else(|_| {
+                tracing::warn!("Could not seed role: {}", name);
+                Default::default()
+            });
         }
     }
 }
@@ -399,12 +424,11 @@ pub async fn update_preferences(
 }
 
 pub async fn seed_default_school(pool: &PgPool) {
-    let exists: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM corporations WHERE name = 'Corporación Educativa'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or((0,));
+    let exists: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM corporations WHERE name = 'Corporación Educativa'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
 
     if exists.0 > 0 {
         return;

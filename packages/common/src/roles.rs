@@ -54,13 +54,42 @@ impl Module {
     pub fn all() -> Vec<(&'static str, Vec<&'static str>)> {
         vec![
             ("Dashboard", vec!["panel", "kpis"]),
-            ("Academic", vec!["subjects", "grades", "periods", "categories", "reports", "academic_years", "grade_levels"]),
+            (
+                "Academic",
+                vec![
+                    "subjects",
+                    "grades",
+                    "periods",
+                    "categories",
+                    "reports",
+                    "academic_years",
+                    "grade_levels",
+                ],
+            ),
             ("Attendance", vec!["records", "alerts", "reports"]),
-            ("SIS", vec!["students", "courses", "enrollments", "guardians"]),
+            (
+                "SIS",
+                vec!["students", "courses", "enrollments", "guardians"],
+            ),
             ("Finance", vec!["fees", "payments", "scholarships"]),
-            ("Communications", vec!["messages", "interviews", "notifications"]),
-            ("Admission", vec!["prospects", "stages", "documents", "activities", "classrooms"]),
-            ("Reports", vec!["certificates", "concentrations", "final_records", "sige"]),
+            (
+                "Communications",
+                vec!["messages", "interviews", "notifications"],
+            ),
+            (
+                "Admission",
+                vec![
+                    "prospects",
+                    "stages",
+                    "documents",
+                    "activities",
+                    "classrooms",
+                ],
+            ),
+            (
+                "Reports",
+                vec!["certificates", "concentrations", "final_records", "sige"],
+            ),
             ("Config", vec!["branding", "preferences"]),
             ("Users", vec!["users", "roles", "permissions"]),
         ]
@@ -139,12 +168,10 @@ pub async fn check_permission(
     required_module: &str,
     required_action: Action,
 ) -> Result<bool, sqlx::Error> {
-    let roles = sqlx::query_as::<_, (Uuid,)>(
-        "SELECT role_id FROM user_roles WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await?;
+    let roles = sqlx::query_as::<_, (Uuid,)>("SELECT role_id FROM user_roles WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
 
     if roles.is_empty() {
         return Ok(false);

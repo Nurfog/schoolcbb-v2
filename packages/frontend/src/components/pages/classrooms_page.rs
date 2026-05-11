@@ -1,5 +1,5 @@
-use dioxus::prelude::*;
 use crate::api::client;
+use dioxus::prelude::*;
 
 #[component]
 pub fn ClassroomsPage() -> Element {
@@ -10,20 +10,36 @@ pub fn ClassroomsPage() -> Element {
     let mut editing_id = use_signal(|| None::<String>);
     let mut show_form = use_signal(|| false);
     let mut saving = use_signal(|| false);
-    let mut reset_form = move || { name.set(String::new()); capacity.set(30); location.set(String::new()); editing_id.set(None); show_form.set(false); };
+    let mut reset_form = move || {
+        name.set(String::new());
+        capacity.set(30);
+        location.set(String::new());
+        editing_id.set(None);
+        show_form.set(false);
+    };
 
     let do_save = move |_| {
         saving.set(true);
         let payload = serde_json::json!({ "name": name(), "capacity": capacity(), "location": if location().is_empty() { serde_json::Value::Null } else { serde_json::json!(location()) } });
         let is_edit = editing_id().is_some();
         spawn(async move {
-            if is_edit { let _ = client::update_classroom(&editing_id().unwrap_or_default(), &payload).await; }
-            else { let _ = client::create_classroom(&payload).await; }
-            saving.set(false); reset_form(); rooms.restart();
+            if is_edit {
+                let _ = client::update_classroom(&editing_id().unwrap_or_default(), &payload).await;
+            } else {
+                let _ = client::create_classroom(&payload).await;
+            }
+            saving.set(false);
+            reset_form();
+            rooms.restart();
         });
     };
 
-    let do_delete = move |id: String| { spawn(async move { let _ = client::delete_classroom(&id).await; rooms.restart(); }); };
+    let do_delete = move |id: String| {
+        spawn(async move {
+            let _ = client::delete_classroom(&id).await;
+            rooms.restart();
+        });
+    };
 
     rsx! {
         div { class: "page-header", h1 { "Salas" } p { "Gestión de salas y aforo máximo" } }

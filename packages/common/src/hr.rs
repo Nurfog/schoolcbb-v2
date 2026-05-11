@@ -134,12 +134,16 @@ impl AttendanceValidator {
     ) -> Vec<ComplianceError> {
         let mut errors = vec![];
 
-        let mut day_groups: std::collections::HashMap<chrono::NaiveDate, Vec<&AttendanceLog>> = std::collections::HashMap::new();
+        let mut day_groups: std::collections::HashMap<chrono::NaiveDate, Vec<&AttendanceLog>> =
+            std::collections::HashMap::new();
         for log in logs {
-            day_groups.entry(log.timestamp.date()).or_default().push(log);
+            day_groups
+                .entry(log.timestamp.date())
+                .or_default()
+                .push(log);
         }
 
-        for (_date, day_logs) in &day_groups {
+        for day_logs in day_groups.values() {
             if let (Some(first), Some(last)) = (day_logs.first(), day_logs.last()) {
                 let hours = (last.timestamp - first.timestamp).num_minutes() as f64 / 60.0;
                 if hours > max_daily_hours as f64 {
@@ -329,7 +333,10 @@ impl std::fmt::Display for PensionFund {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HealthSystem {
     Fonasa,
-    Isapre { plan_name: String, fixed_amount: f64 },
+    Isapre {
+        plan_name: String,
+        fixed_amount: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -527,7 +534,14 @@ impl PayrollCalculator {
     }
 }
 
-pub fn calculate_payroll(_employee: &Employee, contract: &EmployeeContract, payload: &PayrollPayload, pension_fund: &str, health_system: &str, health_fixed_amount: Option<f64>) -> PayrollCalculation {
+pub fn calculate_payroll(
+    _employee: &Employee,
+    contract: &EmployeeContract,
+    payload: &PayrollPayload,
+    pension_fund: &str,
+    health_system: &str,
+    health_fixed_amount: Option<f64>,
+) -> PayrollCalculation {
     let salary_base = contract.salary_base;
     let monthly_gratificacion = (salary_base * 0.25 * payload.month as f64 / 12.0).min(500000.0);
     let non_taxable = payload.non_taxable_earnings;
@@ -546,7 +560,11 @@ pub fn calculate_payroll(_employee: &Employee, contract: &EmployeeContract, payl
     let total_afp_rate = afp_rate + afp_commission;
     let afp_discount = taxable_income * total_afp_rate;
 
-    let health_rate = if health_system == "Fonasa" { 0.07 } else { 0.07 };
+    let health_rate = if health_system == "Fonasa" {
+        0.07
+    } else {
+        0.07
+    };
     let health_discount = if health_system == "Fonasa" || health_fixed_amount.is_none() {
         taxable_income * health_rate
     } else {
@@ -558,22 +576,55 @@ pub fn calculate_payroll(_employee: &Employee, contract: &EmployeeContract, payl
     let income_tax = calculate_income_tax(taxable_income);
 
     let other_deductions = payload.other_deductions;
-    let total_deductions = afp_discount + health_discount + unemployment_discount + income_tax + other_deductions;
+    let total_deductions =
+        afp_discount + health_discount + unemployment_discount + income_tax + other_deductions;
     let net_salary = taxable_income + non_taxable - total_deductions;
 
     let mut breakdown = vec![
-        PayrollLineItem { concept: "Sueldo Base".into(), amount: salary_base, category: "Imponible".into() },
-        PayrollLineItem { concept: "Gratificacion".into(), amount: monthly_gratificacion, category: "Imponible".into() },
-        PayrollLineItem { concept: "Movilizacion/Colacion".into(), amount: non_taxable, category: "No Imponible".into() },
-        PayrollLineItem { concept: "AFP (10% + Comision)".into(), amount: -afp_discount, category: "Descuento Legal".into() },
-        PayrollLineItem { concept: format!("Salud ({})", health_system), amount: -health_discount, category: "Descuento Legal".into() },
-        PayrollLineItem { concept: "Seguro Cesantia".into(), amount: -unemployment_discount, category: "Descuento Legal".into() },
+        PayrollLineItem {
+            concept: "Sueldo Base".into(),
+            amount: salary_base,
+            category: "Imponible".into(),
+        },
+        PayrollLineItem {
+            concept: "Gratificacion".into(),
+            amount: monthly_gratificacion,
+            category: "Imponible".into(),
+        },
+        PayrollLineItem {
+            concept: "Movilizacion/Colacion".into(),
+            amount: non_taxable,
+            category: "No Imponible".into(),
+        },
+        PayrollLineItem {
+            concept: "AFP (10% + Comision)".into(),
+            amount: -afp_discount,
+            category: "Descuento Legal".into(),
+        },
+        PayrollLineItem {
+            concept: format!("Salud ({})", health_system),
+            amount: -health_discount,
+            category: "Descuento Legal".into(),
+        },
+        PayrollLineItem {
+            concept: "Seguro Cesantia".into(),
+            amount: -unemployment_discount,
+            category: "Descuento Legal".into(),
+        },
     ];
     if income_tax > 0.0 {
-        breakdown.push(PayrollLineItem { concept: "Impuesto 2da Categoria".into(), amount: -income_tax, category: "Descuento Legal".into() });
+        breakdown.push(PayrollLineItem {
+            concept: "Impuesto 2da Categoria".into(),
+            amount: -income_tax,
+            category: "Descuento Legal".into(),
+        });
     }
     if other_deductions > 0.0 {
-        breakdown.push(PayrollLineItem { concept: "Otros Descuentos".into(), amount: -other_deductions, category: "Descuento".into() });
+        breakdown.push(PayrollLineItem {
+            concept: "Otros Descuentos".into(),
+            amount: -other_deductions,
+            category: "Descuento".into(),
+        });
     }
 
     PayrollCalculation {
@@ -598,14 +649,23 @@ pub fn calculate_payroll(_employee: &Employee, contract: &EmployeeContract, payl
 
 fn calculate_income_tax(monthly_taxable_income: f64) -> f64 {
     let annual_taxable = monthly_taxable_income * 12.0;
-    let tax = if annual_taxable <= 0.0 { 0.0 }
-    else if annual_taxable <= 937_440.0 { 0.0 }
-    else if annual_taxable <= 1_874_880.0 { (annual_taxable - 937_440.0) * 0.04 }
-    else if annual_taxable <= 3_124_800.0 { 37_497.0 + (annual_taxable - 1_874_880.0) * 0.08 }
-    else if annual_taxable <= 4_374_720.0 { 137_497.0 + (annual_taxable - 3_124_800.0) * 0.135 }
-    else if annual_taxable <= 6_249_600.0 { 306_247.0 + (annual_taxable - 4_374_720.0) * 0.23 }
-    else if annual_taxable <= 8_124_480.0 { 737_247.0 + (annual_taxable - 6_249_600.0) * 0.304 }
-    else { 1_307_247.0 + (annual_taxable - 8_124_480.0) * 0.35 };
+    let tax = if annual_taxable <= 0.0 {
+        0.0
+    } else if annual_taxable <= 937_440.0 {
+        0.0
+    } else if annual_taxable <= 1_874_880.0 {
+        (annual_taxable - 937_440.0) * 0.04
+    } else if annual_taxable <= 3_124_800.0 {
+        37_497.0 + (annual_taxable - 1_874_880.0) * 0.08
+    } else if annual_taxable <= 4_374_720.0 {
+        137_497.0 + (annual_taxable - 3_124_800.0) * 0.135
+    } else if annual_taxable <= 6_249_600.0 {
+        306_247.0 + (annual_taxable - 4_374_720.0) * 0.23
+    } else if annual_taxable <= 8_124_480.0 {
+        737_247.0 + (annual_taxable - 6_249_600.0) * 0.304
+    } else {
+        1_307_247.0 + (annual_taxable - 8_124_480.0) * 0.35
+    };
     (tax / 12.0).max(0.0)
 }
 

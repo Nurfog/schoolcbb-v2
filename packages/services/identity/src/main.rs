@@ -40,7 +40,9 @@ async fn main() {
         tracing::warn!("SQLx migrations skipped: {e}");
     }
 
-    models::seed_admin(&pool).await.expect("Failed to seed admin user");
+    models::seed_admin(&pool)
+        .await
+        .expect("Failed to seed admin user");
     tracing::info!("Admin user: admin@colegio.cl / admin123");
 
     models::seed_roles(&pool).await;

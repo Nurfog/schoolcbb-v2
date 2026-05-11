@@ -1,20 +1,31 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::FinanceResult;
-use crate::routes::fees::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::FinanceResult;
+use crate::routes::fees::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/finance/scholarships", get(list_scholarships).post(create_scholarship))
-        .route("/api/finance/scholarships/{id}", get(get_scholarship).put(approve_scholarship).delete(delete_scholarship))
-        .route("/api/finance/scholarships/student/{student_id}", get(scholarships_by_student))
+        .route(
+            "/api/finance/scholarships",
+            get(list_scholarships).post(create_scholarship),
+        )
+        .route(
+            "/api/finance/scholarships/{id}",
+            get(get_scholarship)
+                .put(approve_scholarship)
+                .delete(delete_scholarship),
+        )
+        .route(
+            "/api/finance/scholarships/student/{student_id}",
+            get(scholarships_by_student),
+        )
 }
 
 async fn list_scholarships(
@@ -29,7 +40,9 @@ async fn list_scholarships(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "scholarships": scholarships, "total": scholarships.len() })))
+    Ok(Json(
+        json!({ "scholarships": scholarships, "total": scholarships.len() }),
+    ))
 }
 
 async fn get_scholarship(
@@ -57,8 +70,13 @@ async fn create_scholarship(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    if payload.name.trim().is_empty() || payload.discount_percentage <= 0.0 || payload.discount_percentage > 100.0 {
-        return Err(crate::error::FinanceError::Validation("Nombre y porcentaje válido (1-100) son obligatorios".into()));
+    if payload.name.trim().is_empty()
+        || payload.discount_percentage <= 0.0
+        || payload.discount_percentage > 100.0
+    {
+        return Err(crate::error::FinanceError::Validation(
+            "Nombre y porcentaje válido (1-100) son obligatorios".into(),
+        ));
     }
 
     let id = Uuid::new_v4();
@@ -88,7 +106,10 @@ async fn approve_scholarship(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let approver_id: Uuid = claims.sub.parse().map_err(|_| crate::error::FinanceError::Unauthorized)?;
+    let approver_id: Uuid = claims
+        .sub
+        .parse()
+        .map_err(|_| crate::error::FinanceError::Unauthorized)?;
 
     let result = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
         r#"
@@ -125,7 +146,16 @@ async fn scholarships_by_student(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> FinanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Apoderado",
+        ],
+    )?;
 
     let scholarships = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
         "SELECT id, student_id, name, discount_percentage, approved, approved_by, valid_from, valid_until, created_at FROM scholarships WHERE student_id = $1 ORDER BY valid_from DESC",

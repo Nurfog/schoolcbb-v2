@@ -1,15 +1,15 @@
 use axum::{
-    extract::{Path, Query, State},
-    routing::{get, delete},
     Json, Router,
+    extract::{Path, Query, State},
+    routing::{delete, get},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::students::{require_any_role, Claims};
-use crate::error::{SisError, SisResult};
+use super::students::{Claims, require_any_role};
 use crate::AppState;
+use crate::error::{SisError, SisResult};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 struct RawEnrollment {
@@ -37,7 +37,10 @@ struct CreateEnrollmentPayload {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/enrollments", get(list_enrollments).post(create_enrollment))
+        .route(
+            "/api/enrollments",
+            get(list_enrollments).post(create_enrollment),
+        )
         .route("/api/enrollments/{id}", delete(delete_enrollment))
 }
 
@@ -46,7 +49,10 @@ async fn list_enrollments(
     State(state): State<AppState>,
     Query(q): Query<EnrollmentQuery>,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"],
+    )?;
 
     let mut conditions = Vec::new();
     let mut bind_values: Vec<String> = vec![];
@@ -107,7 +113,9 @@ async fn create_enrollment(
     .await?;
 
     if exists > 0 {
-        return Err(SisError::Conflict("El alumno ya está matriculado en este curso y año".into()));
+        return Err(SisError::Conflict(
+            "El alumno ya está matriculado en este curso y año".into(),
+        ));
     }
 
     let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
@@ -143,5 +151,7 @@ async fn delete_enrollment(
         return Err(SisError::NotFound("Matrícula no encontrada".into()));
     }
 
-    Ok(Json(json!({ "message": "Matrícula eliminada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Matrícula eliminada correctamente" }),
+    ))
 }

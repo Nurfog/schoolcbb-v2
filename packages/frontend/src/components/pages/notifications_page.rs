@@ -94,7 +94,11 @@ fn MessageRow(msg: serde_json::Value) -> Element {
 
 #[derive(Debug, Clone, PartialEq)]
 enum AudienceType {
-    User, Course, AllStudents, AllTeachers, AllStaff,
+    User,
+    Course,
+    AllStudents,
+    AllTeachers,
+    AllStaff,
 }
 
 #[component]

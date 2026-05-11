@@ -19,8 +19,10 @@ impl PaymentGatewayConfig {
             provider,
             webpay_commerce_code: std::env::var("WEBPAY_COMMERCE_CODE").unwrap_or_default(),
             webpay_api_key: std::env::var("WEBPAY_API_KEY").unwrap_or_default(),
-            webpay_environment: std::env::var("WEBPAY_ENVIRONMENT").unwrap_or_else(|_| "integration".into()),
-            return_url: std::env::var("PAYMENT_RETURN_URL").unwrap_or_else(|_| "http://localhost:8080/finance".into()),
+            webpay_environment: std::env::var("WEBPAY_ENVIRONMENT")
+                .unwrap_or_else(|_| "integration".into()),
+            return_url: std::env::var("PAYMENT_RETURN_URL")
+                .unwrap_or_else(|_| "http://localhost:8080/finance".into()),
         })
     }
 }
@@ -114,9 +116,13 @@ impl PaymentGateway for WebpayGateway {
         let client = reqwest::blocking::Client::new();
         let env = &self.config.webpay_environment;
         let url = if env == "production" {
-            format!("https://webpay3g.transbank.cl/rswebpaytransaction/api/webpay/v1.0/transactions/{token}")
+            format!(
+                "https://webpay3g.transbank.cl/rswebpaytransaction/api/webpay/v1.0/transactions/{token}"
+            )
         } else {
-            format!("https://webpay3gint.transbank.cl/rswebpaytransaction/api/webpay/v1.0/transactions/{token}")
+            format!(
+                "https://webpay3gint.transbank.cl/rswebpaytransaction/api/webpay/v1.0/transactions/{token}"
+            )
         };
 
         let resp = client
@@ -138,7 +144,10 @@ impl PaymentGateway for WebpayGateway {
             success,
             amount: data["amount"].as_f64().unwrap_or(0.0) / 100.0,
             transaction_id: data["buy_order"].as_str().unwrap_or("").to_string(),
-            authorization_code: data["authorization_code"].as_str().unwrap_or("").to_string(),
+            authorization_code: data["authorization_code"]
+                .as_str()
+                .unwrap_or("")
+                .to_string(),
             payment_type: data["payment_type_code"].as_str().unwrap_or("").to_string(),
         })
     }

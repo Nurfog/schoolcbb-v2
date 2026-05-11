@@ -1,19 +1,22 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AcademicError, AcademicResult};
-use crate::routes::subjects::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{AcademicError, AcademicResult};
+use crate::routes::subjects::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades/periods", get(list_periods).post(create_period))
-        .route("/api/grades/periods/{id}", get(get_period).put(update_period))
+        .route(
+            "/api/grades/periods/{id}",
+            get(get_period).put(update_period),
+        )
         .route("/api/grades/periods/current", get(current_period))
 }
 
@@ -21,7 +24,10 @@ async fn list_periods(
     claims: Claims,
     State(state): State<AppState>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let periods = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods ORDER BY year DESC, semester",
@@ -37,7 +43,10 @@ async fn get_period(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let period = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods WHERE id = $1",
@@ -54,7 +63,18 @@ async fn current_period(
     claims: Claims,
     State(state): State<AppState>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let period = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods WHERE is_active = true LIMIT 1",
@@ -74,10 +94,14 @@ async fn create_period(
     require_any_role(&claims, &["Administrador", "Director", "UTP"])?;
 
     if payload.name.trim().is_empty() {
-        return Err(AcademicError::Validation("El nombre del periodo es obligatorio".into()));
+        return Err(AcademicError::Validation(
+            "El nombre del periodo es obligatorio".into(),
+        ));
     }
     if payload.start_date >= payload.end_date {
-        return Err(AcademicError::Validation("La fecha de inicio debe ser anterior a la fecha de término".into()));
+        return Err(AcademicError::Validation(
+            "La fecha de inicio debe ser anterior a la fecha de término".into(),
+        ));
     }
 
     let id = Uuid::new_v4();
@@ -121,7 +145,9 @@ async fn update_period(
     let end_date = payload.end_date.unwrap_or(existing.end_date);
 
     if start_date >= end_date {
-        return Err(AcademicError::Validation("La fecha de inicio debe ser anterior a la fecha de término".into()));
+        return Err(AcademicError::Validation(
+            "La fecha de inicio debe ser anterior a la fecha de término".into(),
+        ));
     }
 
     if payload.is_active == Some(true) {

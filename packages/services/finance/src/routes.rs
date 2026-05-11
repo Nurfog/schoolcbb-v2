@@ -1,7 +1,7 @@
 mod fees;
+mod payment_gateway;
 mod payments;
 mod scholarships;
-mod payment_gateway;
 
 pub fn router() -> axum::Router<crate::AppState> {
     axum::Router::new()

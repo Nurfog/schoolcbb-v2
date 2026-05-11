@@ -1,10 +1,14 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use schoolcbb_common::attendance::{AlertSeverity, AttendanceAlert, AttendanceStatus, DailyAttendance, MonthlyAttendanceSummary};
+use schoolcbb_common::attendance::{
+    AlertSeverity, AttendanceAlert, AttendanceStatus, DailyAttendance, MonthlyAttendanceSummary,
+};
 
 #[allow(dead_code)]
-pub async fn get_students(pool: &PgPool) -> Result<Vec<schoolcbb_common::student::Student>, sqlx::Error> {
+pub async fn get_students(
+    pool: &PgPool,
+) -> Result<Vec<schoolcbb_common::student::Student>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RawStudent {
         id: Uuid,
@@ -177,9 +181,7 @@ pub async fn get_monthly_summary(
         .collect())
 }
 
-pub async fn get_attendance_alerts(
-    pool: &PgPool,
-) -> Result<Vec<AttendanceAlert>, sqlx::Error> {
+pub async fn get_attendance_alerts(pool: &PgPool) -> Result<Vec<AttendanceAlert>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RawAlert {
         student_id: Uuid,
@@ -297,17 +299,15 @@ pub async fn get_agenda_events(
 pub async fn get_dashboard_summary(
     pool: &PgPool,
 ) -> Result<schoolcbb_common::user::DashboardSummary, sqlx::Error> {
-    let total_students: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM students WHERE enrolled = true",
-    )
-    .fetch_one(pool)
-    .await?;
+    let total_students: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM students WHERE enrolled = true")
+            .fetch_one(pool)
+            .await?;
 
-    let total_teachers: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM users WHERE role = 'Profesor' AND active = true",
-    )
-    .fetch_one(pool)
-    .await?;
+    let total_teachers: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM users WHERE role = 'Profesor' AND active = true")
+            .fetch_one(pool)
+            .await?;
 
     let today = chrono::Utc::now().date_naive().to_string();
     let attendance_today: f64 = get_attendance_percentage_today(pool, &today).await?;

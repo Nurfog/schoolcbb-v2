@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AcademicError, AcademicResult};
-use crate::routes::subjects::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{AcademicError, AcademicResult};
+use crate::routes::subjects::{Claims, require_any_role};
 
 #[derive(Deserialize)]
 pub struct GradeFilter {
@@ -22,11 +22,23 @@ pub struct GradeFilter {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/grades", get(list_grades).post(create_grade))
-        .route("/api/grades/{id}", get(get_grade).put(update_grade).delete(delete_grade))
+        .route(
+            "/api/grades/{id}",
+            get(get_grade).put(update_grade).delete(delete_grade),
+        )
         .route("/api/grades/bulk", post(bulk_create_grades))
-        .route("/api/grades/course-subject/{course_subject_id}", get(grades_by_course_subject))
-        .route("/api/grades/student/{student_id}/{semester}/{year}", get(student_grades))
-        .route("/api/grades/by-subject/{subject_id}/{year}", get(grades_by_subject))
+        .route(
+            "/api/grades/course-subject/{course_subject_id}",
+            get(grades_by_course_subject),
+        )
+        .route(
+            "/api/grades/student/{student_id}/{semester}/{year}",
+            get(student_grades),
+        )
+        .route(
+            "/api/grades/by-subject/{subject_id}/{year}",
+            get(grades_by_subject),
+        )
 }
 
 async fn list_grades(
@@ -34,9 +46,16 @@ async fn list_grades(
     State(state): State<AppState>,
     Query(filter): Query<GradeFilter>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
-    let school_condition = claims.school_id.as_ref().map(|sid| format!(" AND g.school_id = '{}'::uuid", sid)).unwrap_or_default();
+    let school_condition = claims
+        .school_id
+        .as_ref()
+        .map(|sid| format!(" AND g.school_id = '{}'::uuid", sid))
+        .unwrap_or_default();
 
     let grades = if let Some(sid) = filter.student_id {
         if let Some(csid) = filter.course_subject_id {
@@ -53,7 +72,7 @@ async fn list_grades(
                     ).bind(sid).bind(csid).bind(sem).fetch_all(&state.pool).await?
                 }
             } else {
-                    sqlx::query_as::<_, RawGrade>(
+                sqlx::query_as::<_, RawGrade>(
                         &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
                          FROM grades WHERE student_id = $1 AND course_subject_id = $2{} ORDER BY date DESC", school_condition)
                     ).bind(sid).bind(csid).fetch_all(&state.pool).await?
@@ -79,7 +98,10 @@ async fn get_grade(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let grade = sqlx::query_as::<_, RawGrade>(
         "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE id = $1",
@@ -100,7 +122,9 @@ async fn create_grade(
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
     if !(1.0..=7.0).contains(&payload.grade) {
-        return Err(AcademicError::Validation("La nota debe estar entre 1.0 y 7.0".into()));
+        return Err(AcademicError::Validation(
+            "La nota debe estar entre 1.0 y 7.0".into(),
+        ));
     }
 
     let subject_name = resolve_subject_name(&state.pool, payload.course_subject_id).await?;
@@ -152,7 +176,9 @@ async fn update_grade(
     let grade_val = match payload.grade {
         Some(g) => {
             if !(1.0..=7.0).contains(&g) {
-                return Err(AcademicError::Validation("La nota debe estar entre 1.0 y 7.0".into()));
+                return Err(AcademicError::Validation(
+                    "La nota debe estar entre 1.0 y 7.0".into(),
+                ));
             }
             (g * 10.0).round() / 10.0
         }
@@ -196,7 +222,9 @@ async fn delete_grade(
         return Err(AcademicError::NotFound("Calificación no encontrada".into()));
     }
 
-    Ok(Json(json!({ "message": "Calificación eliminada correctamente" })))
+    Ok(Json(
+        json!({ "message": "Calificación eliminada correctamente" }),
+    ))
 }
 
 async fn grades_by_course_subject(
@@ -224,7 +252,9 @@ async fn bulk_create_grades(
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
     if payload.grades.is_empty() {
-        return Err(AcademicError::Validation("Debe incluir al menos una calificación".into()));
+        return Err(AcademicError::Validation(
+            "Debe incluir al menos una calificación".into(),
+        ));
     }
 
     let subject_name = resolve_subject_name(&state.pool, payload.course_subject_id).await?;
@@ -288,7 +318,18 @@ async fn student_grades(
     State(state): State<AppState>,
     Path((student_id, semester, year)): Path<(Uuid, i32, i32)>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado", "Alumno"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+            "Alumno",
+        ],
+    )?;
 
     let grades = sqlx::query_as::<_, RawGrade>(
         "SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE student_id = $1 AND semester = $2 AND year = $3 ORDER BY subject, date",
@@ -307,15 +348,17 @@ async fn grades_by_subject(
     State(state): State<AppState>,
     Path((subject_id, year)): Path<(Uuid, i32)>,
 ) -> AcademicResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
-    let subject_info: (String, String) = sqlx::query_as(
-        "SELECT code, name FROM subjects WHERE id = $1 AND active = true",
-    )
-    .bind(subject_id)
-    .fetch_optional(&state.pool)
-    .await?
-    .ok_or(AcademicError::NotFound("Asignatura no encontrada".into()))?;
+    let subject_info: (String, String) =
+        sqlx::query_as("SELECT code, name FROM subjects WHERE id = $1 AND active = true")
+            .bind(subject_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or(AcademicError::NotFound("Asignatura no encontrada".into()))?;
 
     let course_subjects: Vec<(Uuid, Uuid, String)> = sqlx::query_as(
         r#"
@@ -366,8 +409,16 @@ async fn grades_by_subject(
             .fetch_all(&state.pool)
             .await?;
 
-            let avg_s1 = if grades_s1.is_empty() { 0.0 } else { grades_s1.iter().sum::<f64>() / grades_s1.len() as f64 };
-            let avg_s2 = if grades_s2.is_empty() { 0.0 } else { grades_s2.iter().sum::<f64>() / grades_s2.len() as f64 };
+            let avg_s1 = if grades_s1.is_empty() {
+                0.0
+            } else {
+                grades_s1.iter().sum::<f64>() / grades_s1.len() as f64
+            };
+            let avg_s2 = if grades_s2.is_empty() {
+                0.0
+            } else {
+                grades_s2.iter().sum::<f64>() / grades_s2.len() as f64
+            };
 
             students_data.push(json!({
                 "student_id": sid,
@@ -399,7 +450,10 @@ async fn grades_by_subject(
     })))
 }
 
-async fn resolve_subject_name(pool: &sqlx::PgPool, course_subject_id: Uuid) -> Result<String, AcademicError> {
+async fn resolve_subject_name(
+    pool: &sqlx::PgPool,
+    course_subject_id: Uuid,
+) -> Result<String, AcademicError> {
     let row: (String,) = sqlx::query_as(
         r#"
         SELECT s.name FROM subjects s
@@ -410,7 +464,9 @@ async fn resolve_subject_name(pool: &sqlx::PgPool, course_subject_id: Uuid) -> R
     .bind(course_subject_id)
     .fetch_optional(pool)
     .await?
-    .ok_or(AcademicError::Validation("La asignatura del curso no existe".into()))?;
+    .ok_or(AcademicError::Validation(
+        "La asignatura del curso no existe".into(),
+    ))?;
 
     Ok(row.0)
 }

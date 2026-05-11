@@ -5,9 +5,7 @@ use crate::api::client;
 #[component]
 pub fn ComplaintsPage() -> Element {
     let mut tab = use_signal(|| "submit".to_string());
-    let complaints = use_resource(|| async move {
-        client::fetch_json("/api/hr/complaints").await
-    });
+    let complaints = use_resource(|| async move { client::fetch_json("/api/hr/complaints").await });
 
     rsx! {
         div { class: "page-header",
@@ -43,7 +41,9 @@ fn SubmitComplaint() -> Element {
     let mut error = use_signal(|| String::new());
 
     let do_submit = move |_| {
-        if description().trim().is_empty() { return; }
+        if description().trim().is_empty() {
+            return;
+        }
         submitting.set(true);
         error.set(String::new());
         let payload = serde_json::json!({
@@ -55,8 +55,12 @@ fn SubmitComplaint() -> Element {
         });
         spawn(async move {
             match client::post_json("/api/hr/complaints/submit", &payload).await {
-                Ok(_) => { done.set(true); }
-                Err(e) => { error.set(e); }
+                Ok(_) => {
+                    done.set(true);
+                }
+                Err(e) => {
+                    error.set(e);
+                }
             }
             submitting.set(false);
         });

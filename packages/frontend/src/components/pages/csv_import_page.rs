@@ -33,7 +33,9 @@ pub fn CsvImportPage(entity_type: String) -> Element {
     };
 
     let do_import = move |_| {
-        if csv_content().trim().is_empty() { return; }
+        if csv_content().trim().is_empty() {
+            return;
+        }
         importing.set(true);
         result.set(None);
         let content = csv_content();
@@ -43,7 +45,9 @@ pub fn CsvImportPage(entity_type: String) -> Element {
             let resp = client::post_json(&url, &payload).await;
             importing.set(false);
             match resp {
-                Ok(data) => { result.set(Some(data)); }
+                Ok(data) => {
+                    result.set(Some(data));
+                }
                 Err(e) => {
                     result.set(Some(serde_json::json!({
                         "message": format!("Error: {}", e),

@@ -99,9 +99,8 @@ impl StudentGradeReport {
     }
 
     pub fn evaluate_promotion(&self) -> PromotionResult {
-        let failed: Vec<&SubjectAverage> = self.subjects.iter()
-            .filter(|s| s.average < 4.0)
-            .collect();
+        let failed: Vec<&SubjectAverage> =
+            self.subjects.iter().filter(|s| s.average < 4.0).collect();
 
         match failed.len() {
             0 => PromotionResult::Promovido,
@@ -126,7 +125,9 @@ impl StudentGradeReport {
     }
 
     pub fn has_minimum_grades(&self) -> bool {
-        self.subjects.iter().all(|s| s.grades_count >= MIN_CALIFICACIONES_SEMESTRE as i32)
+        self.subjects
+            .iter()
+            .all(|s| s.grades_count >= MIN_CALIFICACIONES_SEMESTRE as i32)
     }
 }
 
@@ -166,8 +167,20 @@ mod tests {
             semester: Semester::First,
             year: 2025,
             subjects: vec![
-                SubjectAverage { subject: "MAT".into(), average: 5.0, grades_count: 3, min_grade: 4.0, max_grade: 6.0 },
-                SubjectAverage { subject: "LEN".into(), average: 4.5, grades_count: 3, min_grade: 4.0, max_grade: 5.0 },
+                SubjectAverage {
+                    subject: "MAT".into(),
+                    average: 5.0,
+                    grades_count: 3,
+                    min_grade: 4.0,
+                    max_grade: 6.0,
+                },
+                SubjectAverage {
+                    subject: "LEN".into(),
+                    average: 4.5,
+                    grades_count: 3,
+                    min_grade: 4.0,
+                    max_grade: 5.0,
+                },
             ],
             global_average: 4.75,
             is_promoted: true,
@@ -183,8 +196,20 @@ mod tests {
             semester: Semester::First,
             year: 2025,
             subjects: vec![
-                SubjectAverage { subject: "MAT".into(), average: 3.6, grades_count: 2, min_grade: 3.0, max_grade: 4.0 },
-                SubjectAverage { subject: "LEN".into(), average: 5.0, grades_count: 3, min_grade: 4.0, max_grade: 6.0 },
+                SubjectAverage {
+                    subject: "MAT".into(),
+                    average: 3.6,
+                    grades_count: 2,
+                    min_grade: 3.0,
+                    max_grade: 4.0,
+                },
+                SubjectAverage {
+                    subject: "LEN".into(),
+                    average: 5.0,
+                    grades_count: 3,
+                    min_grade: 4.0,
+                    max_grade: 6.0,
+                },
             ],
             global_average: 4.3,
             is_promoted: false,
@@ -200,8 +225,20 @@ mod tests {
             semester: Semester::First,
             year: 2025,
             subjects: vec![
-                SubjectAverage { subject: "MAT".into(), average: 3.4, grades_count: 2, min_grade: 3.0, max_grade: 4.0 },
-                SubjectAverage { subject: "LEN".into(), average: 5.0, grades_count: 3, min_grade: 4.0, max_grade: 6.0 },
+                SubjectAverage {
+                    subject: "MAT".into(),
+                    average: 3.4,
+                    grades_count: 2,
+                    min_grade: 3.0,
+                    max_grade: 4.0,
+                },
+                SubjectAverage {
+                    subject: "LEN".into(),
+                    average: 5.0,
+                    grades_count: 3,
+                    min_grade: 4.0,
+                    max_grade: 6.0,
+                },
             ],
             global_average: 4.2,
             is_promoted: false,
@@ -217,9 +254,27 @@ mod tests {
             semester: Semester::First,
             year: 2025,
             subjects: vec![
-                SubjectAverage { subject: "MAT".into(), average: 3.5, grades_count: 2, min_grade: 3.0, max_grade: 4.0 },
-                SubjectAverage { subject: "LEN".into(), average: 3.2, grades_count: 2, min_grade: 3.0, max_grade: 5.0 },
-                SubjectAverage { subject: "HIS".into(), average: 5.0, grades_count: 3, min_grade: 4.0, max_grade: 6.0 },
+                SubjectAverage {
+                    subject: "MAT".into(),
+                    average: 3.5,
+                    grades_count: 2,
+                    min_grade: 3.0,
+                    max_grade: 4.0,
+                },
+                SubjectAverage {
+                    subject: "LEN".into(),
+                    average: 3.2,
+                    grades_count: 2,
+                    min_grade: 3.0,
+                    max_grade: 5.0,
+                },
+                SubjectAverage {
+                    subject: "HIS".into(),
+                    average: 5.0,
+                    grades_count: 3,
+                    min_grade: 4.0,
+                    max_grade: 6.0,
+                },
             ],
             global_average: 3.9,
             is_promoted: false,
@@ -235,9 +290,27 @@ mod tests {
             semester: Semester::First,
             year: 2025,
             subjects: vec![
-                SubjectAverage { subject: "MAT".into(), average: 3.0, grades_count: 2, min_grade: 2.0, max_grade: 4.0 },
-                SubjectAverage { subject: "LEN".into(), average: 3.5, grades_count: 2, min_grade: 3.0, max_grade: 5.0 },
-                SubjectAverage { subject: "HIS".into(), average: 3.0, grades_count: 2, min_grade: 3.0, max_grade: 4.0 },
+                SubjectAverage {
+                    subject: "MAT".into(),
+                    average: 3.0,
+                    grades_count: 2,
+                    min_grade: 2.0,
+                    max_grade: 4.0,
+                },
+                SubjectAverage {
+                    subject: "LEN".into(),
+                    average: 3.5,
+                    grades_count: 2,
+                    min_grade: 3.0,
+                    max_grade: 5.0,
+                },
+                SubjectAverage {
+                    subject: "HIS".into(),
+                    average: 3.0,
+                    grades_count: 2,
+                    min_grade: 3.0,
+                    max_grade: 4.0,
+                },
             ],
             global_average: 3.17,
             is_promoted: false,

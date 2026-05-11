@@ -1,6 +1,6 @@
+mod alerts;
 mod attendance;
 mod reports;
-mod alerts;
 
 pub fn router() -> axum::Router<crate::AppState> {
     axum::Router::new()

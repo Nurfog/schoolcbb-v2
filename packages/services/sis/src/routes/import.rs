@@ -1,16 +1,11 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Json, Router,
-};
+use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{SisError, SisResult};
-use crate::routes::students::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{SisError, SisResult};
+use crate::routes::students::{Claims, require_any_role};
 
 #[derive(Debug, Serialize)]
 struct RowResult {
@@ -40,8 +35,7 @@ const INSERT_SQL: &str = r#"
 "#;
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/api/students/import", post(import_csv))
+    Router::new().route("/api/students/import", post(import_csv))
 }
 
 async fn import_csv(
@@ -62,9 +56,9 @@ async fn import_csv(
         .get("columnas")
         .and_then(|v| v.as_object())
         .map(|m| {
-            m.iter().map(|(k, v)| {
-                (k.to_uppercase(), v.as_str().unwrap_or(k).to_uppercase())
-            }).collect::<std::collections::HashMap<_, _>>()
+            m.iter()
+                .map(|(k, v)| (k.to_uppercase(), v.as_str().unwrap_or(k).to_uppercase()))
+                .collect::<std::collections::HashMap<_, _>>()
         });
 
     let mut reader = csv::ReaderBuilder::new()
@@ -78,7 +72,8 @@ async fn import_csv(
         .iter()
         .map(|h| {
             let upper = h.to_uppercase();
-            col_mapping.as_ref()
+            col_mapping
+                .as_ref()
                 .and_then(|m| m.get(&upper))
                 .cloned()
                 .unwrap_or(upper)
@@ -108,7 +103,9 @@ async fn import_csv(
         };
 
         let get = |key: &str| -> &str {
-            headers.iter().position(|h| h == key)
+            headers
+                .iter()
+                .position(|h| h == key)
                 .and_then(|i| record.get(i))
                 .unwrap_or("")
         };
@@ -156,25 +153,66 @@ async fn import_csv(
         };
 
         let (cond, prio, nee_val) = (
-            if condicion.is_empty() { "AL" } else { condicion },
-            if prioritario.is_empty() { "0" } else { prioritario },
+            if condicion.is_empty() {
+                "AL"
+            } else {
+                condicion
+            },
+            if prioritario.is_empty() {
+                "0"
+            } else {
+                prioritario
+            },
             if nee.is_empty() { "N" } else { nee },
         );
 
         let id = Uuid::new_v4();
         match sqlx::query(INSERT_SQL)
-            .bind(id).bind(&rut.0)
-            .bind(first_name).bind(last_name)
-            .bind(if email.is_empty() { "sin-email@alumno.cl" } else { email })
+            .bind(id)
+            .bind(&rut.0)
+            .bind(first_name)
+            .bind(last_name)
+            .bind(if email.is_empty() {
+                "sin-email@alumno.cl"
+            } else {
+                email
+            })
             .bind(if phone.is_empty() { None } else { Some(phone) })
-            .bind(grade_level).bind(section)
-            .bind(if cod_nivel.is_empty() { None } else { Some(cod_nivel) })
-            .bind(cond).bind(prio).bind(nee_val)
-            .bind(if diseases.is_empty() { None } else { Some(diseases) })
-            .bind(if allergies.is_empty() { None } else { Some(allergies) })
-            .bind(if emerg_name.is_empty() { None } else { Some(emerg_name) })
-            .bind(if emerg_phone.is_empty() { None } else { Some(emerg_phone) })
-            .bind(if emerg_rel.is_empty() { None } else { Some(emerg_rel) })
+            .bind(grade_level)
+            .bind(section)
+            .bind(if cod_nivel.is_empty() {
+                None
+            } else {
+                Some(cod_nivel)
+            })
+            .bind(cond)
+            .bind(prio)
+            .bind(nee_val)
+            .bind(if diseases.is_empty() {
+                None
+            } else {
+                Some(diseases)
+            })
+            .bind(if allergies.is_empty() {
+                None
+            } else {
+                Some(allergies)
+            })
+            .bind(if emerg_name.is_empty() {
+                None
+            } else {
+                Some(emerg_name)
+            })
+            .bind(if emerg_phone.is_empty() {
+                None
+            } else {
+                Some(emerg_phone)
+            })
+            .bind(if emerg_rel.is_empty() {
+                None
+            } else {
+                Some(emerg_rel)
+            })
             .execute(&mut *tx)
             .await
         {
@@ -188,7 +226,8 @@ async fn import_csv(
                     error: None,
                 });
             }
-            Err(e) if matches!(&e, sqlx::Error::Database(d) if d.constraint() == Some("students_rut_key")) => {
+            Err(e) if matches!(&e, sqlx::Error::Database(d) if d.constraint() == Some("students_rut_key")) =>
+            {
                 detalle.push(RowResult {
                     row: row_num,
                     rut: rut_raw.to_string(),
@@ -228,8 +267,5 @@ async fn import_csv(
         detalle,
     };
 
-    Ok((
-        status_code,
-        Json(json!({ "importacion": report })),
-    ))
+    Ok((status_code, Json(json!({ "importacion": report }))))
 }

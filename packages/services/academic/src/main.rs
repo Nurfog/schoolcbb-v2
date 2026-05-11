@@ -77,146 +77,317 @@ struct SubjectSeed<'a> {
 async fn seed_subjects(pool: &sqlx::PgPool) {
     let subjects = vec![
         // ─── Lenguaje ──────────────────────────────────────────────
-        SubjectSeed { code: "LEN01", name: "Lenguaje y Comunicación", hours: vec![
-            ("1° Básico", None, 8), ("2° Básico", None, 8), ("3° Básico", None, 8),
-            ("4° Básico", None, 8), ("5° Básico", None, 6), ("6° Básico", None, 6),
-        ]},
-        SubjectSeed { code: "LLE07", name: "Lengua y Literatura", hours: vec![
-            ("7° Básico", None, 6), ("8° Básico", None, 6),
-            ("1° Medio", None, 6), ("2° Medio", None, 6),
-            ("3° Medio", Some("HC"), 4), ("4° Medio", Some("HC"), 4),
-            ("3° Medio", Some("TP"), 3), ("4° Medio", Some("TP"), 3),
-            ("3° Medio", Some("Artístico"), 4), ("4° Medio", Some("Artístico"), 4),
-        ]},
+        SubjectSeed {
+            code: "LEN01",
+            name: "Lenguaje y Comunicación",
+            hours: vec![
+                ("1° Básico", None, 8),
+                ("2° Básico", None, 8),
+                ("3° Básico", None, 8),
+                ("4° Básico", None, 8),
+                ("5° Básico", None, 6),
+                ("6° Básico", None, 6),
+            ],
+        },
+        SubjectSeed {
+            code: "LLE07",
+            name: "Lengua y Literatura",
+            hours: vec![
+                ("7° Básico", None, 6),
+                ("8° Básico", None, 6),
+                ("1° Medio", None, 6),
+                ("2° Medio", None, 6),
+                ("3° Medio", Some("HC"), 4),
+                ("4° Medio", Some("HC"), 4),
+                ("3° Medio", Some("TP"), 3),
+                ("4° Medio", Some("TP"), 3),
+                ("3° Medio", Some("Artístico"), 4),
+                ("4° Medio", Some("Artístico"), 4),
+            ],
+        },
         // ─── Matemática ────────────────────────────────────────────
-        SubjectSeed { code: "MAT01", name: "Matemática", hours: vec![
-            ("1° Básico", None, 8), ("2° Básico", None, 8), ("3° Básico", None, 8),
-            ("4° Básico", None, 8), ("5° Básico", None, 6), ("6° Básico", None, 6),
-            ("7° Básico", None, 6), ("8° Básico", None, 6),
-            ("1° Medio", None, 6), ("2° Medio", None, 6),
-            ("3° Medio", Some("HC"), 5), ("4° Medio", Some("HC"), 5),
-            ("3° Medio", Some("TP"), 4), ("4° Medio", Some("TP"), 4),
-            ("3° Medio", Some("Artístico"), 4), ("4° Medio", Some("Artístico"), 4),
-        ]},
+        SubjectSeed {
+            code: "MAT01",
+            name: "Matemática",
+            hours: vec![
+                ("1° Básico", None, 8),
+                ("2° Básico", None, 8),
+                ("3° Básico", None, 8),
+                ("4° Básico", None, 8),
+                ("5° Básico", None, 6),
+                ("6° Básico", None, 6),
+                ("7° Básico", None, 6),
+                ("8° Básico", None, 6),
+                ("1° Medio", None, 6),
+                ("2° Medio", None, 6),
+                ("3° Medio", Some("HC"), 5),
+                ("4° Medio", Some("HC"), 5),
+                ("3° Medio", Some("TP"), 4),
+                ("4° Medio", Some("TP"), 4),
+                ("3° Medio", Some("Artístico"), 4),
+                ("4° Medio", Some("Artístico"), 4),
+            ],
+        },
         // ─── Ciencias ──────────────────────────────────────────────
-        SubjectSeed { code: "CIE01", name: "Ciencias Naturales", hours: vec![
-            ("1° Básico", None, 4), ("2° Básico", None, 4), ("3° Básico", None, 4),
-            ("4° Básico", None, 4), ("5° Básico", None, 5), ("6° Básico", None, 5),
-            ("7° Básico", None, 5), ("8° Básico", None, 5),
-            ("1° Medio", None, 4), ("2° Medio", None, 4),
-        ]},
-        SubjectSeed { code: "FIS01", name: "Física", hours: vec![
-            ("3° Medio", Some("HC"), 5), ("3° Medio", Some("TP"), 3),
-            ("3° Medio", Some("Artístico"), 3),
-        ]},
-        SubjectSeed { code: "QUI01", name: "Química", hours: vec![
-            ("3° Medio", Some("HC"), 5), ("3° Medio", Some("TP"), 3),
-            ("3° Medio", Some("Artístico"), 3),
-        ]},
-        SubjectSeed { code: "BIO01", name: "Biología Celular y Molecular", hours: vec![
-            ("3° Medio", Some("HC"), 5),
-        ]},
-        SubjectSeed { code: "CSA01", name: "Ciencias de la Salud", hours: vec![
-            ("3° Medio", Some("HC"), 3),
-        ]},
+        SubjectSeed {
+            code: "CIE01",
+            name: "Ciencias Naturales",
+            hours: vec![
+                ("1° Básico", None, 4),
+                ("2° Básico", None, 4),
+                ("3° Básico", None, 4),
+                ("4° Básico", None, 4),
+                ("5° Básico", None, 5),
+                ("6° Básico", None, 5),
+                ("7° Básico", None, 5),
+                ("8° Básico", None, 5),
+                ("1° Medio", None, 4),
+                ("2° Medio", None, 4),
+            ],
+        },
+        SubjectSeed {
+            code: "FIS01",
+            name: "Física",
+            hours: vec![
+                ("3° Medio", Some("HC"), 5),
+                ("3° Medio", Some("TP"), 3),
+                ("3° Medio", Some("Artístico"), 3),
+            ],
+        },
+        SubjectSeed {
+            code: "QUI01",
+            name: "Química",
+            hours: vec![
+                ("3° Medio", Some("HC"), 5),
+                ("3° Medio", Some("TP"), 3),
+                ("3° Medio", Some("Artístico"), 3),
+            ],
+        },
+        SubjectSeed {
+            code: "BIO01",
+            name: "Biología Celular y Molecular",
+            hours: vec![("3° Medio", Some("HC"), 5)],
+        },
+        SubjectSeed {
+            code: "CSA01",
+            name: "Ciencias de la Salud",
+            hours: vec![("3° Medio", Some("HC"), 3)],
+        },
         // ─── Historia ──────────────────────────────────────────────
-        SubjectSeed { code: "HIS01", name: "Historia, Geografía y Cs. Sociales", hours: vec![
-            ("1° Básico", None, 4), ("2° Básico", None, 4), ("3° Básico", None, 4),
-            ("4° Básico", None, 4), ("5° Básico", None, 4), ("6° Básico", None, 4),
-            ("7° Básico", None, 5), ("8° Básico", None, 5),
-            ("1° Medio", None, 5), ("2° Medio", None, 5),
-        ]},
-        SubjectSeed { code: "ECO01", name: "Economía y Sociedad", hours: vec![
-            ("3° Medio", Some("HC"), 4), ("3° Medio", Some("TP"), 2),
-        ]},
+        SubjectSeed {
+            code: "HIS01",
+            name: "Historia, Geografía y Cs. Sociales",
+            hours: vec![
+                ("1° Básico", None, 4),
+                ("2° Básico", None, 4),
+                ("3° Básico", None, 4),
+                ("4° Básico", None, 4),
+                ("5° Básico", None, 4),
+                ("6° Básico", None, 4),
+                ("7° Básico", None, 5),
+                ("8° Básico", None, 5),
+                ("1° Medio", None, 5),
+                ("2° Medio", None, 5),
+            ],
+        },
+        SubjectSeed {
+            code: "ECO01",
+            name: "Economía y Sociedad",
+            hours: vec![("3° Medio", Some("HC"), 4), ("3° Medio", Some("TP"), 2)],
+        },
         // ─── Inglés ────────────────────────────────────────────────
-        SubjectSeed { code: "ING01", name: "Inglés", hours: vec![
-            ("1° Básico", None, 2), ("2° Básico", None, 2), ("3° Básico", None, 2),
-            ("4° Básico", None, 2), ("5° Básico", None, 3), ("6° Básico", None, 3),
-            ("7° Básico", None, 3), ("8° Básico", None, 3),
-            ("1° Medio", None, 4), ("2° Medio", None, 4),
-            ("3° Medio", Some("HC"), 4), ("4° Medio", Some("HC"), 4),
-            ("3° Medio", Some("TP"), 3), ("4° Medio", Some("TP"), 3),
-            ("3° Medio", Some("Artístico"), 3), ("4° Medio", Some("Artístico"), 3),
-        ]},
+        SubjectSeed {
+            code: "ING01",
+            name: "Inglés",
+            hours: vec![
+                ("1° Básico", None, 2),
+                ("2° Básico", None, 2),
+                ("3° Básico", None, 2),
+                ("4° Básico", None, 2),
+                ("5° Básico", None, 3),
+                ("6° Básico", None, 3),
+                ("7° Básico", None, 3),
+                ("8° Básico", None, 3),
+                ("1° Medio", None, 4),
+                ("2° Medio", None, 4),
+                ("3° Medio", Some("HC"), 4),
+                ("4° Medio", Some("HC"), 4),
+                ("3° Medio", Some("TP"), 3),
+                ("4° Medio", Some("TP"), 3),
+                ("3° Medio", Some("Artístico"), 3),
+                ("4° Medio", Some("Artístico"), 3),
+            ],
+        },
         // ─── Artes ─────────────────────────────────────────────────
-        SubjectSeed { code: "ART01", name: "Artes Visuales", hours: vec![
-            ("1° Básico", None, 2), ("2° Básico", None, 2), ("3° Básico", None, 2),
-            ("4° Básico", None, 2), ("5° Básico", None, 2), ("6° Básico", None, 2),
-            ("7° Básico", None, 2), ("8° Básico", None, 2),
-            ("1° Medio", None, 2), ("2° Medio", None, 2),
-            ("3° Medio", Some("Artístico"), 6),
-        ]},
-        SubjectSeed { code: "MUS01", name: "Música", hours: vec![
-            ("1° Básico", None, 2), ("2° Básico", None, 2), ("3° Básico", None, 2),
-            ("4° Básico", None, 2), ("5° Básico", None, 2), ("6° Básico", None, 2),
-            ("7° Básico", None, 2), ("8° Básico", None, 2),
-            ("1° Medio", None, 2),
-        ]},
-        SubjectSeed { code: "AVI01", name: "Artes Visuales Audiovisuales", hours: vec![
-            ("3° Medio", Some("HC"), 4), ("3° Medio", Some("Artístico"), 6),
-        ]},
-        SubjectSeed { code: "DAN01", name: "Danza", hours: vec![
-            ("3° Medio", Some("Artístico"), 6),
-        ]},
-        SubjectSeed { code: "TEA01", name: "Teatro", hours: vec![
-            ("3° Medio", Some("HC"), 4), ("3° Medio", Some("Artístico"), 6),
-        ]},
-        SubjectSeed { code: "ITE01", name: "Interpretación y Creación en Teatro", hours: vec![
-            ("3° Medio", Some("HC"), 4),
-        ]},
+        SubjectSeed {
+            code: "ART01",
+            name: "Artes Visuales",
+            hours: vec![
+                ("1° Básico", None, 2),
+                ("2° Básico", None, 2),
+                ("3° Básico", None, 2),
+                ("4° Básico", None, 2),
+                ("5° Básico", None, 2),
+                ("6° Básico", None, 2),
+                ("7° Básico", None, 2),
+                ("8° Básico", None, 2),
+                ("1° Medio", None, 2),
+                ("2° Medio", None, 2),
+                ("3° Medio", Some("Artístico"), 6),
+            ],
+        },
+        SubjectSeed {
+            code: "MUS01",
+            name: "Música",
+            hours: vec![
+                ("1° Básico", None, 2),
+                ("2° Básico", None, 2),
+                ("3° Básico", None, 2),
+                ("4° Básico", None, 2),
+                ("5° Básico", None, 2),
+                ("6° Básico", None, 2),
+                ("7° Básico", None, 2),
+                ("8° Básico", None, 2),
+                ("1° Medio", None, 2),
+            ],
+        },
+        SubjectSeed {
+            code: "AVI01",
+            name: "Artes Visuales Audiovisuales",
+            hours: vec![
+                ("3° Medio", Some("HC"), 4),
+                ("3° Medio", Some("Artístico"), 6),
+            ],
+        },
+        SubjectSeed {
+            code: "DAN01",
+            name: "Danza",
+            hours: vec![("3° Medio", Some("Artístico"), 6)],
+        },
+        SubjectSeed {
+            code: "TEA01",
+            name: "Teatro",
+            hours: vec![
+                ("3° Medio", Some("HC"), 4),
+                ("3° Medio", Some("Artístico"), 6),
+            ],
+        },
+        SubjectSeed {
+            code: "ITE01",
+            name: "Interpretación y Creación en Teatro",
+            hours: vec![("3° Medio", Some("HC"), 4)],
+        },
         // ─── Educación Física ──────────────────────────────────────
-        SubjectSeed { code: "EFI01", name: "Educación Física y Salud", hours: vec![
-            ("1° Básico", None, 3), ("2° Básico", None, 3), ("3° Básico", None, 3),
-            ("4° Básico", None, 3), ("5° Básico", None, 3), ("6° Básico", None, 3),
-            ("7° Básico", None, 3), ("8° Básico", None, 3),
-            ("1° Medio", None, 2), ("2° Medio", None, 2),
-            ("3° Medio", Some("HC"), 2), ("4° Medio", Some("HC"), 2),
-            ("3° Medio", Some("TP"), 2), ("4° Medio", Some("TP"), 2),
-            ("3° Medio", Some("Artístico"), 2), ("4° Medio", Some("Artístico"), 2),
-        ]},
+        SubjectSeed {
+            code: "EFI01",
+            name: "Educación Física y Salud",
+            hours: vec![
+                ("1° Básico", None, 3),
+                ("2° Básico", None, 3),
+                ("3° Básico", None, 3),
+                ("4° Básico", None, 3),
+                ("5° Básico", None, 3),
+                ("6° Básico", None, 3),
+                ("7° Básico", None, 3),
+                ("8° Básico", None, 3),
+                ("1° Medio", None, 2),
+                ("2° Medio", None, 2),
+                ("3° Medio", Some("HC"), 2),
+                ("4° Medio", Some("HC"), 2),
+                ("3° Medio", Some("TP"), 2),
+                ("4° Medio", Some("TP"), 2),
+                ("3° Medio", Some("Artístico"), 2),
+                ("4° Medio", Some("Artístico"), 2),
+            ],
+        },
         // ─── Tecnología ────────────────────────────────────────────
-        SubjectSeed { code: "TEC01", name: "Tecnología", hours: vec![
-            ("1° Básico", None, 1), ("2° Básico", None, 1), ("3° Básico", None, 1),
-            ("4° Básico", None, 1), ("5° Básico", None, 1), ("6° Básico", None, 1),
-            ("7° Básico", None, 2), ("8° Básico", None, 2),
-            ("1° Medio", None, 2),
-        ]},
+        SubjectSeed {
+            code: "TEC01",
+            name: "Tecnología",
+            hours: vec![
+                ("1° Básico", None, 1),
+                ("2° Básico", None, 1),
+                ("3° Básico", None, 1),
+                ("4° Básico", None, 1),
+                ("5° Básico", None, 1),
+                ("6° Básico", None, 1),
+                ("7° Básico", None, 2),
+                ("8° Básico", None, 2),
+                ("1° Medio", None, 2),
+            ],
+        },
         // ─── Religión ──────────────────────────────────────────────
-        SubjectSeed { code: "REL01", name: "Religión", hours: vec![
-            ("1° Básico", None, 2), ("2° Básico", None, 2), ("3° Básico", None, 2),
-            ("4° Básico", None, 2), ("5° Básico", None, 2), ("6° Básico", None, 2),
-            ("7° Básico", None, 2),
-        ]},
+        SubjectSeed {
+            code: "REL01",
+            name: "Religión",
+            hours: vec![
+                ("1° Básico", None, 2),
+                ("2° Básico", None, 2),
+                ("3° Básico", None, 2),
+                ("4° Básico", None, 2),
+                ("5° Básico", None, 2),
+                ("6° Básico", None, 2),
+                ("7° Básico", None, 2),
+            ],
+        },
         // ─── Orientación ───────────────────────────────────────────
-        SubjectSeed { code: "ORI01", name: "Orientación", hours: vec![
-            ("1° Básico", None, 1), ("2° Básico", None, 1), ("3° Básico", None, 1),
-            ("4° Básico", None, 1), ("5° Básico", None, 1), ("6° Básico", None, 1),
-            ("7° Básico", None, 1), ("8° Básico", None, 1),
-            ("1° Medio", None, 1), ("2° Medio", None, 1),
-        ]},
+        SubjectSeed {
+            code: "ORI01",
+            name: "Orientación",
+            hours: vec![
+                ("1° Básico", None, 1),
+                ("2° Básico", None, 1),
+                ("3° Básico", None, 1),
+                ("4° Básico", None, 1),
+                ("5° Básico", None, 1),
+                ("6° Básico", None, 1),
+                ("7° Básico", None, 1),
+                ("8° Básico", None, 1),
+                ("1° Medio", None, 1),
+                ("2° Medio", None, 1),
+            ],
+        },
         // ─── Filosofía ─────────────────────────────────────────────
-        SubjectSeed { code: "FIL01", name: "Filosofía", hours: vec![
-            ("3° Medio", Some("HC"), 4), ("4° Medio", Some("HC"), 4),
-            ("3° Medio", Some("Artístico"), 3),
-        ]},
+        SubjectSeed {
+            code: "FIL01",
+            name: "Filosofía",
+            hours: vec![
+                ("3° Medio", Some("HC"), 4),
+                ("4° Medio", Some("HC"), 4),
+                ("3° Medio", Some("Artístico"), 3),
+            ],
+        },
         // ─── Ciudadanía ────────────────────────────────────────────
-        SubjectSeed { code: "CIU01", name: "Educación Ciudadana", hours: vec![
-            ("3° Medio", Some("HC"), 3), ("4° Medio", Some("HC"), 3),
-            ("3° Medio", Some("TP"), 2),
-        ]},
+        SubjectSeed {
+            code: "CIU01",
+            name: "Educación Ciudadana",
+            hours: vec![
+                ("3° Medio", Some("HC"), 3),
+                ("4° Medio", Some("HC"), 3),
+                ("3° Medio", Some("TP"), 2),
+            ],
+        },
         // ─── Matemática Avanzada (HC) ──────────────────────────────
-        SubjectSeed { code: "LDI01", name: "Límites, Derivadas e Integrales", hours: vec![
-            ("3° Medio", Some("HC"), 4),
-        ]},
+        SubjectSeed {
+            code: "LDI01",
+            name: "Límites, Derivadas e Integrales",
+            hours: vec![("3° Medio", Some("HC"), 4)],
+        },
         // ─── Formación Diferenciada TP ─────────────────────────────
-        SubjectSeed { code: "TPG01", name: "Formación Diferenciada TP", hours: vec![
-            ("3° Medio", Some("TP"), 18), ("4° Medio", Some("TP"), 20),
-        ]},
+        SubjectSeed {
+            code: "TPG01",
+            name: "Formación Diferenciada TP",
+            hours: vec![("3° Medio", Some("TP"), 18), ("4° Medio", Some("TP"), 20)],
+        },
         // ─── Formación Diferenciada Artístico ──────────────────────
-        SubjectSeed { code: "FAR01", name: "Formación Diferenciada Artístico", hours: vec![
-            ("3° Medio", Some("Artístico"), 12), ("4° Medio", Some("Artístico"), 14),
-        ]},
+        SubjectSeed {
+            code: "FAR01",
+            name: "Formación Diferenciada Artístico",
+            hours: vec![
+                ("3° Medio", Some("Artístico"), 12),
+                ("4° Medio", Some("Artístico"), 14),
+            ],
+        },
     ];
 
     for s in &subjects {

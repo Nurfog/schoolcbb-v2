@@ -3,32 +3,28 @@ use dioxus::prelude::*;
 use crate::api::client;
 
 fn first_letter(s: &str) -> String {
-    s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+    s.chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "?".to_string())
 }
 
 #[component]
 pub fn EmployeePortalPage() -> Element {
     let mut tab = use_signal(|| "profile".to_string());
 
-    let profile = use_resource(|| async move {
-        client::fetch_json("/api/hr/me").await
-    });
+    let profile = use_resource(|| async move { client::fetch_json("/api/hr/me").await });
 
-    let payroll = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/payroll").await
-    });
+    let payroll = use_resource(|| async move { client::fetch_json("/api/hr/me/payroll").await });
 
-    let attendance = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/attendance").await
-    });
+    let attendance =
+        use_resource(|| async move { client::fetch_json("/api/hr/me/attendance").await });
 
-    let leave = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/leave-requests").await
-    });
+    let leave =
+        use_resource(|| async move { client::fetch_json("/api/hr/me/leave-requests").await });
 
-    let documents = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/documents").await
-    });
+    let documents =
+        use_resource(|| async move { client::fetch_json("/api/hr/me/documents").await });
 
     let tab_content = if tab() == "profile" {
         rsx! { ProfileSection { data: profile } }
@@ -44,45 +40,37 @@ pub fn EmployeePortalPage() -> Element {
         rsx! {}
     };
 
-    let _profile = use_resource(|| async move {
-        client::fetch_json("/api/hr/me").await
-    });
+    let _profile = use_resource(|| async move { client::fetch_json("/api/hr/me").await });
 
-    let _payroll = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/payroll").await
-    });
+    let _payroll = use_resource(|| async move { client::fetch_json("/api/hr/me/payroll").await });
 
-    let _attendance = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/attendance").await
-    });
+    let _attendance =
+        use_resource(|| async move { client::fetch_json("/api/hr/me/attendance").await });
 
-    let _leave = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/leave-requests").await
-    });
+    let _leave =
+        use_resource(|| async move { client::fetch_json("/api/hr/me/leave-requests").await });
 
-    let _documents = use_resource(|| async move {
-        client::fetch_json("/api/hr/me/documents").await
-    });
+    let _documents =
+        use_resource(|| async move { client::fetch_json("/api/hr/me/documents").await });
 
     rsx! {
-        div { class: "page-header",
-            h1 { "Mi Portal" }
-            p { "Autoconsulta de datos laborales" }
+            div { class: "page-header",
+                h1 { "Mi Portal" }
+                p { "Autoconsulta de datos laborales" }
+            }
+            div { class: "tabs-container",
+                div { class: "tabs-header",
+                    button { class: if tab() == "profile" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("profile".to_string()), "Mi Perfil" }
+                    button { class: if tab() == "payroll" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("payroll".to_string()), "Liquidaciones" }
+                    button { class: if tab() == "attendance" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("attendance".to_string()), "Asistencia" }
+                    button { class: if tab() == "leave" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("leave".to_string()), "Vacaciones y Permisos" }
+                    button { class: if tab() == "docs" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("docs".to_string()), "Documentos" }
+                }
+                div { class: "tab-content",
+                    {tab_content}
+                }
         }
-        div { class: "tabs-container",
-            div { class: "tabs-header",
-                button { class: if tab() == "profile" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("profile".to_string()), "Mi Perfil" }
-                button { class: if tab() == "payroll" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("payroll".to_string()), "Liquidaciones" }
-                button { class: if tab() == "attendance" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("attendance".to_string()), "Asistencia" }
-                button { class: if tab() == "leave" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("leave".to_string()), "Vacaciones y Permisos" }
-                button { class: if tab() == "docs" { "tab-active" } else { "tab" }, onclick: move |_| tab.set("docs".to_string()), "Documentos" }
-            }
-            div { class: "tab-content",
-                {tab_content}
-            }
     }
-}
-
 }
 
 #[component]
@@ -93,7 +81,9 @@ fn DocumentsSection(data: Resource<Result<serde_json::Value, String>>) -> Elemen
     let docs = data;
 
     let do_upload = move |_| {
-        if file_name().trim().is_empty() { return; }
+        if file_name().trim().is_empty() {
+            return;
+        }
         uploading.set(true);
         let payload = serde_json::json!({
             "doc_type": doc_type(),

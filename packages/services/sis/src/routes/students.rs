@@ -1,15 +1,15 @@
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, Path, Query, State},
     http::request::Parts,
     routing::{delete, get},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{SisError, SisResult};
 use crate::AppState;
+use crate::error::{SisError, SisResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -26,7 +26,10 @@ pub struct Claims {
 impl FromRequestParts<AppState> for Claims {
     type Rejection = SisError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -34,8 +37,7 @@ impl FromRequestParts<AppState> for Claims {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(SisError::Unauthorized)?;
 
-        let secret = std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| "cambio-en-produccion".into());
+        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "cambio-en-produccion".into());
 
         let token_data = jsonwebtoken::decode::<Claims>(
             auth_header,
@@ -141,9 +143,20 @@ const STUDENT_COLUMNS: &str = r#"
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/students", get(list_students).post(create_student))
-        .route("/api/students/{id}", get(get_student).put(update_student).delete(deactivate_student))
-        .route("/api/students/{id}/guardians", get(list_guardians).post(add_guardian))
-        .route("/api/students/{id}/guardians/{guardian_id}", delete(remove_guardian))
+        .route(
+            "/api/students/{id}",
+            get(get_student)
+                .put(update_student)
+                .delete(deactivate_student),
+        )
+        .route(
+            "/api/students/{id}/guardians",
+            get(list_guardians).post(add_guardian),
+        )
+        .route(
+            "/api/students/{id}/guardians/{guardian_id}",
+            delete(remove_guardian),
+        )
 }
 
 async fn list_students(
@@ -151,7 +164,10 @@ async fn list_students(
     State(state): State<AppState>,
     Query(filter): Query<StudentFilter>,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let mut conditions = vec!["s.enrolled = true".to_string()];
     let mut bind_values: Vec<String> = vec![];
@@ -192,7 +208,9 @@ async fn list_students(
 
     let students: Vec<Value> = raw.iter().map(|r| json!(r.to_student())).collect();
 
-    Ok(Json(json!({ "students": students, "total": students.len() })))
+    Ok(Json(
+        json!({ "students": students, "total": students.len() }),
+    ))
 }
 
 async fn get_student(
@@ -200,11 +218,22 @@ async fn get_student(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
-    let raw = sqlx::query_as::<_, RawStudent>(
-        &format!("SELECT {} FROM students WHERE id = $1", STUDENT_COLUMNS),
-    )
+    let raw = sqlx::query_as::<_, RawStudent>(&format!(
+        "SELECT {} FROM students WHERE id = $1",
+        STUDENT_COLUMNS
+    ))
     .bind(id)
     .fetch_optional(&state.pool)
     .await?
@@ -227,10 +256,14 @@ async fn create_student(
         .map_err(|e| SisError::Validation(format!("RUT inválido: {e}")))?;
 
     if payload.first_name.trim().is_empty() || payload.last_name.trim().is_empty() {
-        return Err(SisError::Validation("Nombre y apellido son obligatorios".into()));
+        return Err(SisError::Validation(
+            "Nombre y apellido son obligatorios".into(),
+        ));
     }
     if payload.grade_level.trim().is_empty() || payload.section.trim().is_empty() {
-        return Err(SisError::Validation("Curso y sección son obligatorios".into()));
+        return Err(SisError::Validation(
+            "Curso y sección son obligatorios".into(),
+        ));
     }
 
     let condicion = payload.condicion.as_deref().unwrap_or("AL");
@@ -238,10 +271,14 @@ async fn create_student(
     let nee = payload.nee.as_deref().unwrap_or("N");
 
     if !["AL", "RE", "TR"].contains(&condicion) {
-        return Err(SisError::Validation("Condición inválida: use AL, RE o TR".into()));
+        return Err(SisError::Validation(
+            "Condición inválida: use AL, RE o TR".into(),
+        ));
     }
     if !["0", "1", "2"].contains(&prioritario) {
-        return Err(SisError::Validation("Prioritario inválido: use 0, 1 o 2".into()));
+        return Err(SisError::Validation(
+            "Prioritario inválido: use 0, 1 o 2".into(),
+        ));
     }
     if !["N", "T", "P"].contains(&nee) {
         return Err(SisError::Validation("NEE inválido: use N, T o P".into()));
@@ -304,9 +341,10 @@ async fn update_student(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let existing = sqlx::query_as::<_, RawStudent>(
-        &format!("SELECT {} FROM students WHERE id = $1", STUDENT_COLUMNS),
-    )
+    let existing = sqlx::query_as::<_, RawStudent>(&format!(
+        "SELECT {} FROM students WHERE id = $1",
+        STUDENT_COLUMNS
+    ))
     .bind(id)
     .fetch_optional(&state.pool)
     .await?
@@ -320,14 +358,26 @@ async fn update_student(
     let section = payload.section.unwrap_or(existing.section);
     let cod_nivel = payload.cod_nivel.or(existing.cod_nivel);
 
-    let condicion = payload.condicion.as_deref().unwrap_or(&existing.condicion).to_string();
+    let condicion = payload
+        .condicion
+        .as_deref()
+        .unwrap_or(&existing.condicion)
+        .to_string();
     if !["AL", "RE", "TR"].contains(&condicion.as_str()) {
-        return Err(SisError::Validation("Condición inválida: use AL, RE o TR".into()));
+        return Err(SisError::Validation(
+            "Condición inválida: use AL, RE o TR".into(),
+        ));
     }
 
-    let prioritario = payload.prioritario.as_deref().unwrap_or(&existing.prioritario).to_string();
+    let prioritario = payload
+        .prioritario
+        .as_deref()
+        .unwrap_or(&existing.prioritario)
+        .to_string();
     if !["0", "1", "2"].contains(&prioritario.as_str()) {
-        return Err(SisError::Validation("Prioritario inválido: use 0, 1 o 2".into()));
+        return Err(SisError::Validation(
+            "Prioritario inválido: use 0, 1 o 2".into(),
+        ));
     }
 
     let nee = payload.nee.as_deref().unwrap_or(&existing.nee).to_string();
@@ -337,9 +387,15 @@ async fn update_student(
 
     let diseases = payload.diseases.or(existing.diseases);
     let allergies = payload.allergies.or(existing.allergies);
-    let emergency_contact_name = payload.emergency_contact_name.or(existing.emergency_contact_name);
-    let emergency_contact_phone = payload.emergency_contact_phone.or(existing.emergency_contact_phone);
-    let emergency_contact_relation = payload.emergency_contact_relation.or(existing.emergency_contact_relation);
+    let emergency_contact_name = payload
+        .emergency_contact_name
+        .or(existing.emergency_contact_name);
+    let emergency_contact_phone = payload
+        .emergency_contact_phone
+        .or(existing.emergency_contact_phone);
+    let emergency_contact_relation = payload
+        .emergency_contact_relation
+        .or(existing.emergency_contact_relation);
 
     let result = sqlx::query_as::<_, RawStudent>(
         r#"
@@ -395,10 +451,14 @@ async fn deactivate_student(
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(SisError::NotFound("Alumno no encontrado o ya desactivado".into()));
+        return Err(SisError::NotFound(
+            "Alumno no encontrado o ya desactivado".into(),
+        ));
     }
 
-    Ok(Json(json!({ "message": "Alumno desactivado correctamente" })))
+    Ok(Json(
+        json!({ "message": "Alumno desactivado correctamente" }),
+    ))
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -418,7 +478,10 @@ async fn list_guardians(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let guardians = sqlx::query_as::<_, RawGuardian>(
         r#"
@@ -446,17 +509,27 @@ async fn add_guardian(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let guardian_user_id = payload.get("guardian_user_id")
+    let guardian_user_id = payload
+        .get("guardian_user_id")
         .and_then(|v| v.as_str())
         .and_then(|v| Uuid::parse_str(v).ok())
-        .ok_or(SisError::Validation("guardian_user_id es requerido (UUID válido)".into()))?;
+        .ok_or(SisError::Validation(
+            "guardian_user_id es requerido (UUID válido)".into(),
+        ))?;
 
-    let relationship = payload.get("relationship")
+    let relationship = payload
+        .get("relationship")
         .and_then(|v| v.as_str())
         .ok_or(SisError::Validation("relationship es requerido".into()))?;
 
-    let authorized_pickup = payload.get("authorized_pickup").and_then(|v| v.as_bool()).unwrap_or(false);
-    let receives_notifications = payload.get("receives_notifications").and_then(|v| v.as_bool()).unwrap_or(true);
+    let authorized_pickup = payload
+        .get("authorized_pickup")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let receives_notifications = payload
+        .get("receives_notifications")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
 
     sqlx::query(
         r#"
@@ -484,7 +557,9 @@ async fn add_guardian(
         SisError::Database(e)
     })?;
 
-    Ok(Json(json!({ "message": "Apoderado vinculado correctamente" })))
+    Ok(Json(
+        json!({ "message": "Apoderado vinculado correctamente" }),
+    ))
 }
 
 async fn remove_guardian(
@@ -506,5 +581,7 @@ async fn remove_guardian(
         return Err(SisError::NotFound("Vínculo no encontrado".into()));
     }
 
-    Ok(Json(json!({ "message": "Apoderado desvinculado correctamente" })))
+    Ok(Json(
+        json!({ "message": "Apoderado desvinculado correctamente" }),
+    ))
 }

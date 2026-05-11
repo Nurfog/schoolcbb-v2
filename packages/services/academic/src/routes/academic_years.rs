@@ -1,27 +1,27 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::{get, post},
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::{AcademicError, AcademicResult};
-use crate::routes::subjects::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::{AcademicError, AcademicResult};
+use crate::routes::subjects::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/academic-years", get(list_years).post(create_year))
-        .route("/api/academic-years/{id}", get(get_year).put(update_year).delete(delete_year))
+        .route(
+            "/api/academic-years/{id}",
+            get(get_year).put(update_year).delete(delete_year),
+        )
         .route("/api/academic-years/{id}/activate", post(activate_year))
         .route("/api/academic-years/clone", post(clone_year))
 }
 
-async fn list_years(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AcademicResult<Json<Value>> {
+async fn list_years(claims: Claims, State(state): State<AppState>) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
     let years = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
@@ -46,7 +46,9 @@ async fn get_year(
     .bind(id)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(AcademicError::NotFound("Año académico no encontrado".into()))?;
+    .ok_or(AcademicError::NotFound(
+        "Año académico no encontrado".into(),
+    ))?;
 
     Ok(Json(json!({ "year": year })))
 }
@@ -100,7 +102,9 @@ async fn update_year(
     .bind(id)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(AcademicError::NotFound("Año académico no encontrado".into()))?;
+    .ok_or(AcademicError::NotFound(
+        "Año académico no encontrado".into(),
+    ))?;
 
     if payload.is_active == Some(true) {
         sqlx::query("UPDATE academic_years SET is_active = false")
@@ -169,16 +173,17 @@ async fn clone_year(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     if payload.from_year == payload.to_year {
-        return Err(AcademicError::Validation("Los años deben ser diferentes".into()));
+        return Err(AcademicError::Validation(
+            "Los años deben ser diferentes".into(),
+        ));
     }
 
     // Verify from_year exists
-    let from_exists: Option<(i32,)> = sqlx::query_as(
-        "SELECT year FROM academic_years WHERE year = $1",
-    )
-    .bind(payload.from_year)
-    .fetch_optional(&state.pool)
-    .await?;
+    let from_exists: Option<(i32,)> =
+        sqlx::query_as("SELECT year FROM academic_years WHERE year = $1")
+            .bind(payload.from_year)
+            .fetch_optional(&state.pool)
+            .await?;
 
     if from_exists.is_none() {
         return Err(AcademicError::NotFound(
@@ -187,16 +192,18 @@ async fn clone_year(
     }
 
     // Ensure to_year academic_year record exists
-    let to_exists: Option<(i32,)> = sqlx::query_as(
-        "SELECT year FROM academic_years WHERE year = $1",
-    )
-    .bind(payload.to_year)
-    .fetch_optional(&state.pool)
-    .await?;
+    let to_exists: Option<(i32,)> =
+        sqlx::query_as("SELECT year FROM academic_years WHERE year = $1")
+            .bind(payload.to_year)
+            .fetch_optional(&state.pool)
+            .await?;
 
     if to_exists.is_none() {
         let id = Uuid::new_v4();
-        let name = payload.to_year_name.clone().unwrap_or_else(|| format!("Año Escolar {}", payload.to_year));
+        let name = payload
+            .to_year_name
+            .clone()
+            .unwrap_or_else(|| format!("Año Escolar {}", payload.to_year));
         sqlx::query(
             "INSERT INTO academic_years (id, year, name, is_active) VALUES ($1, $2, $3, false)",
         )

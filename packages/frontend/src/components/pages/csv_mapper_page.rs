@@ -17,13 +17,25 @@ pub fn CsvMapperPage() -> Element {
     let system_fields_for = |entity: &str| -> Vec<String> {
         match entity {
             "students" => vec![
-                "rut".into(), "first_name".into(), "last_name".into(), "email".into(),
-                "phone".into(), "grade_level".into(), "section".into(), "condicion".into(),
-                "prioritario".into(), "nee".into(),
+                "rut".into(),
+                "first_name".into(),
+                "last_name".into(),
+                "email".into(),
+                "phone".into(),
+                "grade_level".into(),
+                "section".into(),
+                "condicion".into(),
+                "prioritario".into(),
+                "nee".into(),
             ],
             _ => vec![
-                "rut".into(), "first_name".into(), "last_name".into(), "email".into(),
-                "phone".into(), "position".into(), "category".into(),
+                "rut".into(),
+                "first_name".into(),
+                "last_name".into(),
+                "email".into(),
+                "phone".into(),
+                "position".into(),
+                "category".into(),
             ],
         }
     };
@@ -31,7 +43,9 @@ pub fn CsvMapperPage() -> Element {
     let parse_csv = move |_| {
         let content = csv_content();
         let lines: Vec<&str> = content.lines().collect();
-        if lines.is_empty() { return; }
+        if lines.is_empty() {
+            return;
+        }
 
         let headers: Vec<String> = lines[0].split(',').map(|s| s.trim().to_string()).collect();
         csv_headers.set(headers.clone());
@@ -46,7 +60,8 @@ pub fn CsvMapperPage() -> Element {
         for h in &headers {
             let h_lower = h.to_lowercase();
             let matched = fields.iter().find(|f| {
-                f.as_str() == h_lower.as_str() || f.as_str() == h_lower.trim_start_matches('"').trim_end_matches('"')
+                f.as_str() == h_lower.as_str()
+                    || f.as_str() == h_lower.trim_start_matches('"').trim_end_matches('"')
             });
             if let Some(m) = matched {
                 auto_map.insert(h.clone(), m.clone());
@@ -58,7 +73,9 @@ pub fn CsvMapperPage() -> Element {
     };
 
     let do_import = move |_| {
-        if csv_headers().is_empty() { return; }
+        if csv_headers().is_empty() {
+            return;
+        }
         importing.set(true);
         result_msg.set(String::new());
 
@@ -93,7 +110,9 @@ pub fn CsvMapperPage() -> Element {
                     let msg = data["message"].as_str().unwrap_or("Importado").to_string();
                     result_msg.set(msg);
                 }
-                Err(e) => { result_msg.set(format!("Error: {}", e)); }
+                Err(e) => {
+                    result_msg.set(format!("Error: {}", e));
+                }
             }
             importing.set(false);
         });

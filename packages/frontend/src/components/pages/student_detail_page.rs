@@ -4,7 +4,10 @@ use serde_json::Value;
 use crate::api::client;
 
 fn first_letter(s: &str) -> String {
-    s.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+    s.chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "?".to_string())
 }
 
 #[component]
@@ -97,8 +100,17 @@ fn StudentInfoCard(data: Value) -> Element {
 
 #[component]
 fn PromotionCard(data: Value) -> Element {
-    let promotion = data["final_promotion"].as_str().unwrap_or("Pendiente").to_string();
-    let pclass = if promotion == "Promovido" { "status-active" } else if promotion == "Reprobado" { "status-inactive" } else { "pct-warning" };
+    let promotion = data["final_promotion"]
+        .as_str()
+        .unwrap_or("Pendiente")
+        .to_string();
+    let pclass = if promotion == "Promovido" {
+        "status-active"
+    } else if promotion == "Reprobado" {
+        "status-inactive"
+    } else {
+        "pct-warning"
+    };
 
     rsx! {
         div { class: "widget-card",
@@ -120,15 +132,18 @@ fn GradesCard(title: String, data: Value) -> Element {
     let global_avg = data["global_average"].as_f64().unwrap_or(0.0);
     let global_str = format!("{:.1}", global_avg);
 
-    let rows: Vec<_> = subjects.iter().map(|s| {
-        let name = s["subject"].as_str().unwrap_or("-").to_string();
-        let avg = s["average"].as_f64().unwrap_or(0.0);
-        let avg_str = format!("{:.1}", avg);
-        let avg_class = if avg < 4.0 { "pct-danger" } else { "pct-good" }.to_string();
-        let min_str = format!("{:.1}", s["min_grade"].as_f64().unwrap_or(0.0));
-        let max_str = format!("{:.1}", s["max_grade"].as_f64().unwrap_or(0.0));
-        (name, avg_str, avg_class, min_str, max_str)
-    }).collect();
+    let rows: Vec<_> = subjects
+        .iter()
+        .map(|s| {
+            let name = s["subject"].as_str().unwrap_or("-").to_string();
+            let avg = s["average"].as_f64().unwrap_or(0.0);
+            let avg_str = format!("{:.1}", avg);
+            let avg_class = if avg < 4.0 { "pct-danger" } else { "pct-good" }.to_string();
+            let min_str = format!("{:.1}", s["min_grade"].as_f64().unwrap_or(0.0));
+            let max_str = format!("{:.1}", s["max_grade"].as_f64().unwrap_or(0.0));
+            (name, avg_str, avg_class, min_str, max_str)
+        })
+        .collect();
 
     rsx! {
         div { class: "widget-card",
@@ -168,9 +183,15 @@ fn GradesCard(title: String, data: Value) -> Element {
 fn InterviewCard(data: Value) -> Element {
     let list = data["interviews"].as_array().cloned().unwrap_or_default();
 
-    let rows: Vec<(String, String)> = list.iter().map(|e| {
-        (e["date"].as_str().unwrap_or("").to_string(), e["reason"].as_str().unwrap_or("").to_string())
-    }).collect();
+    let rows: Vec<(String, String)> = list
+        .iter()
+        .map(|e| {
+            (
+                e["date"].as_str().unwrap_or("").to_string(),
+                e["reason"].as_str().unwrap_or("").to_string(),
+            )
+        })
+        .collect();
 
     if rows.is_empty() {
         return rsx! {
@@ -216,17 +237,26 @@ fn InterviewCard(data: Value) -> Element {
 #[component]
 fn FinanceCard(data: Value) -> Element {
     let fees = data["fees"].as_array().cloned().unwrap_or_default();
-    let total_pending: f64 = fees.iter()
+    let total_pending: f64 = fees
+        .iter()
         .filter(|f| !f["paid"].as_bool().unwrap_or(true))
         .map(|f| f["amount"].as_f64().unwrap_or(0.0))
         .sum();
     let debt_str = format!("${:.0}", total_pending);
 
-    let rows: Vec<(String, String, String, bool)> = fees.iter().map(|f| {
-        let desc = f["description"].as_str().unwrap_or("").to_string();
-        let amount = f["amount"].as_f64().unwrap_or(0.0);
-        (desc, format!("${:.0}", amount), f["due_date"].as_str().unwrap_or("").to_string(), f["paid"].as_bool().unwrap_or(false))
-    }).collect();
+    let rows: Vec<(String, String, String, bool)> = fees
+        .iter()
+        .map(|f| {
+            let desc = f["description"].as_str().unwrap_or("").to_string();
+            let amount = f["amount"].as_f64().unwrap_or(0.0);
+            (
+                desc,
+                format!("${:.0}", amount),
+                f["due_date"].as_str().unwrap_or("").to_string(),
+                f["paid"].as_bool().unwrap_or(false),
+            )
+        })
+        .collect();
 
     if rows.is_empty() {
         return rsx! {

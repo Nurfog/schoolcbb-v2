@@ -1,25 +1,25 @@
 use dioxus::prelude::*;
 
 use crate::api::client;
-use crate::components::pages::students_page::StudentsPage;
+use crate::components::pages::admission_page::AdmissionPage;
 use crate::components::pages::attendance_page::AttendancePage;
+use crate::components::pages::config_page::ConfigPage;
+use crate::components::pages::corporations_page::CorporationsPage;
+use crate::components::pages::courses_page::CoursesPage;
+use crate::components::pages::csv_import_page::CsvImportPage;
+use crate::components::pages::enrollments_page::EnrollmentsPage;
+use crate::components::pages::finance_page::FinancePage;
 use crate::components::pages::grades_page::GradesPage;
-use crate::components::pages::student_detail_page::StudentDetailPage;
+use crate::components::pages::hr_detail_page::HrDetailPage;
+use crate::components::pages::hr_page::HrPage;
+use crate::components::pages::login_page::LoginPage;
+use crate::components::pages::module_manager::ModuleManager;
 use crate::components::pages::notifications_page::NotificationsPage;
 use crate::components::pages::reports_page::ReportsPage;
-use crate::components::pages::finance_page::FinancePage;
-use crate::components::pages::users_page::UsersPage;
-use crate::components::pages::module_manager::ModuleManager;
-use crate::components::pages::config_page::ConfigPage;
-use crate::components::pages::courses_page::CoursesPage;
-use crate::components::pages::enrollments_page::EnrollmentsPage;
+use crate::components::pages::student_detail_page::StudentDetailPage;
+use crate::components::pages::students_page::StudentsPage;
 use crate::components::pages::subjects_page::SubjectsPage;
-use crate::components::pages::login_page::LoginPage;
-use crate::components::pages::admission_page::AdmissionPage;
-use crate::components::pages::hr_page::HrPage;
-use crate::components::pages::hr_detail_page::HrDetailPage;
-use crate::components::pages::csv_import_page::CsvImportPage;
-use crate::components::pages::corporations_page::CorporationsPage;
+use crate::components::pages::users_page::UsersPage;
 
 pub fn has_token() -> bool {
     web_sys::window()
@@ -133,7 +133,6 @@ pub fn Notifications() -> Element {
     require_auth();
     rsx! { NotificationsPage {} }
 }
-
 
 #[component]
 pub fn Reports() -> Element {

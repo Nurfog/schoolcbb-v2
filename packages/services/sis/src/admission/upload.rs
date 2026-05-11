@@ -1,14 +1,17 @@
-use axum::{extract::{Multipart, State}, routing::post, Json, Router};
-use serde_json::{json, Value};
+use axum::{
+    Json, Router,
+    extract::{Multipart, State},
+    routing::post,
+};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::SisResult;
-use crate::routes::students::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::SisResult;
+use crate::routes::students::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/api/admission/documents/upload", post(upload_document))
+    Router::new().route("/api/admission/documents/upload", post(upload_document))
 }
 
 async fn upload_document(
@@ -16,7 +19,10 @@ async fn upload_document(
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> SisResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Admision"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
+    )?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let mut prospect_id = None;
@@ -28,8 +34,11 @@ async fn upload_document(
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
             "prospect_id" => {
-                prospect_id = Some(Uuid::parse_str(field.text().await.unwrap_or_default().trim())
-                    .map_err(|_| crate::error::SisError::Validation("prospect_id inválido".into()))?);
+                prospect_id = Some(
+                    Uuid::parse_str(field.text().await.unwrap_or_default().trim()).map_err(
+                        |_| crate::error::SisError::Validation("prospect_id inválido".into()),
+                    )?,
+                );
             }
             "doc_type" => {
                 doc_type = field.text().await.unwrap_or_default();
@@ -42,21 +51,30 @@ async fn upload_document(
         }
     }
 
-    let pid = prospect_id.ok_or_else(|| crate::error::SisError::Validation("prospect_id es obligatorio".into()))?;
+    let pid = prospect_id
+        .ok_or_else(|| crate::error::SisError::Validation("prospect_id es obligatorio".into()))?;
 
     if file_data.is_empty() {
-        return Err(crate::error::SisError::Validation("Debe adjuntar un archivo".into()));
+        return Err(crate::error::SisError::Validation(
+            "Debe adjuntar un archivo".into(),
+        ));
     }
 
     // Create uploads directory structure
-    let upload_dir = std::path::Path::new("uploads").join("prospects").join(pid.to_string());
-    tokio::fs::create_dir_all(&upload_dir).await
-        .map_err(|e| crate::error::SisError::Internal(format!("Error al crear directorio: {}", e)))?;
+    let upload_dir = std::path::Path::new("uploads")
+        .join("prospects")
+        .join(pid.to_string());
+    tokio::fs::create_dir_all(&upload_dir).await.map_err(|e| {
+        crate::error::SisError::Internal(format!("Error al crear directorio: {}", e))
+    })?;
 
     // Save file
     let file_path = upload_dir.join(&file_name);
-    tokio::fs::write(&file_path, &file_data).await
-        .map_err(|e| crate::error::SisError::Internal(format!("Error al guardar archivo: {}", e)))?;
+    tokio::fs::write(&file_path, &file_data)
+        .await
+        .map_err(|e| {
+            crate::error::SisError::Internal(format!("Error al guardar archivo: {}", e))
+        })?;
 
     let s3_url = Some(format!("/uploads/prospects/{}/{}", pid, file_name));
 

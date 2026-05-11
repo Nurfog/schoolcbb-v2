@@ -11,10 +11,7 @@ pub struct AuditEntry {
 }
 
 #[cfg(feature = "db")]
-pub async fn log(
-    pool: &sqlx::PgPool,
-    entry: &AuditEntry,
-) {
+pub async fn log(pool: &sqlx::PgPool, entry: &AuditEntry) {
     let id = Uuid::new_v4();
     let _ = sqlx::query(
         r#"

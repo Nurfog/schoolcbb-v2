@@ -1,27 +1,33 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::error::AttendanceResult;
-use crate::routes::attendance::{require_any_role, Claims};
 use crate::AppState;
+use crate::error::AttendanceResult;
+use crate::routes::attendance::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/attendance/alerts", get(alerts))
-        .route("/api/attendance/alerts/student/{student_id}", get(student_alert))
-        .route("/api/attendance/alerts/course/{course_id}", get(course_alerts))
+        .route(
+            "/api/attendance/alerts/student/{student_id}",
+            get(student_alert),
+        )
+        .route(
+            "/api/attendance/alerts/course/{course_id}",
+            get(course_alerts),
+        )
 }
 
-async fn alerts(
-    claims: Claims,
-    State(state): State<AppState>,
-) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+async fn alerts(claims: Claims, State(state): State<AppState>) -> AttendanceResult<Json<Value>> {
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let raw = sqlx::query_as::<_, RawAlert>(
         r#"
@@ -91,7 +97,17 @@ async fn student_alert(
     State(state): State<AppState>,
     Path(student_id): Path<Uuid>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor", "Apoderado"])?;
+    require_any_role(
+        &claims,
+        &[
+            "Administrador",
+            "Sostenedor",
+            "Director",
+            "UTP",
+            "Profesor",
+            "Apoderado",
+        ],
+    )?;
 
     let raw = sqlx::query_as::<_, RawAlert>(
         r#"
@@ -150,7 +166,10 @@ async fn course_alerts(
     State(state): State<AppState>,
     Path(course_id): Path<Uuid>,
 ) -> AttendanceResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"])?;
+    require_any_role(
+        &claims,
+        &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
+    )?;
 
     let raw = sqlx::query_as::<_, RawAlert>(
         r#"

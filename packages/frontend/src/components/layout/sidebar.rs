@@ -37,8 +37,16 @@ fn role_label(role: &str) -> &'static str {
 #[component]
 pub fn Sidebar() -> Element {
     let claims = use_signal(jwt_claims);
-    let user_name = claims().as_ref().and_then(|c| c["name"].as_str()).unwrap_or("Usuario").to_string();
-    let user_role = claims().as_ref().and_then(|c| c["role"].as_str()).unwrap_or("").to_string();
+    let user_name = claims()
+        .as_ref()
+        .and_then(|c| c["name"].as_str())
+        .unwrap_or("Usuario")
+        .to_string();
+    let user_role = claims()
+        .as_ref()
+        .and_then(|c| c["role"].as_str())
+        .unwrap_or("")
+        .to_string();
     let user_initials = initials(&user_name);
 
     let fav_ver = use_context::<Signal<u32>>();
