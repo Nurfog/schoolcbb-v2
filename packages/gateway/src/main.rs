@@ -28,6 +28,7 @@ struct AppState {
     notifications_url: String,
     finance_url: String,
     reporting_url: String,
+    portal_url: String,
     frontend_url: String,
 }
 
@@ -51,6 +52,7 @@ async fn main() {
         frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:8080".into()),
         finance_url: env::var("FINANCE_URL").unwrap_or_else(|_| "http://localhost:3006".into()),
         reporting_url: env::var("REPORTING_URL").unwrap_or_else(|_| "http://localhost:3007".into()),
+        portal_url: env::var("PORTAL_URL").unwrap_or_else(|_| "http://localhost:3010".into()),
     };
     let cors = CorsLayer::new()
         .allow_origin(
@@ -74,6 +76,14 @@ async fn main() {
                 )
             }),
         )
+        .route("/api/auth/exchange", any(proxy_portal))
+        .route("/api/auth/exchange/{*path}", any(proxy_portal))
+        .route("/api/admin", any(proxy_identity))
+        .route("/api/admin/{*path}", any(proxy_identity))
+        .route("/api/public", any(proxy_identity))
+        .route("/api/public/{*path}", any(proxy_identity))
+        .route("/api/client", any(proxy_identity))
+        .route("/api/client/{*path}", any(proxy_identity))
         .route("/api/auth", any(proxy_identity))
         .route("/api/auth/{*path}", any(proxy_identity))
         .route("/api/user", any(proxy_identity))
@@ -115,6 +125,8 @@ async fn main() {
         .route("/api/attendance/{*path}", any(proxy_attendance))
         .route("/api/communications", any(proxy_notifications))
         .route("/api/communications/{*path}", any(proxy_notifications))
+        .route("/api/notifications", any(proxy_notifications))
+        .route("/api/notifications/{*path}", any(proxy_notifications))
         .route("/api/finance", any(proxy_finance))
         .route("/api/finance/{*path}", any(proxy_finance))
         .route("/api/reports", any(proxy_reporting))
@@ -238,6 +250,15 @@ proxy_handler!(proxy_attendance, "attendance");
 proxy_handler!(proxy_notifications, "notifications");
 proxy_handler!(proxy_finance, "finance");
 proxy_handler!(proxy_reporting, "reporting");
+proxy_handler!(proxy_portal, "portal");
+
+fn extract_jwt_from_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
+    headers.get("cookie")?
+        .to_str().ok()?
+        .split(';')
+        .find_map(|c| c.trim().strip_prefix("jwt_token="))
+        .map(|v| v.to_string())
+}
 
 async fn proxy_request(state: &AppState, service: &str, req: Request) -> Response {
     let base_url = match service {
@@ -248,6 +269,7 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
         "notifications" => &state.notifications_url,
         "finance" => &state.finance_url,
         "reporting" => &state.reporting_url,
+        "portal" => &state.portal_url,
         _ => return (StatusCode::BAD_REQUEST, "Unknown service").into_response(),
     };
 
@@ -260,12 +282,27 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
     let upstream_url = format!("{base_url}{path}{query}");
 
     let method = req.method().clone();
-    let req_headers: Vec<(String, String)> = req
-        .headers()
-        .iter()
-        .filter(|(k, _)| *k != "host")
-        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
-        .collect();
+    let mut has_auth = false;
+    let mut req_headers: Vec<(String, String)> = Vec::new();
+
+    for (k, v) in req.headers().iter() {
+        let key = k.to_string();
+        if key == "host" {
+            continue;
+        }
+        if key.eq_ignore_ascii_case("authorization") {
+            has_auth = true;
+        }
+        req_headers.push((key, v.to_str().unwrap_or("").to_string()));
+    }
+
+    // Fallback: si no hay Authorization header pero hay cookie jwt_token, agregarlo
+    if !has_auth {
+        if let Some(jwt) = extract_jwt_from_cookie(req.headers()) {
+            req_headers.push(("Authorization".into(), format!("Bearer {jwt}")));
+        }
+    }
+
     let body_bytes = req
         .into_body()
         .collect()

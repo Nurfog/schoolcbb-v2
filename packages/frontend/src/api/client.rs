@@ -24,8 +24,15 @@ fn client() -> &'static reqwest::Client {
 
 fn get_token() -> Option<String> {
     let window = web_sys::window()?;
-    let storage = window.local_storage().ok().flatten()?;
-    storage.get_item("jwt_token").ok().flatten()
+    let document = window.document()?;
+    let cookie = js_sys::Reflect::get(&document, &wasm_bindgen::JsValue::from_str("cookie"))
+        .ok()
+        .and_then(|v| v.as_string())?;
+    cookie.split(';').find_map(|c| {
+        let c = c.trim();
+        c.strip_prefix("jwt_token=").map(|v| v.to_string())
+    })
+    .filter(|v| !v.is_empty())
 }
 
 fn auth_header() -> Option<String> {
@@ -84,8 +91,9 @@ pub async fn login(email: &str, password: &str) -> Result<Value, String> {
 
     if let Some(token) = result.get("token").and_then(|v| v.as_str()) {
         if let Some(window) = web_sys::window() {
-            if let Ok(Some(storage)) = window.local_storage() {
-                let _ = storage.set_item("jwt_token", token);
+            if let Some(document) = window.document() {
+                let cookie = format!("jwt_token={}; Path=/; SameSite=Lax; Max-Age=43200", token);
+                let _ = js_sys::Reflect::set(&document, &wasm_bindgen::JsValue::from_str("cookie"), &wasm_bindgen::JsValue::from_str(&cookie));
             }
         }
     }
@@ -422,6 +430,68 @@ pub async fn save_custom_field_values(entity_id: &str, payload: &Value) -> Resul
 pub async fn init_online_payment(fee_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/finance/payment/init/{}", fee_id)).await
 }
+pub async fn exchange_code(code: &str) -> Result<Option<Value>, String> {
+    let resp = client()
+        .post(&abs_url("/api/auth/exchange"))
+        .json(&json!({"code": code}))
+        .send()
+        .await
+        .map_err(|e| format!("Error: {e}"))?;
+    let data: Value = resp.json().await.map_err(|e| format!("Parse: {e}"))?;
+    if data.get("token").is_some() {
+        Ok(Some(data))
+    } else if let Some(err) = data.get("error").and_then(|v| v.as_str()) {
+        Err(err.to_string())
+    } else {
+        Ok(None)
+    }
+}
+
+// ─── Admin / Root ───
+pub async fn admin_list_plans() -> Result<Value, String> {
+    fetch_json("/api/admin/license-plans").await
+}
+pub async fn admin_create_plan(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admin/license-plans", payload).await
+}
+pub async fn admin_update_plan(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admin/license-plans/{}", id), payload).await
+}
+pub async fn admin_delete_plan(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/admin/license-plans/{}", id)).await
+}
+pub async fn admin_set_plan_modules(id: &str, payload: &Value) -> Result<Value, String> {
+    post_json(&format!("/api/admin/license-plans/{}/modules", id), payload).await
+}
+pub async fn admin_list_licenses() -> Result<Value, String> {
+    fetch_json("/api/admin/licenses").await
+}
+pub async fn admin_assign_license(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admin/licenses", payload).await
+}
+pub async fn admin_extend_license(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admin/licenses/{}/extend", id), payload).await
+}
+pub async fn admin_change_plan(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admin/licenses/{}/change-plan", id), payload).await
+}
+#[allow(dead_code)]
+pub async fn admin_update_license_status(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admin/licenses/{}/status", id), payload).await
+}
+pub async fn admin_list_payments() -> Result<Value, String> {
+    fetch_json("/api/admin/payments").await
+}
+pub async fn admin_register_payment(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admin/payments", payload).await
+}
+pub async fn admin_activity_log() -> Result<Value, String> {
+    fetch_json("/api/admin/activity-log").await
+}
+pub async fn admin_system_health() -> Result<Value, String> {
+    fetch_json("/api/admin/system/health").await
+}
+
 pub async fn check_vacancies() -> Result<Value, String> {
     fetch_json("/api/admission/vacancy-check").await
 }

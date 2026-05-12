@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section">
+    <div class="container" style="max-width: 600px; margin: 0 auto;">
+        <h2>Contáctanos</h2>
+        <p style="text-align: center; color: #546e7a; margin-bottom: 2rem;">Déjanos tus datos y te contactaremos para agendar una demo personalizada.</p>
+        <form action="/api/public/contact" method="POST" onsubmit="event.preventDefault(); sendContact(this)">
+            <input type="text" name="name" placeholder="Nombre completo" required>
+            <input type="email" name="email" placeholder="Correo electrónico" required>
+            <input type="text" name="company" placeholder="Nombre del colegio / institución">
+            <textarea name="message" placeholder="Cuéntanos sobre tu proyecto..." required></textarea>
+            <button type="submit">Enviar Mensaje</button>
+        </form>
+        <div id="contact-success" style="display:none; text-align: center; padding: 2rem; background: #e8f5e9; border-radius: 12px; margin-top: 2rem;">
+            <h3>¡Mensaje enviado!</h3>
+            <p>Te contactaremos a la brevedad. Gracias por tu interés.</p>
+        </div>
+    </div>
+</section>
+
+<script>
+async function sendContact(form) {
+    const data = Object.fromEntries(new FormData(form));
+    try {
+        const resp = await fetch('/api/public/contact', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        if (resp.ok) {
+            form.style.display = 'none';
+            document.getElementById('contact-success').style.display = 'block';
+        }
+    } catch(e) {
+        alert('Error al enviar el mensaje. Intenta nuevamente.');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h2>Planes y Precios</h2>
+        <p style="text-align: center; color: #546e7a; margin-bottom: 3rem; font-size: 1.1rem;">Elige el plan que mejor se adapte a las necesidades de tu institución.</p>
+        <div class="pricing-grid">
+            {% for plan in plans %}
+            <div class="pricing-card {% if plan.featured %}featured{% endif %}">
+                {% if plan.featured %}<div class="badge">Más popular</div>{% endif %}
+                <h3>{{ plan.name }}</h3>
+                <div class="price">${{ plan.price_monthly }} <small>/mes</small></div>
+                <p style="color: #546e7a; font-size: 0.9rem; min-height: 3rem;">{{ plan.description }}</p>
+                <ul>
+                    {% for mod in plan.modules %}
+                    <li{% if not mod.included %} class="missing"{% endif %}>{{ mod.name }}</li>
+                    {% endfor %}
+                </ul>
+                <a href="/contact" class="btn">Solicitar</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

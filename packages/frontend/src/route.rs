@@ -4,10 +4,15 @@ use crate::api::client;
 use crate::seo::use_page_title;
 use crate::components::pages::academic_years_page::AcademicYearsPage;
 use crate::components::pages::admission_page::AdmissionPage;
+use crate::components::pages::admin_contracts_page::AdminContractsPage;
+use crate::components::pages::admin_payments_page::AdminPaymentsPage;
+use crate::components::pages::admin_plans_page::AdminPlansPage;
+use crate::components::pages::admin_system_page::AdminSystemPage;
 use crate::components::pages::agenda_page::AgendaPage;
 use crate::components::pages::attendance_page::AttendancePage;
 use crate::components::pages::audit_page::AuditPage;
 use crate::components::pages::classrooms_page::ClassroomsPage;
+use crate::components::pages::client_portal_page::ClientPortalPage;
 use crate::components::pages::complaints_page::ComplaintsPage;
 use crate::components::pages::config_page::ConfigPage;
 use crate::components::pages::corporations_page::CorporationsPage;
@@ -30,16 +35,26 @@ use crate::components::pages::sige_page::SigePage;
 use crate::components::pages::student_detail_page::StudentDetailPage;
 use crate::components::pages::students_page::StudentsPage;
 use crate::components::pages::subjects_page::SubjectsPage;
+use crate::components::pages::root_page::RootDashboard;
 use crate::components::pages::users_page::UsersPage;
 
 pub fn has_token() -> bool {
-    web_sys::window()
-        .and_then(|w| w.local_storage().ok())
-        .flatten()
-        .and_then(|s| s.get_item("jwt_token").ok())
-        .flatten()
-        .map(|t| !t.is_empty())
-        .unwrap_or(false)
+    let window = match web_sys::window() {
+        Some(w) => w,
+        None => return false,
+    };
+    let doc = match window.document() {
+        Some(d) => d,
+        None => return false,
+    };
+    let cookie = js_sys::Reflect::get(&doc, &wasm_bindgen::JsValue::from_str("cookie"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_default();
+    cookie.split(';').any(|c| {
+        let c = c.trim();
+        c.starts_with("jwt_token=") && c.len() > "jwt_token=".len()
+    })
 }
 
 fn require_auth() {
@@ -54,6 +69,12 @@ fn require_auth() {
 pub enum Route {
     #[route("/login")]
     Login {},
+    #[route("/session-login")]
+    SessionLogin {},
+    #[route("/dashboard")]
+    Dashboard {},
+    #[route("/root")]
+    RootDashboard {},
     #[route("/")]
     ModuleManagerRoot {},
     #[route("/students")]
@@ -104,12 +125,22 @@ pub enum Route {
     Classrooms {},
     #[route("/payroll")]
     Payroll {},
+    #[route("/license-portal")]
+    ClientPortal {},
     #[route("/my-portal")]
     EmployeePortal {},
     #[route("/sige")]
     Sige {},
     #[route("/complaints")]
     Complaints {},
+    #[route("/admin/plans")]
+    AdminPlans {},
+    #[route("/admin/contracts")]
+    AdminContracts {},
+    #[route("/admin/payments")]
+    AdminPayments {},
+    #[route("/admin/system")]
+    AdminSystem {},
 }
 
 #[component]
@@ -119,26 +150,92 @@ pub fn Login() -> Element {
 }
 
 #[component]
+pub fn SessionLogin() -> Element {
+    use_effect(|| {
+        let window = web_sys::window();
+        if let Some(w) = window {
+            let params = w.location().search().ok().unwrap_or_default();
+            let code = params
+                .trim_start_matches('?')
+                .split('&')
+                .find_map(|p| p.strip_prefix("code="))
+                .map(|v| urlencoding_decode(v))
+                .unwrap_or_default();
+            if !code.is_empty() {
+                spawn(async move {
+                    match crate::api::client::exchange_code(&code).await {
+                        Ok(Some(data)) => {
+                            if let Some(token) = data.get("token").and_then(|v| v.as_str()) {
+                                if let Some(doc) = w.document() {
+                                    let cookie = format!("jwt_token={}; Path=/; SameSite=Lax; Max-Age=43200", token);
+                                    let _ = js_sys::Reflect::set(&doc, &wasm_bindgen::JsValue::from_str("cookie"), &wasm_bindgen::JsValue::from_str(&cookie));
+                                }
+                                let origin = w.location().origin().ok().unwrap_or_default();
+                                let _ = w.location().set_href(&origin);
+                            }
+                        }
+                        _ => {
+                            let _ = w.location().set_href("http://localhost:3010/login?error=Ocurrió un error al iniciar sesión");
+                        }
+                    }
+                });
+            }
+        }
+    });
+    use_page_title("Iniciando sesión...");
+    rsx! { div { class: "loading-spinner", "Iniciando sesión..." } }
+}
+
+fn urlencoding_decode(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '%' => {
+                let hex: String = chars.by_ref().take(2).collect();
+                if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                    result.push(byte as char);
+                }
+            }
+            '+' => result.push(' '),
+            other => result.push(other),
+        }
+    }
+    result
+}
+
+#[component]
+pub fn Dashboard() -> Element {
+    require_auth();
+    let nav = navigator();
+    nav.replace("/");
+    rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
+}
+
+#[component]
+pub fn RootDashboardRoute() -> Element {
+    require_auth();
+    use_page_title("Panel Root");
+    rsx! { RootDashboard {} }
+}
+
+#[component]
 pub fn ModuleManagerRoot() -> Element {
     require_auth();
     let prefs = use_resource(|| async move { client::fetch_json("/api/user/preferences").await });
-    let mut navigated = use_signal(|| false);
 
     match prefs() {
         Some(Ok(data)) => {
             let show = data["show_module_manager"].as_bool().unwrap_or(true);
-            if !show && !navigated() {
-                navigated.set(true);
-                let nav = navigator();
-                nav.replace("/dashboard");
-            }
             if show {
                 rsx! { ModuleManager {} }
             } else {
                 rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
             }
         }
-        _ => rsx! { div { class: "loading-spinner", "Cargando..." } },
+        _ => {
+            rsx! { div { class: "loading-spinner", "Cargando..." } }
+        }
     }
 }
 
@@ -310,6 +407,13 @@ pub fn Payroll() -> Element {
 }
 
 #[component]
+pub fn ClientPortal() -> Element {
+    require_auth();
+    use_page_title("Portal de Licencia");
+    rsx! { ClientPortalPage {} }
+}
+
+#[component]
 pub fn EmployeePortal() -> Element {
     require_auth();
     use_page_title("Mi Portal");
@@ -328,4 +432,32 @@ pub fn Complaints() -> Element {
     require_auth();
     use_page_title("Ley Karin - Canal de Denuncias");
     rsx! { ComplaintsPage {} }
+}
+
+#[component]
+pub fn AdminPlans() -> Element {
+    require_auth();
+    use_page_title("Planes - Root");
+    rsx! { AdminPlansPage {} }
+}
+
+#[component]
+pub fn AdminContracts() -> Element {
+    require_auth();
+    use_page_title("Contratos - Root");
+    rsx! { AdminContractsPage {} }
+}
+
+#[component]
+pub fn AdminPayments() -> Element {
+    require_auth();
+    use_page_title("Pagos - Root");
+    rsx! { AdminPaymentsPage {} }
+}
+
+#[component]
+pub fn AdminSystem() -> Element {
+    require_auth();
+    use_page_title("Sistema - Root");
+    rsx! { AdminSystemPage {} }
 }

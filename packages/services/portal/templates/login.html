@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <meta name="description" content="Inicia sesión en SchoolCBB - Plataforma de gestión escolar integral.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #1a2b3c 0%, #243b4f 50%, #1a2b3c 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-header { text-align: center; margin-bottom: 2rem; }
+    .login-logo {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 1.8rem; font-weight: 800; color: #fff;
+    }
+    .login-header h1 { font-size: 1.5rem; font-weight: 700; color: #1a2b3c; }
+    .login-header p { font-size: 0.9rem; color: #78909c; margin-top: 0.3rem; }
+    .field { margin-bottom: 1.2rem; }
+    .field label { display: block; font-size: 0.85rem; font-weight: 600; color: #37474f; margin-bottom: 0.4rem; }
+    .field input {
+      width: 100%; padding: 0.75rem 1rem;
+      border: 1.5px solid #cfd8dc; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 0.95rem;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .field input:focus { border-color: #4fc3f7; box-shadow: 0 0 0 3px rgba(79,195,247,0.15); }
+    .login-btn {
+      width: 100%; padding: 0.8rem;
+      background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+      color: #fff; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .login-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,195,247,0.4); }
+    .login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .login-error {
+      background: #ffebee; color: #c62828; padding: 0.7rem 1rem;
+      border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; text-align: center;
+    }
+    .login-footer { text-align: center; margin-top: 1.5rem; }
+    .login-footer a { color: #4fc3f7; text-decoration: none; font-size: 0.85rem; font-weight: 500; }
+    .login-footer a:hover { text-decoration: underline; }
+    .spinner-icon {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo">SC</div>
+      <h1>SchoolCBB</h1>
+      <p>Plataforma Escolar</p>
+    </div>
+    <form id="loginForm" onsubmit="return handleLogin(event)">
+      <div id="errorMsg" class="login-error" style="display:none"></div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="email@colegio.cl" required autocomplete="email" autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" placeholder="contraseña" required autocomplete="current-password">
+      </div>
+      <button type="submit" id="loginBtn" class="login-btn">Iniciar Sesión</button>
+    </form>
+    <div class="login-footer">
+      <a href="/">Volver al inicio</a>
+    </div>
+  </div>
+  <script>
+    async function handleLogin(event) {
+      event.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('errorMsg');
+      const btn = document.getElementById('loginBtn');
+
+      if (!email || !password) {
+        showError('Email y contraseña son obligatorios');
+        return false;
+      }
+
+      errorEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Ingresando...';
+
+      try {
+        const resp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await resp.json();
+
+        if (data.one_time_code) {
+          window.location.href = 'http://localhost:8080/session-login?code=' + encodeURIComponent(data.one_time_code);
+        } else {
+          showError(data.error || 'Credenciales inválidas');
+        }
+      } catch (err) {
+        showError('Error de conexión. Verifica que el servidor esté disponible.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Iniciar Sesión';
+      }
+      return false;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>

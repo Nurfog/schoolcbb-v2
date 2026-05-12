@@ -2,15 +2,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: schoolcbb
-      POSTGRES_PASSWORD: schoolcbb
-      POSTGRES_DB: schoolcbb
+      POSTGRES_USER: schoolccb
+      POSTGRES_PASSWORD: schoolccb
+      POSTGRES_DB: schoolccb
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U schoolcbb"]
+      test: ["CMD-SHELL", "pg_isready -U schoolccb"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,7 +19,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-gateway
+    command: schoolccb-gateway
     ports:
       - "3000:3000"
     env_file: .env
@@ -35,6 +35,7 @@ services:
       NOTIFICATIONS_URL: http://notifications:3005
       FINANCE_URL: http://finance:3006
       REPORTING_URL: http://reporting:3007
+      PORTAL_URL: http://portal:3010
     depends_on:
       - identity
 
@@ -42,13 +43,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-identity
+    command: schoolccb-identity
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3001
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
@@ -58,13 +59,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-sis
+    command: schoolccb-sis
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3002
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
@@ -74,13 +75,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-academic
+    command: schoolccb-academic
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3003
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
@@ -90,13 +91,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-attendance
+    command: schoolccb-attendance
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3004
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
@@ -106,13 +107,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-notifications
+    command: schoolccb-notifications
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3005
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
@@ -122,13 +123,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-finance
+    command: schoolccb-finance
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3006
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
@@ -138,17 +139,34 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: schoolcbb-reporting
+    command: schoolccb-reporting
     env_file: .env
     environment:
       HOST: 0.0.0.0
       PORT: 3007
       RUST_LOG: info
-      DATABASE_URL: postgres://schoolcbb:schoolcbb@db:5432/schoolcbb
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
       JWT_SECRET: cambio-en-produccion
     depends_on:
       db:
         condition: service_healthy
+
+  portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-portal
+    ports:
+      - "3010:3010"
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3010
+      RUST_LOG: info
+      IDENTITY_URL: http://identity:3001
+      FRONTEND_URL: http://localhost:8080
+    depends_on:
+      - identity
 
   frontend:
     build:
