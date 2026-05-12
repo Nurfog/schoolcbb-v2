@@ -7,6 +7,7 @@ pub mod event_bus;
 pub mod finance;
 pub mod grades;
 pub mod hr;
+pub mod licensing;
 pub mod modules;
 pub mod reporting;
 pub mod roles;

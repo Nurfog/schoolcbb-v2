@@ -92,6 +92,10 @@ pub fn router() -> Router<AppState> {
             "/api/communications/interviews/student/{student_id}",
             get(interviews_by_student),
         )
+        .route("/api/notifications", post(send_notification))
+        .route("/api/notifications", get(list_notifications))
+        .route("/api/notifications/unread-count", get(unread_notification_count))
+        .route("/api/notifications/{id}/read", post(mark_notification_read))
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -139,7 +143,7 @@ async fn list_messages(claims: Claims, State(state): State<AppState>) -> NotifRe
 
     let user_id: Uuid = claims.sub.parse().map_err(|_| NotifError::Unauthorized)?;
 
-    let messages = sqlx::query_as::<_, schoolcbb_common::communication::Message>(
+    let messages = sqlx::query_as::<_, schoolccb_common::communication::Message>(
         r#"
         SELECT id, sender_id, receiver_id, subject, body, read, created_at
         FROM messages WHERE receiver_id = $1 OR sender_id = $1
@@ -158,7 +162,7 @@ async fn list_messages(claims: Claims, State(state): State<AppState>) -> NotifRe
 async fn send_message(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::communication::CreateMessagePayload>,
+    Json(payload): Json<schoolccb_common::communication::CreateMessagePayload>,
 ) -> NotifResult<Json<Value>> {
     require_any_role(
         &claims,
@@ -181,10 +185,10 @@ async fn send_message(
         ));
     }
 
-    let mut sent: Vec<schoolcbb_common::communication::Message> = vec![];
+    let mut sent: Vec<schoolccb_common::communication::Message> = vec![];
     for recv_id in &recipients {
         let id = Uuid::new_v4();
-        let msg = sqlx::query_as::<_, schoolcbb_common::communication::Message>(
+        let msg = sqlx::query_as::<_, schoolccb_common::communication::Message>(
             r#"
             INSERT INTO messages (id, sender_id, receiver_id, subject, body)
             VALUES ($1, $2, $3, $4, $5)
@@ -216,11 +220,11 @@ async fn send_message(
 
 async fn resolve_recipients(
     pool: &sqlx::PgPool,
-    audience: &schoolcbb_common::communication::AudienceTarget,
+    audience: &schoolccb_common::communication::AudienceTarget,
 ) -> Result<Vec<Uuid>, NotifError> {
     match audience {
-        schoolcbb_common::communication::AudienceTarget::User(uid) => Ok(vec![*uid]),
-        schoolcbb_common::communication::AudienceTarget::Course(course_id) => {
+        schoolccb_common::communication::AudienceTarget::User(uid) => Ok(vec![*uid]),
+        schoolccb_common::communication::AudienceTarget::Course(course_id) => {
             let rows: Vec<(Uuid,)> = sqlx::query_as(
                 "SELECT DISTINCT u.id FROM users u \
                  JOIN enrollments e ON e.student_id = u.id \
@@ -231,19 +235,19 @@ async fn resolve_recipients(
             .await?;
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
-        schoolcbb_common::communication::AudienceTarget::AllStudents => {
+        schoolccb_common::communication::AudienceTarget::AllStudents => {
             let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE role = 'Alumno'")
                 .fetch_all(pool)
                 .await?;
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
-        schoolcbb_common::communication::AudienceTarget::AllTeachers => {
+        schoolccb_common::communication::AudienceTarget::AllTeachers => {
             let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE role = 'Profesor'")
                 .fetch_all(pool)
                 .await?;
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
-        schoolcbb_common::communication::AudienceTarget::AllStaff => {
+        schoolccb_common::communication::AudienceTarget::AllStaff => {
             let rows: Vec<(Uuid,)> = sqlx::query_as(
                 "SELECT id FROM users WHERE role IN ('Administrador', 'Sostenedor', 'Director', 'UTP')"
             )
@@ -271,7 +275,7 @@ async fn get_message(
         ],
     )?;
 
-    let msg = sqlx::query_as::<_, schoolcbb_common::communication::Message>(
+    let msg = sqlx::query_as::<_, schoolccb_common::communication::Message>(
         "SELECT id, sender_id, receiver_id, subject, body, read, created_at FROM messages WHERE id = $1",
     )
     .bind(id)
@@ -328,7 +332,7 @@ async fn list_interviews(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let interviews = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
+    let interviews = sqlx::query_as::<_, schoolccb_common::communication::InterviewLog>(
         r#"
         SELECT il.id, il.student_id, il.teacher_id, il.date, il.reason, il.notes, il.follow_up, il.created_at
         FROM interview_logs il
@@ -346,7 +350,7 @@ async fn list_interviews(
 async fn create_interview(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::communication::CreateInterviewPayload>,
+    Json(payload): Json<schoolccb_common::communication::CreateInterviewPayload>,
 ) -> NotifResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -363,7 +367,7 @@ async fn create_interview(
         .date
         .unwrap_or_else(|| chrono::Utc::now().date_naive());
 
-    let result = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
+    let result = sqlx::query_as::<_, schoolccb_common::communication::InterviewLog>(
         r#"
         INSERT INTO interview_logs (id, student_id, teacher_id, date, reason, notes, follow_up)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -393,7 +397,7 @@ async fn get_interview(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let interview = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
+    let interview = sqlx::query_as::<_, schoolccb_common::communication::InterviewLog>(
         "SELECT id, student_id, teacher_id, date, reason, notes, follow_up, created_at FROM interview_logs WHERE id = $1",
     )
     .bind(id)
@@ -408,11 +412,11 @@ async fn update_interview(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::communication::UpdateInterviewPayload>,
+    Json(payload): Json<schoolccb_common::communication::UpdateInterviewPayload>,
 ) -> NotifResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
-    let existing = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
+    let existing = sqlx::query_as::<_, schoolccb_common::communication::InterviewLog>(
         "SELECT id, student_id, teacher_id, date, reason, notes, follow_up, created_at FROM interview_logs WHERE id = $1",
     )
     .bind(id)
@@ -424,7 +428,7 @@ async fn update_interview(
     let notes = payload.notes.unwrap_or(existing.notes);
     let follow_up = payload.follow_up.or(existing.follow_up);
 
-    let result = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
+    let result = sqlx::query_as::<_, schoolccb_common::communication::InterviewLog>(
         r#"
         UPDATE interview_logs SET reason = $1, notes = $2, follow_up = $3
         WHERE id = $4
@@ -479,7 +483,7 @@ async fn interviews_by_student(
         ],
     )?;
 
-    let interviews = sqlx::query_as::<_, schoolcbb_common::communication::InterviewLog>(
+    let interviews = sqlx::query_as::<_, schoolccb_common::communication::InterviewLog>(
         "SELECT id, student_id, teacher_id, date, reason, notes, follow_up, created_at FROM interview_logs WHERE student_id = $1 ORDER BY date DESC",
     )
     .bind(student_id)
@@ -487,4 +491,109 @@ async fn interviews_by_student(
     .await?;
 
     Ok(Json(json!({ "interviews": interviews })))
+}
+
+#[derive(Deserialize)]
+struct SendNotificationPayload {
+    user_id: Uuid,
+    title: String,
+    body: Option<String>,
+    notification_type: Option<String>,
+}
+
+async fn send_notification(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<SendNotificationPayload>,
+) -> NotifResult<Json<Value>> {
+    require_any_role(&claims, &["Root", "Administrador", "Sostenedor"])?;
+
+    let id = Uuid::new_v4();
+    let ntype = payload.notification_type.unwrap_or_else(|| "info".into());
+
+    sqlx::query(
+        "INSERT INTO notifications (id, user_id, title, body, notification_type)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(id)
+    .bind(payload.user_id)
+    .bind(&payload.title)
+    .bind(&payload.body)
+    .bind(&ntype)
+    .execute(&state.pool)
+    .await?;
+
+    let notif = json!({
+        "id": id,
+        "title": payload.title,
+        "body": payload.body,
+        "type": ntype,
+        "read": false,
+        "created_at": chrono::Utc::now(),
+    });
+
+    state.ws_hub.broadcast(&notif.to_string());
+
+    Ok(Json(json!({"id": id, "message": "Notificación enviada"})))
+}
+
+async fn list_notifications(
+    claims: Claims,
+    State(state): State<AppState>,
+) -> NotifResult<Json<Value>> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| NotifError::Unauthorized)?;
+
+    let notifs: Vec<Value> = sqlx::query_as::<_, (Uuid, String, Option<String>, String, bool, chrono::DateTime<chrono::Utc>)>(
+        "SELECT id, title, body, notification_type, read, created_at
+         FROM notifications WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 50",
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await.unwrap_or_default()
+    .into_iter()
+    .map(|(id, title, body, ntype, read, created)| {
+        json!({"id": id, "title": title, "body": body, "type": ntype, "read": read, "created_at": created})
+    })
+    .collect();
+
+    Ok(Json(json!({"notifications": notifs})))
+}
+
+async fn unread_notification_count(
+    claims: Claims,
+    State(state): State<AppState>,
+) -> NotifResult<Json<Value>> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| NotifError::Unauthorized)?;
+
+    let count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND read = false",
+    )
+    .bind(user_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or((0,));
+
+    Ok(Json(json!({"unread": count.0})))
+}
+
+async fn mark_notification_read(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> NotifResult<Json<Value>> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| NotifError::Unauthorized)?;
+
+    sqlx::query(
+        "UPDATE notifications SET read = true WHERE id = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(json!({"message": "Notificación marcada como leída"})))
 }

@@ -1,5 +1,5 @@
-use schoolcbb_proto::workflow_events_server::{WorkflowEvents, WorkflowEventsServer};
-use schoolcbb_proto::{EventAck, EventNotification};
+use schoolccb_proto::workflow_events_server::{WorkflowEvents, WorkflowEventsServer};
+use schoolccb_proto::{EventAck, EventNotification};
 use sqlx::PgPool;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;

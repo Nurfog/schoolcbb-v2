@@ -138,7 +138,7 @@ async fn course_performance(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let course_subjects: Vec<schoolcbb_common::academic::CourseSubject> = sqlx::query_as(
+    let course_subjects: Vec<schoolccb_common::academic::CourseSubject> = sqlx::query_as(
         "SELECT id, course_id, subject_id, teacher_id, academic_year, hours_per_week FROM course_subjects WHERE course_id = $1 AND academic_year = $2",
     )
     .bind(course_id)
@@ -305,7 +305,7 @@ async fn promotion_status(
     })))
 }
 
-fn subject_average(subjects: &[schoolcbb_common::academic::WeightedSubjectAverage]) -> f64 {
+fn subject_average(subjects: &[schoolccb_common::academic::WeightedSubjectAverage]) -> f64 {
     if subjects.is_empty() {
         return 0.0;
     }
@@ -327,7 +327,7 @@ async fn build_semester_report(
     student_id: Uuid,
     semester: i32,
     year: i32,
-) -> Result<Option<schoolcbb_common::academic::SemesterReport>, sqlx::Error> {
+) -> Result<Option<schoolccb_common::academic::SemesterReport>, sqlx::Error> {
     let course_subjects: Vec<(Uuid, Uuid)> = sqlx::query_as(
         r#"
         SELECT DISTINCT cs.id, cs.subject_id FROM course_subjects cs
@@ -344,7 +344,7 @@ async fn build_semester_report(
         return Ok(None);
     }
 
-    let mut subjects: Vec<schoolcbb_common::academic::WeightedSubjectAverage> = vec![];
+    let mut subjects: Vec<schoolccb_common::academic::WeightedSubjectAverage> = vec![];
 
     for (cs_id, subject_id) in &course_subjects {
         let subject_info: (String, String) =
@@ -353,14 +353,14 @@ async fn build_semester_report(
                 .fetch_one(pool)
                 .await?;
 
-        let categories: Vec<schoolcbb_common::academic::GradeCategory> = sqlx::query_as(
+        let categories: Vec<schoolccb_common::academic::GradeCategory> = sqlx::query_as(
             "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE course_subject_id = $1",
         )
         .bind(cs_id)
         .fetch_all(pool)
         .await?;
 
-        let mut category_breakdowns: Vec<schoolcbb_common::academic::CategoryBreakdown> = vec![];
+        let mut category_breakdowns: Vec<schoolccb_common::academic::CategoryBreakdown> = vec![];
         let mut all_grades: Vec<f64> = vec![];
         let mut min_grade = 7.0f64;
         let mut max_grade = 1.0f64;
@@ -393,7 +393,7 @@ async fn build_semester_report(
                 }
             }
 
-            category_breakdowns.push(schoolcbb_common::academic::CategoryBreakdown {
+            category_breakdowns.push(schoolccb_common::academic::CategoryBreakdown {
                 category_name: cat.name.clone(),
                 weight: cat.weight_percentage,
                 grades: cat_grades,
@@ -446,7 +446,7 @@ async fn build_semester_report(
             }
         };
 
-        subjects.push(schoolcbb_common::academic::WeightedSubjectAverage {
+        subjects.push(schoolccb_common::academic::WeightedSubjectAverage {
             subject_name: subject_info.1,
             subject_code: subject_info.0,
             categories: category_breakdowns,
@@ -459,14 +459,14 @@ async fn build_semester_report(
     }
 
     let global_avg = subject_average(&subjects);
-    let failed_subjects: Vec<&schoolcbb_common::academic::WeightedSubjectAverage> = subjects
+    let failed_subjects: Vec<&schoolccb_common::academic::WeightedSubjectAverage> = subjects
         .iter()
         .filter(|s| s.weighted_average < 4.0)
         .collect();
     let is_promoted = failed_subjects.is_empty();
     let has_min_grades = subjects.iter().all(|s| s.grades_count >= 2);
 
-    Ok(Some(schoolcbb_common::academic::SemesterReport {
+    Ok(Some(schoolccb_common::academic::SemesterReport {
         semester,
         subjects,
         global_average: (global_avg * 10.0).round() / 10.0,
@@ -475,8 +475,8 @@ async fn build_semester_report(
     }))
 }
 
-fn empty_semester(semester: i32) -> schoolcbb_common::academic::SemesterReport {
-    schoolcbb_common::academic::SemesterReport {
+fn empty_semester(semester: i32) -> schoolccb_common::academic::SemesterReport {
+    schoolccb_common::academic::SemesterReport {
         semester,
         subjects: vec![],
         global_average: 0.0,

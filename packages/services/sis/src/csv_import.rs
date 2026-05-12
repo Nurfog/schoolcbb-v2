@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::error::{SisError, SisResult};
 use crate::routes::students::{require_any_role, Claims};
 use crate::AppState;
-use schoolcbb_common::rut::Rut;
+use schoolccb_common::rut::Rut;
 
 #[derive(Deserialize)]
 pub struct CsvImportPayload {

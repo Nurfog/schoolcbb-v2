@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_LOG: info
-  DATABASE_URL: postgres://postgres:postgres@localhost:5432/schoolcbb_test
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/schoolccb_test
   JWT_SECRET: test-secret
   GATEWAY_HOST: 0.0.0.0
   GATEWAY_PORT: 3000
@@ -32,7 +32,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: schoolcbb_test
+          POSTGRES_DB: schoolccb_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -64,10 +64,10 @@ jobs:
         continue-on-error: true
 
       - name: Build workspace
-        run: cargo build --workspace --exclude schoolcbb-frontend
+        run: cargo build --workspace --exclude schoolccb-frontend
 
       - name: Run backend tests
-        run: cargo test --workspace --exclude schoolcbb-frontend
+        run: cargo test --workspace --exclude schoolccb-frontend
 
   frontend:
     name: Frontend (Dioxus WASM)
@@ -90,7 +90,7 @@ jobs:
             . -> target
 
       - name: Build frontend
-        run: cargo build -p schoolcbb-frontend
+        run: cargo build -p schoolccb-frontend
 
       - name: Check Dioxus build
         run: dx build --release

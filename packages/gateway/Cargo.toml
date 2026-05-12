@@ -1,11 +1,11 @@
 [package]
-name = "schoolcbb-gateway"
+name = "schoolccb-gateway"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 async-trait = "0.1"
-schoolcbb-common = { path = "../common", default-features = false }
+schoolccb-common = { path = "../common", default-features = false }
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }

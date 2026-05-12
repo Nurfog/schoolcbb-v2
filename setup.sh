@@ -58,7 +58,7 @@ COMPANY_NAME="${COMPANY_NAME:-SchoolCBB}"
 ok "Nombre: $COMPANY_NAME"
 
 # -- Dominio principal
-read -r -p "$(echo -e "${CYAN}Dominio principal${NC} (ej: schoolcbb.cl) [localhost]: ")" DOMAIN
+read -r -p "$(echo -e "${CYAN}Dominio principal${NC} (ej: schoolccb.cl) [localhost]: ")" DOMAIN
 DOMAIN="${DOMAIN:-localhost}"
 ok "Dominio: $DOMAIN"
 
@@ -101,15 +101,15 @@ DB_HOST="${DB_HOST:-localhost}"
 read -r -p "$(echo -e "${CYAN}Puerto DB${NC} [5432]: ")" DB_PORT
 DB_PORT="${DB_PORT:-5432}"
 
-read -r -p "$(echo -e "${CYAN}Usuario DB${NC} [schoolcbb]: ")" DB_USER
-DB_USER="${DB_USER:-schoolcbb}"
+read -r -p "$(echo -e "${CYAN}Usuario DB${NC} [schoolccb]: ")" DB_USER
+DB_USER="${DB_USER:-schoolccb}"
 
-read -r -s -p "$(echo -e "${CYAN}Contraseña DB${NC} [schoolcbb]: ")" DB_PASS
-DB_PASS="${DB_PASS:-schoolcbb}"
+read -r -s -p "$(echo -e "${CYAN}Contraseña DB${NC} [schoolccb]: ")" DB_PASS
+DB_PASS="${DB_PASS:-schoolccb}"
 echo ""
 
-read -r -p "$(echo -e "${CYAN}Nombre DB${NC} [schoolcbb]: ")" DB_NAME
-DB_NAME="${DB_NAME:-schoolcbb}"
+read -r -p "$(echo -e "${CYAN}Nombre DB${NC} [schoolccb]: ")" DB_NAME
+DB_NAME="${DB_NAME:-schoolccb}"
 
 if [ "$DOMAIN" != "localhost" ]; then
     DB_URL="postgres://${DB_USER}:${DB_PASS}@db:5432/${DB_NAME}"
@@ -181,7 +181,7 @@ PORTAL_HOST=0.0.0.0
 PORTAL_PORT=3010
 
 # ─── Logging ──────────────────────────────────────────────
-RUST_LOG=info,schoolcbb=debug
+RUST_LOG=info,schoolccb=debug
 ENVEOF
 
 ok "$ENV_FILE generado"

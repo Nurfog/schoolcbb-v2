@@ -55,7 +55,7 @@ async fn list_stages(claims: Claims, State(state): State<AppState>) -> SisResult
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let stages = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
+    let stages = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages ORDER BY sort_order",
     ).fetch_all(&state.pool).await?;
     Ok(Json(json!({ "stages": stages })))
@@ -70,7 +70,7 @@ async fn get_stage(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let stage = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
+    let stage = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages WHERE id = $1",
     )
     .bind(id)
@@ -83,14 +83,14 @@ async fn get_stage(
 async fn create_stage(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::admission::CreateStagePayload>,
+    Json(payload): Json<schoolccb_common::admission::CreateStagePayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
     if payload.name.trim().is_empty() {
         return Err(SisError::Validation("Nombre obligatorio".into()));
     }
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "INSERT INTO pipeline_stages (id, name, sort_order, is_final) VALUES ($1, $2, $3, $4)
          RETURNING id, name, sort_order, is_final, created_at",
     )
@@ -107,10 +107,10 @@ async fn update_stage(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::admission::UpdateStagePayload>,
+    Json(payload): Json<schoolccb_common::admission::UpdateStagePayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    let current = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
+    let current = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages WHERE id = $1",
     )
     .bind(id)
@@ -120,7 +120,7 @@ async fn update_stage(
     let name = payload.name.unwrap_or(current.name);
     let sort_order = payload.sort_order.unwrap_or(current.sort_order);
     let is_final = payload.is_final.unwrap_or(current.is_final);
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::PipelineStage>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "UPDATE pipeline_stages SET name = $1, sort_order = $2, is_final = $3 WHERE id = $4
          RETURNING id, name, sort_order, is_final, created_at",
     )

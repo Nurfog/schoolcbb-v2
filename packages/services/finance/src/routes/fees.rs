@@ -82,7 +82,7 @@ async fn list_fees(claims: Claims, State(state): State<AppState>) -> FinanceResu
         .map(|sid| format!(" WHERE school_id = '{}'::uuid", sid))
         .unwrap_or_default();
 
-    let fees = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
+    let fees = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         &format!("SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees{} ORDER BY due_date DESC LIMIT 100", school_condition),
     )
     .fetch_all(&state.pool)
@@ -98,7 +98,7 @@ async fn get_fee(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let fee = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
+    let fee = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees WHERE id = $1",
     )
     .bind(id)
@@ -112,7 +112,7 @@ async fn get_fee(
 async fn create_fee(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::finance::CreateFeePayload>,
+    Json(payload): Json<schoolccb_common::finance::CreateFeePayload>,
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
@@ -125,7 +125,7 @@ async fn create_fee(
     let school_id = claims.school_id.and_then(|s| Uuid::parse_str(&s).ok());
 
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
+    let result = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         r#"
         INSERT INTO fees (id, student_id, description, amount, due_date, school_id)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -167,7 +167,7 @@ async fn update_fee(
         .await?;
     }
 
-    let fee = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
+    let fee = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees WHERE id = $1",
     )
     .bind(id)
@@ -209,7 +209,7 @@ async fn fees_by_student(
         ],
     )?;
 
-    let fees = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
+    let fees = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees WHERE student_id = $1 ORDER BY due_date",
     )
     .bind(student_id)

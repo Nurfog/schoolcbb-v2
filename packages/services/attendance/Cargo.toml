@@ -1,10 +1,10 @@
 [package]
-name = "schoolcbb-attendance"
+name = "schoolccb-attendance"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-schoolcbb-common = { path = "../../common", features = ["db"] }
+schoolccb-common = { path = "../../common", features = ["db"] }
 async-trait.workspace = true
 axum.workspace = true
 tokio.workspace = true

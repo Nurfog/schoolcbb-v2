@@ -138,7 +138,7 @@ async fn import_csv(
             continue;
         }
 
-        let rut = match schoolcbb_common::rut::Rut::new(rut_raw) {
+        let rut = match schoolccb_common::rut::Rut::new(rut_raw) {
             Ok(r) => r,
             Err(e) => {
                 detalle.push(RowResult {

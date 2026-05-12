@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /ws
 
-Sitemap: https://schoolcbb.cl/sitemap.xml
+Sitemap: https://schoolccb.cl/sitemap.xml

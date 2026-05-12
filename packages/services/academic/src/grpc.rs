@@ -1,5 +1,5 @@
-use schoolcbb_proto::academic_service_server::AcademicService;
-use schoolcbb_proto::{
+use schoolccb_proto::academic_service_server::AcademicService;
+use schoolccb_proto::{
     CoursePerformanceRequest, CoursePerformanceResponse, SemesterData, StudentReportRequest,
     StudentReportResponse, Subject, SubjectGrade, SubjectListRequest, SubjectListResponse,
 };

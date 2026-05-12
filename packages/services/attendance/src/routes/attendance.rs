@@ -190,7 +190,7 @@ async fn get_attendance(
 async fn create_attendance(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::attendance::CreateAttendancePayload>,
+    Json(payload): Json<schoolccb_common::attendance::CreateAttendancePayload>,
 ) -> AttendanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -205,7 +205,7 @@ async fn create_attendance(
         ));
     }
 
-    let status = schoolcbb_common::attendance::AttendanceStatus::from_str(&payload.status);
+    let status = schoolccb_common::attendance::AttendanceStatus::from_str(&payload.status);
     let id = Uuid::new_v4();
 
     let result = sqlx::query_as::<_, RawAttendance>(
@@ -242,7 +242,7 @@ async fn update_attendance(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::attendance::UpdateAttendancePayload>,
+    Json(payload): Json<schoolccb_common::attendance::UpdateAttendancePayload>,
 ) -> AttendanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -257,8 +257,8 @@ async fn update_attendance(
     let status = payload
         .status
         .as_deref()
-        .map(schoolcbb_common::attendance::AttendanceStatus::from_str)
-        .unwrap_or(schoolcbb_common::attendance::AttendanceStatus::from_str(
+        .map(schoolccb_common::attendance::AttendanceStatus::from_str)
+        .unwrap_or(schoolccb_common::attendance::AttendanceStatus::from_str(
             &existing.status,
         ));
     let time = payload.time.or(existing.time);
@@ -307,7 +307,7 @@ async fn delete_attendance(
 async fn bulk_create_attendance(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::attendance::BulkAttendanceEntry>,
+    Json(payload): Json<schoolccb_common::attendance::BulkAttendanceEntry>,
 ) -> AttendanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -321,7 +321,7 @@ async fn bulk_create_attendance(
     let mut errors: Vec<Value> = vec![];
 
     for record in &payload.records {
-        let status = schoolcbb_common::attendance::AttendanceStatus::from_str(&record.status);
+        let status = schoolccb_common::attendance::AttendanceStatus::from_str(&record.status);
         let id = Uuid::new_v4();
 
         let result = sqlx::query(

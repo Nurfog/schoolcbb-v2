@@ -11,7 +11,7 @@ mod workflow;
 use std::sync::Arc;
 
 use axum::Router;
-use schoolcbb_common::event_bus::BroadcastBus;
+use schoolccb_common::event_bus::BroadcastBus;
 use sqlx::PgPool;
 use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
@@ -44,7 +44,7 @@ async fn main() {
         .expect("Failed to connect to PostgreSQL");
 
     tracing::info!("SIS Service connected to database");
-    schoolcbb_common::db_schema::run(&pool).await;
+    schoolccb_common::db_schema::run(&pool).await;
     admission::seed_pipeline_stages(&pool).await;
 
     let event_bus = Arc::new(BroadcastBus::new(256));

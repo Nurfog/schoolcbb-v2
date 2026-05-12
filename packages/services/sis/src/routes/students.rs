@@ -83,10 +83,10 @@ pub struct RawStudent {
 }
 
 impl RawStudent {
-    fn to_student(&self) -> schoolcbb_common::student::Student {
-        schoolcbb_common::student::Student {
+    fn to_student(&self) -> schoolccb_common::student::Student {
+        schoolccb_common::student::Student {
             id: self.id,
-            rut: schoolcbb_common::rut::Rut(self.rut.clone()),
+            rut: schoolccb_common::rut::Rut(self.rut.clone()),
             first_name: self.first_name.clone(),
             last_name: self.last_name.clone(),
             email: self.email.clone(),
@@ -95,19 +95,19 @@ impl RawStudent {
             section: self.section.clone(),
             cod_nivel: self.cod_nivel.clone(),
             condicion: match self.condicion.as_str() {
-                "RE" => schoolcbb_common::student::CondicionMatricula::Repitente,
-                "TR" => schoolcbb_common::student::CondicionMatricula::Trasladado,
-                _ => schoolcbb_common::student::CondicionMatricula::AlumnoRegular,
+                "RE" => schoolccb_common::student::CondicionMatricula::Repitente,
+                "TR" => schoolccb_common::student::CondicionMatricula::Trasladado,
+                _ => schoolccb_common::student::CondicionMatricula::AlumnoRegular,
             },
             prioritario: match self.prioritario.as_str() {
-                "1" => schoolcbb_common::student::Prioritario::Si,
-                "2" => schoolcbb_common::student::Prioritario::Preferente,
-                _ => schoolcbb_common::student::Prioritario::No,
+                "1" => schoolccb_common::student::Prioritario::Si,
+                "2" => schoolccb_common::student::Prioritario::Preferente,
+                _ => schoolccb_common::student::Prioritario::No,
             },
             nee: match self.nee.as_str() {
-                "T" => schoolcbb_common::student::NEE::Transitoria,
-                "P" => schoolcbb_common::student::NEE::Permanente,
-                _ => schoolcbb_common::student::NEE::No,
+                "T" => schoolccb_common::student::NEE::Transitoria,
+                "P" => schoolccb_common::student::NEE::Permanente,
+                _ => schoolccb_common::student::NEE::No,
             },
             enrolled: self.enrolled,
         }
@@ -248,11 +248,11 @@ async fn get_student(
 async fn create_student(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::student::CreateStudentPayload>,
+    Json(payload): Json<schoolccb_common::student::CreateStudentPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let rut = schoolcbb_common::rut::Rut::new(&payload.rut)
+    let rut = schoolccb_common::rut::Rut::new(&payload.rut)
         .map_err(|e| SisError::Validation(format!("RUT inválido: {e}")))?;
 
     if payload.first_name.trim().is_empty() || payload.last_name.trim().is_empty() {
@@ -337,7 +337,7 @@ async fn update_student(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::student::UpdateStudentPayload>,
+    Json(payload): Json<schoolccb_common::student::UpdateStudentPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 

@@ -117,7 +117,7 @@ async fn get_grade(
 async fn create_grade(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CreateGradePayload>,
+    Json(payload): Json<schoolccb_common::academic::CreateGradePayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -161,7 +161,7 @@ async fn update_grade(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::academic::UpdateGradePayload>,
+    Json(payload): Json<schoolccb_common::academic::UpdateGradePayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -247,7 +247,7 @@ async fn grades_by_course_subject(
 async fn bulk_create_grades(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::BulkGradeEntry>,
+    Json(payload): Json<schoolccb_common::academic::BulkGradeEntry>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 

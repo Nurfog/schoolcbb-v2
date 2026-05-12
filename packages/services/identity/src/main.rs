@@ -1,7 +1,10 @@
+mod admin;
+mod client;
 mod config;
 mod error;
 mod models;
 mod routes;
+mod scheduler;
 
 use std::sync::Arc;
 
@@ -34,7 +37,7 @@ async fn main() {
         .expect("Failed to connect to PostgreSQL");
 
     tracing::info!("Identity Service connected to database");
-    schoolcbb_common::db_schema::run(&pool).await;
+    schoolccb_common::db_schema::run(&pool).await;
 
     if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
         tracing::warn!("SQLx migrations skipped: {e}");
@@ -49,15 +52,22 @@ async fn main() {
     models::seed_permission_definitions(&pool).await;
     tracing::info!("Roles and permissions seeded");
 
+    models::seed_root_admin(&pool).await;
+    models::seed_license_plans(&pool).await;
+
     models::seed_default_school(&pool).await;
 
     let state = AppState {
-        pool,
+        pool: pool.clone(),
         config: config.clone(),
     };
 
+    scheduler::start(pool.clone()).await;
+
     let app = Router::new()
         .merge(routes::router())
+        .merge(admin::admin_router())
+        .merge(client::client_router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

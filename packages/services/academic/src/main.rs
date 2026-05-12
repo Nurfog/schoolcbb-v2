@@ -35,7 +35,7 @@ async fn main() {
         .expect("Failed to connect to PostgreSQL");
 
     tracing::info!("Academic Service connected to database");
-    schoolcbb_common::db_schema::run(&pool).await;
+    schoolccb_common::db_schema::run(&pool).await;
     seed_subjects(&pool).await;
     routes::grade_levels::seed_grade_levels(&pool).await;
 
@@ -57,7 +57,7 @@ async fn main() {
         tracing::info!("Academic gRPC starting on {grpc_addr}");
         let grpc = grpc::AcademicGrpc { pool: pool_clone };
         Server::builder()
-            .add_service(schoolcbb_proto::academic_service_server::AcademicServiceServer::new(grpc))
+            .add_service(schoolccb_proto::academic_service_server::AcademicServiceServer::new(grpc))
             .serve(grpc_addr.parse().unwrap())
             .await
             .unwrap();

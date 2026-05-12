@@ -29,7 +29,7 @@ async fn list_activities(claims: Claims, State(state): State<AppState>) -> SisRe
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let activities = sqlx::query_as::<_, schoolcbb_common::admission::ProspectActivity>(
+    let activities = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         "SELECT id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at FROM prospect_activities ORDER BY created_at DESC LIMIT 200",
     ).fetch_all(&state.pool).await?;
     Ok(Json(json!({ "activities": activities })))
@@ -44,7 +44,7 @@ async fn get_activity(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let activity = sqlx::query_as::<_, schoolcbb_common::admission::ProspectActivity>(
+    let activity = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         "SELECT id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at FROM prospect_activities WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(crate::error::SisError::NotFound("Actividad no encontrada".into()))?;
@@ -54,7 +54,7 @@ async fn get_activity(
 async fn create_activity(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::admission::CreateActivityPayload>,
+    Json(payload): Json<schoolccb_common::admission::CreateActivityPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(
         &claims,
@@ -62,7 +62,7 @@ async fn create_activity(
     )?;
     let id = Uuid::new_v4();
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::ProspectActivity>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         r#"INSERT INTO prospect_activities (id, prospect_id, activity_type, subject, description, scheduled_at, created_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at"#,
@@ -82,7 +82,7 @@ async fn update_activity(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::ProspectActivity>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         "UPDATE prospect_activities SET is_completed = $1 WHERE id = $2
          RETURNING id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at",
     ).bind(payload.get("is_completed").and_then(|v| v.as_bool()).unwrap_or(true)).bind(id)

@@ -35,7 +35,7 @@ async fn main() {
         .expect("Failed to connect to PostgreSQL");
 
     tracing::info!("Notifications Service connected to database");
-    schoolcbb_common::db_schema::run(&pool).await;
+    schoolccb_common::db_schema::run(&pool).await;
 
     let (ws_tx, _) = broadcast::channel::<String>(100);
     let ws_hub = Arc::new(ws::hub::WsHub::new(ws_tx.clone()));

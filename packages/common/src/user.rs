@@ -5,6 +5,7 @@ use crate::rut::Rut;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UserRole {
+    Root,
     Sostenedor,
     Director,
     UTP,
@@ -25,6 +26,7 @@ impl UserRole {
 
     pub fn as_str(&self) -> &'static str {
         match self {
+            UserRole::Root => "Root",
             UserRole::Sostenedor => "Sostenedor",
             UserRole::Director => "Director",
             UserRole::UTP => "UTP",
@@ -38,6 +40,7 @@ impl UserRole {
 
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
+            "Root" => Some(UserRole::Root),
             "Sostenedor" => Some(UserRole::Sostenedor),
             "Director" => Some(UserRole::Director),
             "UTP" => Some(UserRole::UTP),

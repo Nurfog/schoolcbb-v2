@@ -48,21 +48,21 @@ struct PayrollFilter {
 async fn calculate_payroll_preview(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::hr::PayrollPayload>,
+    Json(payload): Json<schoolccb_common::hr::PayrollPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let employee = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
+    let employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
         "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Empleado no encontrado".into()))?;
 
-    let contract = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeContract>(
+    let contract = sqlx::query_as::<_, schoolccb_common::hr::EmployeeContract>(
         "SELECT id, employee_id, contract_type, salary_base, weekly_hours, ley_karin_signed, start_date, end_date, active, created_at FROM employee_contracts WHERE employee_id = $1 AND active = true",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Empleado no tiene contrato activo".into()))?;
 
-    let pension = sqlx::query_as::<_, schoolcbb_common::hr::EmployeePensionFund>(
+    let pension = sqlx::query_as::<_, schoolccb_common::hr::EmployeePensionFund>(
         "SELECT id, employee_id, pension_fund, health_system, health_plan_name, health_fixed_amount, created_at FROM employee_pension_funds WHERE employee_id = $1",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?;
 
@@ -70,10 +70,10 @@ async fn calculate_payroll_preview(
         Some(ref p) => (p.pension_fund.clone(), p.health_system.clone(), p.health_fixed_amount),
         None => ("Provida".into(), "Fonasa".into(), None),
     };
-    let pension_fund = schoolcbb_common::hr::PensionFund::from_str(&pension_str);
-    let health_system = schoolcbb_common::hr::HealthSystem::from_str(&health_str);
+    let pension_fund = schoolccb_common::hr::PensionFund::from_str(&pension_str);
+    let health_system = schoolccb_common::hr::HealthSystem::from_str(&health_str);
 
-    let calculation = schoolcbb_common::hr::calculate_payroll(
+    let calculation = schoolccb_common::hr::calculate_payroll(
         &employee, &contract, &payload, &pension_fund, &health_system, health_fixed,
     );
 
@@ -83,21 +83,21 @@ async fn calculate_payroll_preview(
 async fn create_payroll(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::hr::PayrollPayload>,
+    Json(payload): Json<schoolccb_common::hr::PayrollPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let employee = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
+    let employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
         "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Empleado no encontrado".into()))?;
 
-    let contract = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeContract>(
+    let contract = sqlx::query_as::<_, schoolccb_common::hr::EmployeeContract>(
         "SELECT id, employee_id, contract_type, salary_base, weekly_hours, ley_karin_signed, start_date, end_date, active, created_at FROM employee_contracts WHERE employee_id = $1 AND active = true",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Empleado no tiene contrato activo".into()))?;
 
-    let pension = sqlx::query_as::<_, schoolcbb_common::hr::EmployeePensionFund>(
+    let pension = sqlx::query_as::<_, schoolccb_common::hr::EmployeePensionFund>(
         "SELECT id, employee_id, pension_fund, health_system, health_plan_name, health_fixed_amount, created_at FROM employee_pension_funds WHERE employee_id = $1",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?;
 
@@ -105,15 +105,15 @@ async fn create_payroll(
         Some(ref p) => (p.pension_fund.clone(), p.health_system.clone(), p.health_fixed_amount),
         None => ("Provida".into(), "Fonasa".into(), None),
     };
-    let pension_fund = schoolcbb_common::hr::PensionFund::from_str(&pension_str);
-    let health_system = schoolcbb_common::hr::HealthSystem::from_str(&health_str);
+    let pension_fund = schoolccb_common::hr::PensionFund::from_str(&pension_str);
+    let health_system = schoolccb_common::hr::HealthSystem::from_str(&health_str);
 
-    let calc = schoolcbb_common::hr::calculate_payroll(
+    let calc = schoolccb_common::hr::calculate_payroll(
         &employee, &contract, &payload, &pension_fund, &health_system, health_fixed,
     );
 
     let payroll_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::Payroll>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::Payroll>(
         r#"INSERT INTO payrolls (id, employee_id, month, year, salary_base, gratificacion, non_taxable_earnings, taxable_income, afp_discount, health_discount, unemployment_discount, income_tax, other_deductions, net_salary)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            RETURNING id, employee_id, month, year, salary_base, gratificacion, non_taxable_earnings, taxable_income, afp_discount, health_discount, unemployment_discount, income_tax, other_deductions, net_salary, lre_exported, previred_exported, created_at, updated_at"#,
@@ -323,12 +323,12 @@ async fn create_leave_request(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::hr::CreateLeavePayload>,
+    Json(payload): Json<schoolccb_common::hr::CreateLeavePayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let leave_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::LeaveRequest>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         r#"INSERT INTO leave_requests (id, employee_id, leave_type, start_date, end_date, reason)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at"#,
@@ -347,7 +347,7 @@ async fn list_employee_leave_requests(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let requests = sqlx::query_as::<_, schoolcbb_common::hr::LeaveRequest>(
+    let requests = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         "SELECT id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at FROM leave_requests WHERE employee_id = $1 ORDER BY created_at DESC",
     ).bind(id).fetch_all(&state.pool).await?;
 
@@ -422,7 +422,7 @@ async fn approve_leave_request(
     let status = payload.get("status").and_then(|v| v.as_str()).unwrap_or("Aprobado");
     let approved_by = Uuid::parse_str(&claims.sub).map_err(|_| SisError::Unauthorized)?;
 
-    let current = sqlx::query_as::<_, schoolcbb_common::hr::LeaveRequest>(
+    let current = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         "SELECT id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at FROM leave_requests WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Solicitud no encontrada".into()))?;
@@ -439,7 +439,7 @@ async fn approve_leave_request(
         .await?;
     }
 
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::LeaveRequest>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         r#"UPDATE leave_requests SET status = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $3
            RETURNING id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at"#,
     ).bind(status).bind(approved_by).bind(id)
@@ -488,12 +488,12 @@ struct AttendanceFilter {
 async fn sync_attendance(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::hr::AttendanceLogPayload>,
+    Json(payload): Json<schoolccb_common::hr::AttendanceLogPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let log_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::AttendanceLog>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::AttendanceLog>(
         r#"INSERT INTO employee_attendance_logs (id, employee_id, timestamp, entry_type, device_id, location_hash, source)
            VALUES ($1, $2, $3, $4, $5, $6, 'api')
            RETURNING id, employee_id, timestamp, entry_type, device_id, location_hash, source, created_at"#,
@@ -618,7 +618,7 @@ async fn modify_attendance(
     claims: Claims,
     State(state): State<AppState>,
     Path(att_id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::hr::AttendanceModificationPayload>,
+    Json(payload): Json<schoolccb_common::hr::AttendanceModificationPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
@@ -694,7 +694,7 @@ async fn get_pension_fund(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let fund = sqlx::query_as::<_, schoolcbb_common::hr::EmployeePensionFund>(
+    let fund = sqlx::query_as::<_, schoolccb_common::hr::EmployeePensionFund>(
         "SELECT id, employee_id, pension_fund, health_system, health_plan_name, health_fixed_amount, created_at FROM employee_pension_funds WHERE employee_id = $1",
     ).bind(id).fetch_optional(&state.pool).await?;
 
@@ -727,18 +727,18 @@ async fn my_profile(
 ) -> SisResult<Json<Value>> {
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| SisError::Unauthorized)?;
 
-    let employee = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
+    let employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
         "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE user_id = $1",
     ).bind(user_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Perfil laboral no encontrado. Consulte a RRHH.".into()))?;
 
-    let contract = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeContract>(
+    let contract = sqlx::query_as::<_, schoolccb_common::hr::EmployeeContract>(
         "SELECT id, employee_id, contract_type, salary_base, weekly_hours, ley_karin_signed, start_date, end_date, active, created_at FROM employee_contracts WHERE employee_id = $1 AND active = true",
     ).bind(employee.id).fetch_optional(&state.pool).await?;
 
     let supervisor = match employee.supervisor_id {
         Some(sup_id) => {
-            sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
+            sqlx::query_as::<_, schoolccb_common::hr::Employee>(
                 "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
             ).bind(sup_id).fetch_optional(&state.pool).await?
         }
@@ -847,7 +847,7 @@ async fn my_leave_requests(
 
     let emp_id: Uuid = emp.get("id");
 
-    let requests = sqlx::query_as::<_, schoolcbb_common::hr::LeaveRequest>(
+    let requests = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         "SELECT id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at FROM leave_requests WHERE employee_id = $1 ORDER BY created_at DESC",
     ).bind(emp_id).fetch_all(&state.pool).await?;
 
@@ -881,7 +881,7 @@ async fn my_create_leave_request(
         .map_err(|_| SisError::Validation("end_date invalido, use YYYY-MM-DD".into()))?;
 
     let leave_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::LeaveRequest>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         r#"INSERT INTO leave_requests (id, employee_id, leave_type, start_date, end_date, reason)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at"#,
@@ -925,7 +925,7 @@ async fn my_documents(
 
     let emp_id: Uuid = emp.get("id");
 
-    let docs = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeDocument>(
+    let docs = sqlx::query_as::<_, schoolccb_common::hr::EmployeeDocument>(
         "SELECT id, employee_id, doc_type, file_name, file_url, created_at FROM employee_documents WHERE employee_id = $1 ORDER BY created_at DESC",
     ).bind(emp_id).fetch_all(&state.pool).await?;
 
@@ -951,7 +951,7 @@ async fn my_upload_document(
     let file_name = payload.get("file_name").and_then(|v| v.as_str()).unwrap_or("documento");
 
     let doc_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::EmployeeDocument>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::EmployeeDocument>(
         r#"INSERT INTO employee_documents (id, employee_id, doc_type, file_name)
            VALUES ($1, $2, $3, $4)
            RETURNING id, employee_id, doc_type, file_name, file_url, created_at"#,
@@ -967,7 +967,7 @@ async fn list_complaints(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let complaints = sqlx::query_as::<_, schoolcbb_common::hr::Complaint>(
+    let complaints = sqlx::query_as::<_, schoolccb_common::hr::Complaint>(
         "SELECT id, complainant_name, complainant_email, accused_rut, complaint_type, description, status, resolution, created_at, updated_at FROM complaints ORDER BY created_at DESC",
     ).fetch_all(&state.pool).await?;
 
@@ -977,10 +977,10 @@ async fn list_complaints(
 async fn submit_complaint(
     _claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::hr::CreateComplaintPayload>,
+    Json(payload): Json<schoolccb_common::hr::CreateComplaintPayload>,
 ) -> SisResult<Json<Value>> {
     let complaint_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::Complaint>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::Complaint>(
         r#"INSERT INTO complaints (id, complainant_name, complainant_email, accused_rut, complaint_type, description)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id, complainant_name, complainant_email, accused_rut, complaint_type, description, status, resolution, created_at, updated_at"#,

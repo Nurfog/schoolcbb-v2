@@ -1,11 +1,11 @@
 [package]
-name = "schoolcbb-finance"
+name = "schoolccb-finance"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-schoolcbb-common = { path = "../../common", features = ["db"] }
-schoolcbb-proto = { path = "../../proto" }
+schoolccb-common = { path = "../../common", features = ["db"] }
+schoolccb-proto = { path = "../../proto" }
 async-trait.workspace = true
 axum.workspace = true
 tokio.workspace = true

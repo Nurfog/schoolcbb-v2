@@ -1,4 +1,4 @@
-const CACHE_NAME = "schoolcbb-v1";
+const CACHE_NAME = "schoolccb-v1";
 const ASSETS = ["/", "/index.html", "/assets/style.css", "/manifest.json", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {

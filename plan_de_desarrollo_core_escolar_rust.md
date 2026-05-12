@@ -247,9 +247,9 @@ packages/services/portal/static/
 | `POST` | `/api/public/contact` | Formulario de contacto |
 
 **Hosting:**
-- `schoolcbb.cl` → portal (nginx → portal:3010)
-- `schoolcbb.cl/app/` → app Dioxus (nginx → gateway:3000)
-- O: `schoolcbb.cl` + `app.schoolcbb.cl`
+- `schoolccb.cl` → portal (nginx → portal:3010)
+- `schoolccb.cl/app/` → app Dioxus (nginx → gateway:3000)
+- O: `schoolccb.cl` + `app.schoolccb.cl`
 
 ---
 

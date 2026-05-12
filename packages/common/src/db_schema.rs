@@ -616,11 +616,92 @@ pub async fn run(pool: &PgPool) {
             is_enrolled BOOLEAN NOT NULL DEFAULT false,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
+        "CREATE TABLE IF NOT EXISTS notifications (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL REFERENCES users(id),
+            title VARCHAR(255) NOT NULL,
+            body TEXT,
+            notification_type VARCHAR(50) NOT NULL DEFAULT 'info',
+            read BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read, created_at DESC)",
         "CREATE TABLE IF NOT EXISTS api_keys (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             provider_name VARCHAR(100) NOT NULL,
             api_key_hash VARCHAR(255) NOT NULL,
             is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS license_plans (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            price_monthly DECIMAL(10,2) NOT NULL DEFAULT 0,
+            price_yearly DECIMAL(10,2) NOT NULL DEFAULT 0,
+            featured BOOLEAN NOT NULL DEFAULT false,
+            sort_order INT NOT NULL DEFAULT 0,
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS plan_modules (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            plan_id UUID NOT NULL REFERENCES license_plans(id) ON DELETE CASCADE,
+            module_key VARCHAR(50) NOT NULL,
+            module_name VARCHAR(100) NOT NULL,
+            included BOOLEAN NOT NULL DEFAULT true
+        )",
+        "CREATE TABLE IF NOT EXISTS corporation_licenses (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_id UUID NOT NULL REFERENCES corporations(id) ON DELETE CASCADE,
+            plan_id UUID NOT NULL REFERENCES license_plans(id),
+            start_date DATE NOT NULL,
+            end_date DATE,
+            auto_renew BOOLEAN NOT NULL DEFAULT false,
+            grace_period_days INT NOT NULL DEFAULT 30,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS corporation_module_overrides (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_id UUID NOT NULL REFERENCES corporations(id) ON DELETE CASCADE,
+            module_key VARCHAR(50) NOT NULL,
+            enabled BOOLEAN NOT NULL DEFAULT true,
+            reason TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS license_payments (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_license_id UUID NOT NULL REFERENCES corporation_licenses(id),
+            amount DECIMAL(10,2) NOT NULL,
+            currency VARCHAR(3) NOT NULL DEFAULT 'CLP',
+            payment_method VARCHAR(30) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            transaction_id VARCHAR(100),
+            paid_at TIMESTAMPTZ,
+            period_start DATE,
+            period_end DATE,
+            receipt_url TEXT,
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS license_extensions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_license_id UUID NOT NULL REFERENCES corporation_licenses(id) ON DELETE CASCADE,
+            days_extended INT NOT NULL,
+            reason VARCHAR(255) NOT NULL,
+            approved_by UUID REFERENCES users(id),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "CREATE TABLE IF NOT EXISTS admin_activity_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            admin_id UUID NOT NULL REFERENCES users(id),
+            action VARCHAR(50) NOT NULL,
+            entity_type VARCHAR(50),
+            entity_id UUID,
+            details JSONB,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
     ];

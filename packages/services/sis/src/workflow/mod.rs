@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use schoolcbb_common::event_bus::{BroadcastBus, EventBus, SystemEvent};
+use schoolccb_common::event_bus::{BroadcastBus, EventBus, SystemEvent};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -423,8 +423,8 @@ impl WorkflowEngine {
             None => return,
         };
 
-        use schoolcbb_proto::EventNotification;
-        use schoolcbb_proto::workflow_events_client::WorkflowEventsClient;
+        use schoolccb_proto::EventNotification;
+        use schoolccb_proto::workflow_events_client::WorkflowEventsClient;
 
         let notification = EventNotification {
             event_type: event_type.to_string(),

@@ -79,7 +79,7 @@ async fn upload_document(
     let s3_url = Some(format!("/uploads/prospects/{}/{}", pid, file_name));
 
     let doc_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::ProspectDocument>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::ProspectDocument>(
         r#"INSERT INTO prospect_documents (id, prospect_id, file_name, s3_url, doc_type, uploaded_by)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at"#,

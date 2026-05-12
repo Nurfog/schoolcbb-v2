@@ -24,7 +24,7 @@ pub fn router() -> Router<AppState> {
 async fn list_years(claims: Claims, State(state): State<AppState>) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let years = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
+    let years = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         "SELECT id, year, name, is_active, created_at FROM academic_years ORDER BY year DESC",
     )
     .fetch_all(&state.pool)
@@ -40,7 +40,7 @@ async fn get_year(
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let year = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
+    let year = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         "SELECT id, year, name, is_active, created_at FROM academic_years WHERE id = $1",
     )
     .bind(id)
@@ -56,7 +56,7 @@ async fn get_year(
 async fn create_year(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CreateAcademicYearPayload>,
+    Json(payload): Json<schoolccb_common::academic::CreateAcademicYearPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
@@ -71,7 +71,7 @@ async fn create_year(
     }
 
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         r#"
         INSERT INTO academic_years (id, year, name, is_active)
         VALUES ($1, $2, $3, $4)
@@ -92,11 +92,11 @@ async fn update_year(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::academic::UpdateAcademicYearPayload>,
+    Json(payload): Json<schoolccb_common::academic::UpdateAcademicYearPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let current = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
+    let current = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         "SELECT id, year, name, is_active, created_at FROM academic_years WHERE id = $1",
     )
     .bind(id)
@@ -115,7 +115,7 @@ async fn update_year(
     let name = payload.name.unwrap_or(current.name);
     let is_active = payload.is_active.unwrap_or(current.is_active);
 
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         "UPDATE academic_years SET name = $1, is_active = $2 WHERE id = $3
          RETURNING id, year, name, is_active, created_at",
     )
@@ -154,7 +154,7 @@ async fn activate_year(
         .execute(&state.pool)
         .await?;
 
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::AcademicYear>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         "UPDATE academic_years SET is_active = true WHERE id = $1
          RETURNING id, year, name, is_active, created_at",
     )
@@ -168,7 +168,7 @@ async fn activate_year(
 async fn clone_year(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CloneYearPayload>,
+    Json(payload): Json<schoolccb_common::academic::CloneYearPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 

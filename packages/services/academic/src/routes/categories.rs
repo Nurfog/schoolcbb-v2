@@ -37,7 +37,7 @@ async fn list_categories(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let categories = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
+    let categories = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -56,7 +56,7 @@ async fn get_category(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let category = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
+    let category = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE id = $1",
     )
     .bind(id)
@@ -77,7 +77,7 @@ async fn categories_by_course_subject(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let categories = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
+    let categories = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE course_subject_id = $1 ORDER BY name",
     )
     .bind(course_subject_id)
@@ -90,7 +90,7 @@ async fn categories_by_course_subject(
 async fn create_category(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CreateCategoryPayload>,
+    Json(payload): Json<schoolccb_common::academic::CreateCategoryPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
@@ -105,7 +105,7 @@ async fn create_category(
         ));
     }
 
-    let existing: Vec<schoolcbb_common::academic::GradeCategory> = sqlx::query_as(
+    let existing: Vec<schoolccb_common::academic::GradeCategory> = sqlx::query_as(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE course_subject_id = $1",
     )
     .bind(payload.course_subject_id)
@@ -121,7 +121,7 @@ async fn create_category(
     }
 
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         r#"
         INSERT INTO grade_categories (id, course_subject_id, name, weight_percentage, evaluation_count)
         VALUES ($1, $2, $3, $4, $5)
@@ -143,11 +143,11 @@ async fn update_category(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::academic::UpdateCategoryPayload>,
+    Json(payload): Json<schoolccb_common::academic::UpdateCategoryPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP", "Profesor"])?;
 
-    let existing = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
+    let existing = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories WHERE id = $1",
     )
     .bind(id)
@@ -163,7 +163,7 @@ async fn update_category(
         .evaluation_count
         .unwrap_or(existing.evaluation_count);
 
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::GradeCategory>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         r#"
         UPDATE grade_categories SET name = $1, weight_percentage = $2, evaluation_count = $3
         WHERE id = $4

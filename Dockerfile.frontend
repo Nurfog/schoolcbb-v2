@@ -20,13 +20,14 @@ COPY packages/services/attendance/Cargo.toml packages/services/attendance/Cargo.
 COPY packages/services/notifications/Cargo.toml packages/services/notifications/Cargo.toml
 COPY packages/services/finance/Cargo.toml packages/services/finance/Cargo.toml
 COPY packages/services/reporting/Cargo.toml packages/services/reporting/Cargo.toml
+COPY packages/services/portal/Cargo.toml packages/services/portal/Cargo.toml
 
 RUN mkdir -p packages/common/src packages/proto/src && \
     touch packages/common/src/lib.rs packages/proto/src/lib.rs && \
     for pkg in gateway frontend; do \
       mkdir -p packages/$pkg/src && echo "fn main() {}" > packages/$pkg/src/main.rs; \
     done && \
-    for pkg in identity sis academic attendance notifications finance reporting; do \
+    for pkg in identity sis academic attendance notifications finance reporting portal; do \
       mkdir -p packages/services/$pkg/src && echo "fn main() {}" > packages/services/$pkg/src/main.rs; \
     done
 
@@ -51,7 +52,7 @@ RUN dx build --release --platform web
 # ─── Stage 3: Nginx ─────────────────────────────────────────
 FROM nginx:alpine
 
-COPY --from=builder /app/target/dx/schoolcbb-frontend/release/web/public /usr/share/nginx/html
+COPY --from=builder /app/target/dx/schoolccb-frontend/release/web/public /usr/share/nginx/html
 COPY packages/frontend/assets /usr/share/nginx/html/assets
 COPY packages/frontend/public /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf

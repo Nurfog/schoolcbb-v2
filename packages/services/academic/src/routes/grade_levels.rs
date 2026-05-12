@@ -82,7 +82,7 @@ async fn list_levels(claims: Claims, State(state): State<AppState>) -> AcademicR
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let levels = sqlx::query_as::<_, schoolcbb_common::academic::GradeLevel>(
+    let levels = sqlx::query_as::<_, schoolccb_common::academic::GradeLevel>(
         "SELECT id, code, name, plan, sort_order, active, created_at FROM grade_levels ORDER BY sort_order",
     )
     .fetch_all(&state.pool)
@@ -98,7 +98,7 @@ async fn get_level(
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let level = sqlx::query_as::<_, schoolcbb_common::academic::GradeLevel>(
+    let level = sqlx::query_as::<_, schoolccb_common::academic::GradeLevel>(
         "SELECT id, code, name, plan, sort_order, active, created_at FROM grade_levels WHERE id = $1",
     )
     .bind(id)
@@ -112,7 +112,7 @@ async fn get_level(
 async fn create_level(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CreateGradeLevelPayload>,
+    Json(payload): Json<schoolccb_common::academic::CreateGradeLevelPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
@@ -123,7 +123,7 @@ async fn create_level(
     }
 
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::GradeLevel>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::GradeLevel>(
         r#"
         INSERT INTO grade_levels (id, code, name, plan, sort_order, active)
         VALUES ($1, $2, $3, $4, $5, true)
@@ -145,11 +145,11 @@ async fn update_level(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::academic::UpdateGradeLevelPayload>,
+    Json(payload): Json<schoolccb_common::academic::UpdateGradeLevelPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let current = sqlx::query_as::<_, schoolcbb_common::academic::GradeLevel>(
+    let current = sqlx::query_as::<_, schoolccb_common::academic::GradeLevel>(
         "SELECT id, code, name, plan, sort_order, active, created_at FROM grade_levels WHERE id = $1",
     )
     .bind(id)
@@ -162,7 +162,7 @@ async fn update_level(
     let sort_order = payload.sort_order.unwrap_or(current.sort_order);
     let active = payload.active.unwrap_or(current.active);
 
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::GradeLevel>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::GradeLevel>(
         "UPDATE grade_levels SET name = $1, plan = $2, sort_order = $3, active = $4 WHERE id = $5
          RETURNING id, code, name, plan, sort_order, active, created_at",
     )

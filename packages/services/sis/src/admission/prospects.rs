@@ -64,7 +64,7 @@ async fn list_prospects(
     }
     sql.push_str(" ORDER BY created_at DESC LIMIT 100");
 
-    let mut query = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(&sql);
+    let mut query = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(&sql);
     if let Some(sid) = q.stage_id {
         query = query.bind(sid);
     }
@@ -91,16 +91,16 @@ async fn get_prospect(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let prospect = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
+    let prospect = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(
         "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Postulante no encontrado".into()))?;
 
-    let activities = sqlx::query_as::<_, schoolcbb_common::admission::ProspectActivity>(
+    let activities = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         "SELECT id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at FROM prospect_activities WHERE prospect_id = $1 ORDER BY created_at DESC",
     ).bind(id).fetch_all(&state.pool).await?;
 
-    let documents = sqlx::query_as::<_, schoolcbb_common::admission::ProspectDocument>(
+    let documents = sqlx::query_as::<_, schoolccb_common::admission::ProspectDocument>(
         "SELECT id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at FROM prospect_documents WHERE prospect_id = $1 ORDER BY created_at DESC",
     ).bind(id).fetch_all(&state.pool).await?;
 
@@ -112,7 +112,7 @@ async fn get_prospect(
 async fn create_prospect(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::admission::CreateProspectPayload>,
+    Json(payload): Json<schoolccb_common::admission::CreateProspectPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(
         &claims,
@@ -130,7 +130,7 @@ async fn create_prospect(
             .fetch_optional(&state.pool)
             .await?;
 
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(
         r#"INSERT INTO prospects (id, first_name, last_name, rut, email, phone, current_stage_id, source, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at"#,
@@ -146,18 +146,18 @@ async fn update_prospect(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::admission::UpdateProspectPayload>,
+    Json(payload): Json<schoolccb_common::admission::UpdateProspectPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let current = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
+    let current = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(
         "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Postulante no encontrado".into()))?;
 
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(
         r#"UPDATE prospects SET first_name = $1, last_name = $2, rut = $3, email = $4, phone = $5, source = $6, notes = $7, updated_at = NOW() WHERE id = $8
            RETURNING id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at"#,
     ).bind(payload.first_name.unwrap_or(current.first_name))
@@ -229,7 +229,7 @@ async fn change_stage(
         }
     }
 
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::Prospect>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(
         r#"UPDATE prospects SET current_stage_id = $1, updated_at = NOW() WHERE id = $2
            RETURNING id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at"#,
     ).bind(payload.stage_id).bind(id).fetch_one(&state.pool).await?;

@@ -131,9 +131,9 @@ async fn assign_course_subject(
     })?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(
+    schoolccb_common::audit::log(
         &state.pool,
-        &schoolcbb_common::audit::AuditEntry {
+        &schoolccb_common::audit::AuditEntry {
             entity_type: "course_subject".into(),
             entity_id: id,
             action: "assigned".into(),
@@ -176,9 +176,9 @@ async fn remove_course_subject(
         .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(
+    schoolccb_common::audit::log(
         &state.pool,
-        &schoolcbb_common::audit::AuditEntry {
+        &schoolccb_common::audit::AuditEntry {
             entity_type: "course_subject".into(),
             entity_id: id,
             action: "removed".into(),

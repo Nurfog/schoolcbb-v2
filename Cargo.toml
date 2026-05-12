@@ -11,6 +11,7 @@ members = [
     "packages/services/notifications",
     "packages/services/finance",
     "packages/services/reporting",
+    "packages/services/portal",
     "packages/frontend",
 ]
 

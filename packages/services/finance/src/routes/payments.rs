@@ -29,7 +29,7 @@ async fn list_payments(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let payments = sqlx::query_as::<_, schoolcbb_common::finance::Payment>(
+    let payments = sqlx::query_as::<_, schoolccb_common::finance::Payment>(
         "SELECT id, fee_id, student_id, amount, payment_date, payment_method, reference, created_at FROM payments ORDER BY payment_date DESC LIMIT 100",
     )
     .fetch_all(&state.pool)
@@ -47,7 +47,7 @@ async fn get_payment(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let payment = sqlx::query_as::<_, schoolcbb_common::finance::Payment>(
+    let payment = sqlx::query_as::<_, schoolccb_common::finance::Payment>(
         "SELECT id, fee_id, student_id, amount, payment_date, payment_method, reference, created_at FROM payments WHERE id = $1",
     )
     .bind(id)
@@ -61,7 +61,7 @@ async fn get_payment(
 async fn create_payment(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::finance::CreatePaymentPayload>,
+    Json(payload): Json<schoolccb_common::finance::CreatePaymentPayload>,
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
@@ -70,7 +70,7 @@ async fn create_payment(
         .payment_date
         .unwrap_or_else(|| chrono::Utc::now().date_naive());
 
-    let result = sqlx::query_as::<_, schoolcbb_common::finance::Payment>(
+    let result = sqlx::query_as::<_, schoolccb_common::finance::Payment>(
         r#"
         INSERT INTO payments (id, fee_id, student_id, amount, payment_date, payment_method, reference)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -113,7 +113,7 @@ async fn payments_by_student(
         ],
     )?;
 
-    let payments = sqlx::query_as::<_, schoolcbb_common::finance::Payment>(
+    let payments = sqlx::query_as::<_, schoolccb_common::finance::Payment>(
         "SELECT id, fee_id, student_id, amount, payment_date, payment_method, reference, created_at FROM payments WHERE student_id = $1 ORDER BY payment_date DESC",
     )
     .bind(student_id)

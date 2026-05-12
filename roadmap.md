@@ -14,7 +14,7 @@ Identity, SIS, Academic, Attendance, Notifications, Finance, Reporting, Module M
 
 ### Etapa 7 — Arquitectura del Portal y Root Service
 
-Crear nuevo servicio `packages/services/portal` (axum + server-side templates con `minijinja` o `tera`) para el portal público. Alternativamente usar Astro/Next.js como subdirectorio si se prefiere separar tecnología. La app Dioxus existente pasa a `app.schoolcbb.cl` y el portal vive en la raíz del dominio.
+Crear nuevo servicio `packages/services/portal` (axum + server-side templates con `minijinja` o `tera`) para el portal público. Alternativamente usar Astro/Next.js como subdirectorio si se prefiere separar tecnología. La app Dioxus existente pasa a `app.schoolccb.cl` y el portal vive en la raíz del dominio.
 
 Rutas del portal:
 | Ruta | Descripción |
@@ -260,10 +260,10 @@ Nuevo servicio `packages/services/portal` usando **axum + minijinja** (templates
 Alternativa: **Astro** (JS) si se prefiere mejor DX para landing pages. Pero mantener Rust unifica el stack.
 
 Hosting:
-- `schoolcbb.cl` → portal (nginx → portal:3010)
-- `schoolcbb.cl/app/` → app Dioxus (nginx → gateway:3000 → frontend assets)
+- `schoolccb.cl` → portal (nginx → portal:3010)
+- `schoolccb.cl/app/` → app Dioxus (nginx → gateway:3000 → frontend assets)
 
-O dominio separado: `schoolcbb.cl` (portal), `app.schoolcbb.cl` (app).
+O dominio separado: `schoolccb.cl` (portal), `app.schoolccb.cl` (app).
 
 #### 9.2 Templates del Portal
 

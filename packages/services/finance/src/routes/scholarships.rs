@@ -34,7 +34,7 @@ async fn list_scholarships(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let scholarships = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
+    let scholarships = sqlx::query_as::<_, schoolccb_common::finance::Scholarship>(
         "SELECT id, student_id, name, discount_percentage, approved, approved_by, valid_from, valid_until, created_at FROM scholarships ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -52,7 +52,7 @@ async fn get_scholarship(
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
-    let scholarship = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
+    let scholarship = sqlx::query_as::<_, schoolccb_common::finance::Scholarship>(
         "SELECT id, student_id, name, discount_percentage, approved, approved_by, valid_from, valid_until, created_at FROM scholarships WHERE id = $1",
     )
     .bind(id)
@@ -66,7 +66,7 @@ async fn get_scholarship(
 async fn create_scholarship(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::finance::CreateScholarshipPayload>,
+    Json(payload): Json<schoolccb_common::finance::CreateScholarshipPayload>,
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
@@ -80,7 +80,7 @@ async fn create_scholarship(
     }
 
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
+    let result = sqlx::query_as::<_, schoolccb_common::finance::Scholarship>(
         r#"
         INSERT INTO scholarships (id, student_id, name, discount_percentage, valid_from, valid_until)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -111,7 +111,7 @@ async fn approve_scholarship(
         .parse()
         .map_err(|_| crate::error::FinanceError::Unauthorized)?;
 
-    let result = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
+    let result = sqlx::query_as::<_, schoolccb_common::finance::Scholarship>(
         r#"
         UPDATE scholarships SET approved = true, approved_by = $1 WHERE id = $2
         RETURNING id, student_id, name, discount_percentage, approved, approved_by, valid_from, valid_until, created_at
@@ -157,7 +157,7 @@ async fn scholarships_by_student(
         ],
     )?;
 
-    let scholarships = sqlx::query_as::<_, schoolcbb_common::finance::Scholarship>(
+    let scholarships = sqlx::query_as::<_, schoolccb_common::finance::Scholarship>(
         "SELECT id, student_id, name, discount_percentage, approved, approved_by, valid_from, valid_until, created_at FROM scholarships WHERE student_id = $1 ORDER BY valid_from DESC",
     )
     .bind(student_id)

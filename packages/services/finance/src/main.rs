@@ -51,7 +51,7 @@ async fn main() {
         .expect("Failed to connect to PostgreSQL");
 
     tracing::info!("Finance Service connected to database");
-    schoolcbb_common::db_schema::run(&pool).await;
+    schoolccb_common::db_schema::run(&pool).await;
 
     let gateway = init_gateway();
 

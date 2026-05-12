@@ -1,5 +1,5 @@
 [application]
-name = "schoolcbb-frontend"
+name = "schoolccb-frontend"
 default_platform = "web"
 
 [web]

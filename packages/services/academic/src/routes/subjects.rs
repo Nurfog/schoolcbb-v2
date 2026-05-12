@@ -227,7 +227,7 @@ async fn get_subject(
 async fn create_subject(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CreateSubjectPayload>,
+    Json(payload): Json<schoolccb_common::academic::CreateSubjectPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
@@ -259,9 +259,9 @@ async fn create_subject(
     })?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(
+    schoolccb_common::audit::log(
         &state.pool,
-        &schoolcbb_common::audit::AuditEntry {
+        &schoolccb_common::audit::AuditEntry {
             entity_type: "subject".into(),
             entity_id: id,
             action: "created".into(),
@@ -281,7 +281,7 @@ async fn update_subject(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::academic::UpdateSubjectPayload>,
+    Json(payload): Json<schoolccb_common::academic::UpdateSubjectPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
 
@@ -325,9 +325,9 @@ async fn update_subject(
         changes["hours_per_week"] = serde_json::json!(hours_per_week);
     }
     if !changes.as_object().map(|o| o.is_empty()).unwrap_or(true) {
-        schoolcbb_common::audit::log(
+        schoolccb_common::audit::log(
             &state.pool,
-            &schoolcbb_common::audit::AuditEntry {
+            &schoolccb_common::audit::AuditEntry {
                 entity_type: "subject".into(),
                 entity_id: id,
                 action: "updated".into(),
@@ -365,9 +365,9 @@ async fn deactivate_subject(
         .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(
+    schoolccb_common::audit::log(
         &state.pool,
-        &schoolcbb_common::audit::AuditEntry {
+        &schoolccb_common::audit::AuditEntry {
             entity_type: "subject".into(),
             entity_id: id,
             action: "deactivated".into(),
@@ -423,9 +423,9 @@ async fn save_hours(
     .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
-    schoolcbb_common::audit::log(
+    schoolccb_common::audit::log(
         &state.pool,
-        &schoolcbb_common::audit::AuditEntry {
+        &schoolccb_common::audit::AuditEntry {
             entity_type: "subject_hours".into(),
             entity_id: id,
             action: "hours_updated".into(),
@@ -518,9 +518,9 @@ async fn import_subjects(
                 }
 
                 let user_id = Uuid::parse_str(&claims.sub).ok();
-                schoolcbb_common::audit::log(
+                schoolccb_common::audit::log(
                     &state.pool,
-                    &schoolcbb_common::audit::AuditEntry {
+                    &schoolccb_common::audit::AuditEntry {
                         entity_type: "subject".into(),
                         entity_id: id,
                         action: "bulk_imported".into(),

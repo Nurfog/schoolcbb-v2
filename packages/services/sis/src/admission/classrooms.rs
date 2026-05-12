@@ -30,7 +30,7 @@ async fn list_classrooms(claims: Claims, State(state): State<AppState>) -> SisRe
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let rooms = sqlx::query_as::<_, schoolcbb_common::admission::Classroom>(
+    let rooms = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "SELECT id, name, capacity, location, active, created_at FROM classrooms ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -47,7 +47,7 @@ async fn get_classroom(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
-    let room = sqlx::query_as::<_, schoolcbb_common::admission::Classroom>(
+    let room = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "SELECT id, name, capacity, location, active, created_at FROM classrooms WHERE id = $1",
     )
     .bind(id)
@@ -62,7 +62,7 @@ async fn get_classroom(
 async fn create_classroom(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::admission::CreateClassroomPayload>,
+    Json(payload): Json<schoolccb_common::admission::CreateClassroomPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
     if payload.name.trim().is_empty() {
@@ -71,7 +71,7 @@ async fn create_classroom(
         ));
     }
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::Classroom>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "INSERT INTO classrooms (id, name, capacity, location) VALUES ($1, $2, $3, $4)
          RETURNING id, name, capacity, location, active, created_at",
     )
@@ -88,10 +88,10 @@ async fn update_classroom(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::admission::UpdateClassroomPayload>,
+    Json(payload): Json<schoolccb_common::admission::UpdateClassroomPayload>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    let current = sqlx::query_as::<_, schoolcbb_common::admission::Classroom>(
+    let current = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "SELECT id, name, capacity, location, active, created_at FROM classrooms WHERE id = $1",
     )
     .bind(id)
@@ -104,7 +104,7 @@ async fn update_classroom(
     let capacity = payload.capacity.unwrap_or(current.capacity);
     let location = payload.location.or(current.location);
     let active = payload.active.unwrap_or(current.active);
-    let result = sqlx::query_as::<_, schoolcbb_common::admission::Classroom>(
+    let result = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "UPDATE classrooms SET name = $1, capacity = $2, location = $3, active = $4 WHERE id = $5
          RETURNING id, name, capacity, location, active, created_at",
     )

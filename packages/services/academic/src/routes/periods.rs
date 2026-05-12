@@ -29,7 +29,7 @@ async fn list_periods(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let periods = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
+    let periods = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods ORDER BY year DESC, semester",
     )
     .fetch_all(&state.pool)
@@ -48,7 +48,7 @@ async fn get_period(
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
 
-    let period = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
+    let period = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods WHERE id = $1",
     )
     .bind(id)
@@ -76,7 +76,7 @@ async fn current_period(
         ],
     )?;
 
-    let period = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
+    let period = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods WHERE is_active = true LIMIT 1",
     )
     .fetch_optional(&state.pool)
@@ -89,7 +89,7 @@ async fn current_period(
 async fn create_period(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::academic::CreatePeriodPayload>,
+    Json(payload): Json<schoolccb_common::academic::CreatePeriodPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP"])?;
 
@@ -105,7 +105,7 @@ async fn create_period(
     }
 
     let id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         r#"
         INSERT INTO academic_periods (id, name, year, semester, start_date, end_date)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -128,11 +128,11 @@ async fn update_period(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::academic::UpdatePeriodPayload>,
+    Json(payload): Json<schoolccb_common::academic::UpdatePeriodPayload>,
 ) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Director", "UTP"])?;
 
-    let existing = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
+    let existing = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods WHERE id = $1",
     )
     .bind(id)
@@ -158,7 +158,7 @@ async fn update_period(
 
     let is_active = payload.is_active.unwrap_or(existing.is_active);
 
-    let result = sqlx::query_as::<_, schoolcbb_common::academic::AcademicPeriod>(
+    let result = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         r#"
         UPDATE academic_periods SET name = $1, start_date = $2, end_date = $3, is_active = $4
         WHERE id = $5

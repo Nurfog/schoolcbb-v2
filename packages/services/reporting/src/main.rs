@@ -33,7 +33,7 @@ async fn main() {
         .expect("Failed to connect to PostgreSQL");
 
     tracing::info!("Reporting Service connected to database");
-    schoolcbb_common::db_schema::run(&pool).await;
+    schoolccb_common::db_schema::run(&pool).await;
 
     let state = AppState {
         pool,

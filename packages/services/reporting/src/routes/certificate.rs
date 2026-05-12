@@ -118,7 +118,7 @@ async fn certificate_student(
     let issuer_name = claims.name.clone();
     let issued_at = chrono::Utc::now().format("%d/%m/%Y %H:%M").to_string();
 
-    let cert = schoolcbb_common::reporting::CertificateRegular {
+    let cert = schoolccb_common::reporting::CertificateRegular {
         student_id: student.id,
         student_name: student.student_name,
         rut: student.rut,

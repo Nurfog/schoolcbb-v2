@@ -1,14 +1,14 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use schoolcbb_common::attendance::{
+use schoolccb_common::attendance::{
     AlertSeverity, AttendanceAlert, AttendanceStatus, DailyAttendance, MonthlyAttendanceSummary,
 };
 
 #[allow(dead_code)]
 pub async fn get_students(
     pool: &PgPool,
-) -> Result<Vec<schoolcbb_common::student::Student>, sqlx::Error> {
+) -> Result<Vec<schoolccb_common::student::Student>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RawStudent {
         id: Uuid,
@@ -39,9 +39,9 @@ pub async fn get_students(
 
     Ok(raw
         .into_iter()
-        .map(|r| schoolcbb_common::student::Student {
+        .map(|r| schoolccb_common::student::Student {
             id: r.id,
-            rut: schoolcbb_common::rut::Rut(r.rut),
+            rut: schoolccb_common::rut::Rut(r.rut),
             first_name: r.first_name,
             last_name: r.last_name,
             email: r.email,
@@ -50,19 +50,19 @@ pub async fn get_students(
             section: r.section,
             cod_nivel: r.cod_nivel,
             condicion: match r.condicion.as_str() {
-                "RE" => schoolcbb_common::student::CondicionMatricula::Repitente,
-                "TR" => schoolcbb_common::student::CondicionMatricula::Trasladado,
-                _ => schoolcbb_common::student::CondicionMatricula::AlumnoRegular,
+                "RE" => schoolccb_common::student::CondicionMatricula::Repitente,
+                "TR" => schoolccb_common::student::CondicionMatricula::Trasladado,
+                _ => schoolccb_common::student::CondicionMatricula::AlumnoRegular,
             },
             prioritario: match r.prioritario.as_str() {
-                "1" => schoolcbb_common::student::Prioritario::Si,
-                "2" => schoolcbb_common::student::Prioritario::Preferente,
-                _ => schoolcbb_common::student::Prioritario::No,
+                "1" => schoolccb_common::student::Prioritario::Si,
+                "2" => schoolccb_common::student::Prioritario::Preferente,
+                _ => schoolccb_common::student::Prioritario::No,
             },
             nee: match r.nee.as_str() {
-                "T" => schoolcbb_common::student::NEE::Transitoria,
-                "P" => schoolcbb_common::student::NEE::Permanente,
-                _ => schoolcbb_common::student::NEE::No,
+                "T" => schoolccb_common::student::NEE::Transitoria,
+                "P" => schoolccb_common::student::NEE::Permanente,
+                _ => schoolccb_common::student::NEE::No,
             },
             enrolled: r.enrolled,
         })
@@ -254,7 +254,7 @@ pub async fn get_attendance_alerts(pool: &PgPool) -> Result<Vec<AttendanceAlert>
 pub async fn get_agenda_events(
     pool: &PgPool,
     date: &str,
-) -> Result<Vec<schoolcbb_common::user::AgendaEvent>, sqlx::Error> {
+) -> Result<Vec<schoolccb_common::user::AgendaEvent>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RawEvent {
         id: Uuid,
@@ -281,16 +281,16 @@ pub async fn get_agenda_events(
 
     Ok(raw
         .into_iter()
-        .map(|r| schoolcbb_common::user::AgendaEvent {
+        .map(|r| schoolccb_common::user::AgendaEvent {
             id: r.id,
             title: r.title,
             description: r.description,
             date: r.date,
             event_type: match r.event_type.as_str() {
-                "Clase" => schoolcbb_common::user::EventType::Clase,
-                "Reunion" => schoolcbb_common::user::EventType::Reunion,
-                "Evaluacion" => schoolcbb_common::user::EventType::Evaluacion,
-                _ => schoolcbb_common::user::EventType::Evento,
+                "Clase" => schoolccb_common::user::EventType::Clase,
+                "Reunion" => schoolccb_common::user::EventType::Reunion,
+                "Evaluacion" => schoolccb_common::user::EventType::Evaluacion,
+                _ => schoolccb_common::user::EventType::Evento,
             },
         })
         .collect())
@@ -298,7 +298,7 @@ pub async fn get_agenda_events(
 
 pub async fn get_dashboard_summary(
     pool: &PgPool,
-) -> Result<schoolcbb_common::user::DashboardSummary, sqlx::Error> {
+) -> Result<schoolccb_common::user::DashboardSummary, sqlx::Error> {
     let total_students: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM students WHERE enrolled = true")
             .fetch_one(pool)
@@ -331,7 +331,7 @@ pub async fn get_dashboard_summary(
 
     let today_events = get_agenda_events(pool, &today).await?;
 
-    Ok(schoolcbb_common::user::DashboardSummary {
+    Ok(schoolccb_common::user::DashboardSummary {
         total_students: total_students.0,
         total_teachers: total_teachers.0,
         attendance_today_percentage: attendance_today,
