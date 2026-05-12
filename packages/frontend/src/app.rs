@@ -14,8 +14,10 @@ pub fn App() -> Element {
             Sidebar {}
             div { class: "main-area",
                 Topbar {}
-                div { id: "main-content", class: "dashboard-content",
-                    Router::<Route> {}
+                div { id: "main-content", class: "dashboard-content", role: "main",
+                    ErrorBoundary {
+                        Router::<Route> {}
+                    }
                 }
             }
         }

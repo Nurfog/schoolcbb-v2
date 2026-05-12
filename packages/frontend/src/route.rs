@@ -1,21 +1,32 @@
 use dioxus::prelude::*;
 
 use crate::api::client;
+use crate::seo::use_page_title;
+use crate::components::pages::academic_years_page::AcademicYearsPage;
 use crate::components::pages::admission_page::AdmissionPage;
+use crate::components::pages::agenda_page::AgendaPage;
 use crate::components::pages::attendance_page::AttendancePage;
+use crate::components::pages::audit_page::AuditPage;
+use crate::components::pages::classrooms_page::ClassroomsPage;
+use crate::components::pages::complaints_page::ComplaintsPage;
 use crate::components::pages::config_page::ConfigPage;
 use crate::components::pages::corporations_page::CorporationsPage;
 use crate::components::pages::courses_page::CoursesPage;
 use crate::components::pages::csv_import_page::CsvImportPage;
+use crate::components::pages::employee_portal_page::EmployeePortalPage;
 use crate::components::pages::enrollments_page::EnrollmentsPage;
 use crate::components::pages::finance_page::FinancePage;
+use crate::components::pages::grade_levels_page::GradeLevelsPage;
 use crate::components::pages::grades_page::GradesPage;
 use crate::components::pages::hr_detail_page::HrDetailPage;
 use crate::components::pages::hr_page::HrPage;
 use crate::components::pages::login_page::LoginPage;
 use crate::components::pages::module_manager::ModuleManager;
 use crate::components::pages::notifications_page::NotificationsPage;
+use crate::components::pages::payroll_page::PayrollPage;
 use crate::components::pages::reports_page::ReportsPage;
+use crate::components::pages::roles_page::RolesPage;
+use crate::components::pages::sige_page::SigePage;
 use crate::components::pages::student_detail_page::StudentDetailPage;
 use crate::components::pages::students_page::StudentsPage;
 use crate::components::pages::subjects_page::SubjectsPage;
@@ -79,10 +90,31 @@ pub enum Route {
     Import {},
     #[route("/corporations")]
     Corporations {},
+    #[route("/agenda")]
+    Agenda {},
+    #[route("/academic-years")]
+    AcademicYears {},
+    #[route("/audit")]
+    Audit {},
+    #[route("/grade-levels")]
+    GradeLevels {},
+    #[route("/roles")]
+    Roles {},
+    #[route("/classrooms")]
+    Classrooms {},
+    #[route("/payroll")]
+    Payroll {},
+    #[route("/my-portal")]
+    EmployeePortal {},
+    #[route("/sige")]
+    Sige {},
+    #[route("/complaints")]
+    Complaints {},
 }
 
 #[component]
 pub fn Login() -> Element {
+    use_page_title("Iniciar Sesion");
     rsx! { LoginPage {} }
 }
 
@@ -113,78 +145,91 @@ pub fn ModuleManagerRoot() -> Element {
 #[component]
 pub fn Students() -> Element {
     require_auth();
+    use_page_title("Gestion de Alumnos");
     rsx! { StudentsPage {} }
 }
 
 #[component]
 pub fn Attendance() -> Element {
     require_auth();
+    use_page_title("Asistencia");
     rsx! { AttendancePage {} }
 }
 
 #[component]
 pub fn Grades() -> Element {
     require_auth();
+    use_page_title("Calificaciones");
     rsx! { GradesPage {} }
 }
 
 #[component]
 pub fn Notifications() -> Element {
     require_auth();
+    use_page_title("Centro de Mensajeria");
     rsx! { NotificationsPage {} }
 }
 
 #[component]
 pub fn Reports() -> Element {
     require_auth();
+    use_page_title("Reportes");
     rsx! { ReportsPage {} }
 }
 
 #[component]
 pub fn Finance() -> Element {
     require_auth();
+    use_page_title("Finanzas");
     rsx! { FinancePage {} }
 }
 
 #[component]
 pub fn Users() -> Element {
     require_auth();
+    use_page_title("Usuarios y Perfiles");
     rsx! { UsersPage {} }
 }
 
 #[component]
 pub fn Courses() -> Element {
     require_auth();
+    use_page_title("Cursos");
     rsx! { CoursesPage {} }
 }
 
 #[component]
 pub fn Enrollments() -> Element {
     require_auth();
+    use_page_title("Matriculas");
     rsx! { EnrollmentsPage {} }
 }
 
 #[component]
 pub fn Subjects() -> Element {
     require_auth();
+    use_page_title("Asignaturas");
     rsx! { SubjectsPage {} }
 }
 
 #[component]
 pub fn Config() -> Element {
     require_auth();
+    use_page_title("Configuracion");
     rsx! { ConfigPage {} }
 }
 
 #[component]
 pub fn Admission() -> Element {
     require_auth();
+    use_page_title("Admisiones");
     rsx! { AdmissionPage {} }
 }
 
 #[component]
 pub fn Hr() -> Element {
     require_auth();
+    use_page_title("Recursos Humanos");
     rsx! { HrPage {} }
 }
 
@@ -197,6 +242,7 @@ pub fn HrDetail(employee_id: String) -> Element {
 #[component]
 pub fn Import() -> Element {
     use dioxus::prelude::*;
+    use_page_title("Importacion CSV");
     let mut entity_type = use_signal(|| "employees".to_string());
     rsx! {
         div { class: "page-toolbar",
@@ -210,5 +256,76 @@ pub fn Import() -> Element {
 #[component]
 pub fn Corporations() -> Element {
     require_auth();
+    use_page_title("Corporaciones y Colegios");
     rsx! { CorporationsPage {} }
+}
+
+#[component]
+pub fn Agenda() -> Element {
+    require_auth();
+    use_page_title("Agenda Escolar");
+    rsx! { AgendaPage {} }
+}
+
+#[component]
+pub fn AcademicYears() -> Element {
+    require_auth();
+    use_page_title("Anos Academicos");
+    rsx! { AcademicYearsPage {} }
+}
+
+#[component]
+pub fn Audit() -> Element {
+    require_auth();
+    use_page_title("Auditoria");
+    rsx! { AuditPage {} }
+}
+
+#[component]
+pub fn GradeLevels() -> Element {
+    require_auth();
+    use_page_title("Niveles");
+    rsx! { GradeLevelsPage {} }
+}
+
+#[component]
+pub fn Roles() -> Element {
+    require_auth();
+    use_page_title("Roles y Permisos");
+    rsx! { RolesPage {} }
+}
+
+#[component]
+pub fn Classrooms() -> Element {
+    require_auth();
+    use_page_title("Salas");
+    rsx! { ClassroomsPage {} }
+}
+
+#[component]
+pub fn Payroll() -> Element {
+    require_auth();
+    use_page_title("Remuneraciones");
+    rsx! { PayrollPage {} }
+}
+
+#[component]
+pub fn EmployeePortal() -> Element {
+    require_auth();
+    use_page_title("Mi Portal");
+    rsx! { EmployeePortalPage {} }
+}
+
+#[component]
+pub fn Sige() -> Element {
+    require_auth();
+    use_page_title("SIGE - Exportacion MINEDUC");
+    rsx! { SigePage {} }
+}
+
+#[component]
+pub fn Complaints() -> Element {
+    require_auth();
+    use_page_title("Ley Karin - Canal de Denuncias");
+    rsx! { ComplaintsPage {} }
 }

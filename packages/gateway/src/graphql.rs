@@ -24,8 +24,14 @@ pub struct QueryRoot;
 #[Object]
 impl QueryRoot {
     async fn students(&self, ctx: &Context<'_>, search: Option<String>) -> Vec<StudentGql> {
-        let client = ctx.data::<reqwest::Client>().unwrap();
-        let cfg = ctx.data::<ServicesConfig>().unwrap();
+        let client = match ctx.data::<reqwest::Client>() {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
+        let cfg = match ctx.data::<ServicesConfig>() {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
         let endpoint = match search {
             Some(q) => format!("/api/students?search={}", q.replace(' ', "%20")),
             None => "/api/students".to_string(),
@@ -61,8 +67,14 @@ impl QueryRoot {
     }
 
     async fn subjects(&self, ctx: &Context<'_>) -> Vec<SubjectGql> {
-        let client = ctx.data::<reqwest::Client>().unwrap();
-        let cfg = ctx.data::<ServicesConfig>().unwrap();
+        let client = match ctx.data::<reqwest::Client>() {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
+        let cfg = match ctx.data::<ServicesConfig>() {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
         let token = get_token(ctx);
         let mut req = client.get(format!("{}/api/grades/subjects", cfg.academic_url));
         if let Some(t) = token {
@@ -96,8 +108,14 @@ impl QueryRoot {
         student_id: String,
         year: i32,
     ) -> Option<StudentReportGql> {
-        let client = ctx.data::<reqwest::Client>().unwrap();
-        let cfg = ctx.data::<ServicesConfig>().unwrap();
+        let client = match ctx.data::<reqwest::Client>() {
+            Ok(c) => c,
+            Err(_) => return None,
+        };
+        let cfg = match ctx.data::<ServicesConfig>() {
+            Ok(c) => c,
+            Err(_) => return None,
+        };
         let token = get_token(ctx);
         let mut req = client.get(format!(
             "{}/api/grades/reports/student/{}/{}",

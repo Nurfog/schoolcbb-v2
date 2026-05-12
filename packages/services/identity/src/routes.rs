@@ -879,6 +879,38 @@ fn builtin_modules() -> Vec<schoolcbb_common::modules::Module> {
             route: "/hr".into(),
             is_favorite: false,
         },
+        schoolcbb_common::modules::Module {
+            id: "payroll".into(),
+            name: "Remuneraciones".into(),
+            icon: "dollar".into(),
+            category: "Administración".into(),
+            route: "/payroll".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "my-portal".into(),
+            name: "Mi Portal (Auto-consulta)".into(),
+            icon: "user".into(),
+            category: "Administración".into(),
+            route: "/my-portal".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "sige".into(),
+            name: "SIGE — Exportación MINEDUC".into(),
+            icon: "file-text".into(),
+            category: "Administración".into(),
+            route: "/sige".into(),
+            is_favorite: false,
+        },
+        schoolcbb_common::modules::Module {
+            id: "complaints".into(),
+            name: "Ley Karin — Denuncias".into(),
+            icon: "shield".into(),
+            category: "Administración".into(),
+            route: "/complaints".into(),
+            is_favorite: false,
+        },
     ]
 }
 

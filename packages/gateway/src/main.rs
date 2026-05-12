@@ -260,7 +260,12 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
     let upstream_url = format!("{base_url}{path}{query}");
 
     let method = req.method().clone();
-    let headers = req.headers().clone();
+    let req_headers: Vec<(String, String)> = req
+        .headers()
+        .iter()
+        .filter(|(k, _)| *k != "host")
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
     let body_bytes = req
         .into_body()
         .collect()
@@ -268,20 +273,23 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
         .unwrap_or_default()
         .to_bytes();
 
-    let upstream_req = state
+    let mut upstream_req = state
         .client
         .request(method, &upstream_url)
-        .headers(headers)
         .body(body_bytes);
+
+    for (key, value) in &req_headers {
+        upstream_req = upstream_req.header(key.as_str(), value.as_str());
+    }
 
     match upstream_req.send().await {
         Ok(resp) => {
             let status = resp.status();
-            let headers = resp.headers().clone();
+            let resp_headers = resp.headers().clone();
             let body = resp.bytes().await.unwrap_or_default();
             let mut response = Response::new(axum::body::Body::from(body));
             *response.status_mut() = status;
-            for (key, value) in headers.iter() {
+            for (key, value) in resp_headers.iter() {
                 if key != "host" && key != "transfer-encoding" {
                     response.headers_mut().insert(key, value.clone());
                 }

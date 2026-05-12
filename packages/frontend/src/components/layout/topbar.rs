@@ -10,6 +10,7 @@ pub fn Topbar() -> Element {
     let mut show_search = use_signal(|| false);
 
     let search_open = show_search;
+    let handler_ref = use_signal(|| None::<wasm_bindgen::closure::Closure<dyn FnMut(_)>>);
     use_hook(move || {
         let window = web_sys::window().expect("no window");
         let doc = window.document().expect("no document");
@@ -22,7 +23,8 @@ pub fn Topbar() -> Element {
                 }
             }) as Box<dyn FnMut(_)>);
         let _ = doc.add_event_listener_with_callback("keydown", handler.as_ref().unchecked_ref());
-        handler.forget();
+        let mut hr = handler_ref.clone();
+        hr.set(Some(handler));
         0u32
     });
 
@@ -44,29 +46,27 @@ pub fn Topbar() -> Element {
 
     rsx! {
         header { class: "topbar",
-            div { class: "search-bar", onclick: open_search,
+            div { class: "search-bar", onclick: open_search, role: "button", tabindex: "0", "aria-label": "Buscar alumnos y empleados", onkeydown: move |e| { if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) { show_search.set(true); } },
                 span { class: "search-icon",
                     svg { width: "16", height: "16", view_box: "0 0 24 24",
                         circle { cx: "11", cy: "11", r: "8" }
                         line { x1: "21", y1: "21", x2: "16.65", y2: "16.65" }
                     }
                 }
-                input { placeholder: "Buscar alumnos, empleados... (Ctrl+K)", "type": "text", disabled: "true" }
+                span { class: "search-placeholder", "Buscar alumnos, empleados... (Ctrl+K)" }
                 div { class: "search-shortcut",
                     kbd { "Ctrl" }
                     kbd { "K" }
                 }
             }
             div { class: "topbar-actions",
-                a { href: "/notifications",
-                    button { class: "notif-btn",
-                        svg { role: "presentation", view_box: "0 0 24 24",
-                            path { d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }
-                            path { d: "M13.73 21a2 2 0 0 1-3.46 0" }
-                        }
-                        if unread_count > 0 {
-                            div { class: "notif-badge", "{unread_count}" }
-                        }
+                button { class: "notif-btn", onclick: move |_| { let nav = navigator(); nav.push("/notifications"); },
+                    svg { role: "presentation", view_box: "0 0 24 24",
+                        path { d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }
+                        path { d: "M13.73 21a2 2 0 0 1-3.46 0" }
+                    }
+                    if unread_count > 0 {
+                        div { class: "notif-badge", "{unread_count}" }
                     }
                 }
                 div { class: "user-avatar", "AD" }

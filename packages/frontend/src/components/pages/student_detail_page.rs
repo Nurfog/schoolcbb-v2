@@ -18,19 +18,24 @@ pub fn StudentDetailPage(student_id: String) -> Element {
     let sid_int = student_id.clone();
     let sid_fees = student_id.clone();
 
+    let current_year = js_sys::Date::new_0().get_full_year() as i32;
+
     let report = use_resource(move || {
         let sid = sid_report.clone();
-        async move { client::fetch_student_report(&sid, 2025).await }
+        let y = current_year;
+        async move { client::fetch_student_report(&sid, y).await }
     });
 
     let grades_s1 = use_resource(move || {
         let sid = sid_s1.clone();
-        async move { client::fetch_grades_student(&sid, 1, 2025).await }
+        let y = current_year;
+        async move { client::fetch_grades_student(&sid, 1, y).await }
     });
 
     let grades_s2 = use_resource(move || {
         let sid = sid_s2.clone();
-        async move { client::fetch_grades_student(&sid, 2, 2025).await }
+        let y = current_year;
+        async move { client::fetch_grades_student(&sid, 2, y).await }
     });
 
     let interviews = use_resource(move || {

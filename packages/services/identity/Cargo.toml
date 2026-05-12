@@ -4,22 +4,22 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-async-trait = "0.1"
 schoolcbb-common = { path = "../../common", features = ["db"] }
-axum = "0.8"
-tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+async-trait.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
 tower = { version = "0.5", features = ["util"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "migrate"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-dotenvy = "0.15"
-thiserror = "1"
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+sqlx = { workspace = true, features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros", "migrate"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dotenvy.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
 argon2 = "0.5"
-jsonwebtoken = "9"
+jsonwebtoken.workspace = true
 rand = "0.8"
-sha2 = "0.10"
+sha2.workspace = true

@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod components;
 mod route;
+mod seo;
 
 fn main() {
     register_service_worker();

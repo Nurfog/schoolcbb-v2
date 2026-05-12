@@ -125,7 +125,7 @@ pub fn QuickSearch(is_open: Signal<bool>) -> Element {
 }
 
 fn urlencode(s: &str) -> String {
-    s.replace(' ', "%20")
+    js_sys::encode_uri_component(s).as_string().unwrap_or_else(|| s.to_string())
 }
 
 #[component]

@@ -24,6 +24,9 @@ pub struct AppState {
 
 fn init_gateway() -> Option<&'static dyn PaymentGateway> {
     let cfg = PaymentGatewayConfig::from_env()?;
+    // SAFETY: Box::leak is intentional here — the gateway lives for the entire program
+    // lifetime and is stored as &'static to satisfy the axum async bound. The leaked
+    // memory is trivial (~a few hundred bytes) and reclaimed on process exit.
     let gateway: &'static dyn PaymentGateway = match cfg.provider.as_str() {
         "webpay" => Box::leak(Box::new(WebpayGateway { config: cfg })),
         _ => Box::leak(Box::new(MockGateway)),

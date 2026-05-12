@@ -430,5 +430,5 @@ pub async fn fetch_admission_metrics() -> Result<Value, String> {
 }
 
 fn urlencoding(s: &str) -> String {
-    s.replace(' ', "%20")
+    js_sys::encode_uri_component(s).as_string().unwrap_or_else(|| s.to_string())
 }

@@ -27,7 +27,6 @@ impl AttendanceStatus {
         )
     }
 
-    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "Ausente" => AttendanceStatus::Ausente,
@@ -37,6 +36,16 @@ impl AttendanceStatus {
             _ => AttendanceStatus::Presente,
         }
     }
+}
+
+impl std::str::FromStr for AttendanceStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(AttendanceStatus::from_str(s))
+    }
+}
+
+impl AttendanceStatus {
 
     pub fn as_str(&self) -> &'static str {
         match self {

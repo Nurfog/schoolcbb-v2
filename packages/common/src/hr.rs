@@ -154,9 +154,8 @@ impl AttendanceValidator {
                 }
             }
 
-            let entries: Vec<&str> = day_logs.iter().map(|l| l.entry_type.as_str()).collect();
-            let has_entry = entries.contains(&"Entrada");
-            let has_exit = entries.contains(&"Salida");
+            let has_entry = day_logs.iter().any(|l| l.entry_type.as_str() == "Entrada");
+            let has_exit = day_logs.iter().any(|l| l.entry_type.as_str() == "Salida");
             if has_entry && !has_exit {
                 errors.push(ComplianceError::Inconsistencia {
                     detail: "Entrada sin salida registrada".into(),
@@ -324,6 +323,21 @@ impl PensionFund {
     }
 }
 
+impl PensionFund {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "Capital" => PensionFund::Capital,
+            "Cuprum" => PensionFund::Cuprum,
+            "Habitat" => PensionFund::Habitat,
+            "Planvital" => PensionFund::Planvital,
+            "Provida" => PensionFund::Provida,
+            "Modelo" => PensionFund::Modelo,
+            "Uno" => PensionFund::Uno,
+            _ => PensionFund::Provida,
+        }
+    }
+}
+
 impl std::fmt::Display for PensionFund {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -337,6 +351,24 @@ pub enum HealthSystem {
         plan_name: String,
         fixed_amount: f64,
     },
+}
+
+impl HealthSystem {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "Fonasa" => HealthSystem::Fonasa,
+            _ => HealthSystem::Fonasa,
+        }
+    }
+}
+
+impl std::fmt::Display for HealthSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HealthSystem::Fonasa => write!(f, "Fonasa"),
+            HealthSystem::Isapre { plan_name, .. } => write!(f, "Isapre ({})", plan_name),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -538,8 +570,8 @@ pub fn calculate_payroll(
     _employee: &Employee,
     contract: &EmployeeContract,
     payload: &PayrollPayload,
-    pension_fund: &str,
-    health_system: &str,
+    pension_fund: &PensionFund,
+    health_system: &HealthSystem,
     health_fixed_amount: Option<f64>,
 ) -> PayrollCalculation {
     let salary_base = contract.salary_base;
@@ -549,23 +581,18 @@ pub fn calculate_payroll(
 
     let afp_rate = 0.10;
     let afp_commission = match pension_fund {
-        "Capital" | "Cuprum" => 0.1144,
-        "Habitat" => 0.1127,
-        "Planvital" => 0.1102,
-        "Provida" => 0.1145,
-        "Modelo" => 0.1058,
-        "Uno" => 0.1087,
-        _ => 0.10,
+        PensionFund::Capital | PensionFund::Cuprum => 0.1144,
+        PensionFund::Habitat => 0.1127,
+        PensionFund::Planvital => 0.1102,
+        PensionFund::Provida => 0.1145,
+        PensionFund::Modelo => 0.1058,
+        PensionFund::Uno => 0.1087,
     };
     let total_afp_rate = afp_rate + afp_commission;
     let afp_discount = taxable_income * total_afp_rate;
 
-    let health_rate = if health_system == "Fonasa" {
-        0.07
-    } else {
-        0.07
-    };
-    let health_discount = if health_system == "Fonasa" || health_fixed_amount.is_none() {
+    let health_rate = 0.07;
+    let health_discount = if matches!(health_system, HealthSystem::Fonasa) || health_fixed_amount.is_none() {
         taxable_income * health_rate
     } else {
         health_fixed_amount.unwrap_or(0.0)

@@ -6,6 +6,7 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub jwt_secret: String,
+    pub upload_dir: String,
 }
 
 impl Config {
@@ -18,6 +19,7 @@ impl Config {
                 .parse()
                 .expect("PORT must be a valid number"),
             jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "cambio-en-produccion".into()),
+            upload_dir: env::var("UPLOAD_DIR").unwrap_or_else(|_| "/tmp/uploads".into()),
         }
     }
 

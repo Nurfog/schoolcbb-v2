@@ -111,11 +111,23 @@ pub fn InlineEdit(
         }
     }
 
+    let display_for_key = display.clone();
+    let on_key_down = move |e: Event<KeyboardData>| {
+        if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+            edit_value.set(display_for_key.clone());
+            editing.set(true);
+        }
+    };
+
     rsx! {
         span {
             class: "inline-edit-value",
+            tabindex: "0",
+            role: "button",
+            "aria-label": "Editar {display} - presione Enter o espacio para editar",
             ondoubleclick: start_edit,
-            title: "Doble clic para editar",
+            onkeydown: on_key_down,
+            title: "Doble clic o Enter para editar",
             "{display}"
         }
     }

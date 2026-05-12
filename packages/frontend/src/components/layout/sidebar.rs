@@ -55,8 +55,27 @@ pub fn Sidebar() -> Element {
         client::fetch_json("/api/user/modules").await
     });
 
+    let mut sidebar_open = use_signal(|| false);
+    let toggle_sidebar = move |_| sidebar_open.set(!sidebar_open());
+    let close_sidebar = move |_| sidebar_open.set(false);
+
+    let sidebar_class = if sidebar_open() { "sidebar open" } else { "sidebar" };
+
+    let current_path = web_sys::window()
+        .and_then(|w| w.location().pathname().ok())
+        .unwrap_or_default();
+    let is_active = move |path: &str| current_path == path;
+
     rsx! {
-        nav { class: "sidebar", role: "navigation", aria_label: "Navegación principal",
+        button { class: "sidebar-toggle", "aria-label": "Abrir menu de navegacion", "aria-expanded": "{sidebar_open()}", onclick: toggle_sidebar,
+            svg { role: "presentation", view_box: "0 0 24 24", width: "24", height: "24",
+                path { d: "M3 12h18M3 6h18M3 18h18" }
+            }
+        }
+        { if sidebar_open() {
+            rsx! { div { class: "sidebar-overlay", onclick: close_sidebar, role: "presentation" } }
+        } else { rsx! {} }}
+        nav { class: "{sidebar_class}", role: "navigation", aria_label: "Navegación principal",
             div { class: "sidebar-header",
                 div { class: "logo", "SC" }
                 span { class: "brand", "SchoolCBB" }
@@ -71,7 +90,7 @@ pub fn Sidebar() -> Element {
                     }
                 }
 
-                a { class: "nav-item", href: "/dashboard",
+                a { class: "nav-item", href: "/dashboard", "aria-current": if is_active("/dashboard") { "page" } else { "false" },
                     span { class: "icon",
                         svg { role: "presentation", view_box: "0 0 24 24",
                             rect { x: "3", y: "3", width: "7", height: "7", rx: "1" }
@@ -113,7 +132,7 @@ pub fn Sidebar() -> Element {
             div { class: "sidebar-footer",
                 div { class: "nav-section-label", "Sistema"}
 
-                a { class: "nav-item config-item", href: "/",
+                a { class: "nav-item config-item", href: "/", "aria-current": if is_active("/") { "page" } else { "false" },
                     span { class: "icon",
                         svg { role: "presentation", view_box: "0 0 24 24",
                             rect { x: "3", y: "3", width: "7", height: "7", rx: "1" }
@@ -125,7 +144,7 @@ pub fn Sidebar() -> Element {
                     span { class: "label", "Module Manager" }
                 }
 
-                a { class: "nav-item config-item", href: "/config",
+                a { class: "nav-item config-item", href: "/config", "aria-current": if is_active("/config") { "page" } else { "false" },
                     span { class: "icon",
                         svg { role: "presentation", view_box: "0 0 24 24",
                             circle { cx: "12", cy: "12", r: "3" }

@@ -147,7 +147,7 @@ fn FeesTab() -> Element {
                                             rsx! {
                                                 div { class: "selected-student",
                                                     span { "{sname}" }
-                                                    button { class: "btn-icon", onclick: move |_| selected_student.set(None), "✕" }
+                                                    button { class: "btn-icon", "aria-label": "Cerrar", onclick: move |_| selected_student.set(None), "✕" }
                                                 }
                                             }
                                         }
@@ -342,7 +342,7 @@ fn PaymentsTab() -> Element {
                                             rsx! {
                                                 div { class: "selected-student",
                                                     span { "{sname}" }
-                                                    button { class: "btn-icon", onclick: move |_| selected_student.set(None), "✕" }
+                                                    button { class: "btn-icon", "aria-label": "Cerrar", onclick: move |_| selected_student.set(None), "✕" }
                                                 }
                                             }
                                         }
@@ -547,7 +547,7 @@ fn ScholarshipsTab() -> Element {
                                             rsx! {
                                                 div { class: "selected-student",
                                                     span { "{sname}" }
-                                                    button { class: "btn-icon", onclick: move |_| selected_student.set(None), "✕" }
+                                                    button { class: "btn-icon", "aria-label": "Cerrar", onclick: move |_| selected_student.set(None), "✕" }
                                                 }
                                             }
                                         }

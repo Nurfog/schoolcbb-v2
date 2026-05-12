@@ -36,7 +36,6 @@ impl UserRole {
         }
     }
 
-    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Sostenedor" => Some(UserRole::Sostenedor),
@@ -49,6 +48,13 @@ impl UserRole {
             "Admision" => Some(UserRole::Admision),
             _ => None,
         }
+    }
+}
+
+impl std::str::FromStr for UserRole {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        UserRole::from_str(s).ok_or_else(|| format!("Invalid role: {s}"))
     }
 }
 

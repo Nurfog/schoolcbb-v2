@@ -1,8 +1,11 @@
 mod admission;
 mod config;
 mod error;
+mod extras;
 mod hr;
+mod hr_extended;
 mod routes;
+mod search;
 mod workflow;
 
 use std::sync::Arc;
@@ -92,6 +95,9 @@ async fn main() {
         .merge(routes::router())
         .merge(admission::router())
         .merge(hr::router())
+        .merge(hr_extended::router())
+        .merge(extras::router())
+        .merge(search::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

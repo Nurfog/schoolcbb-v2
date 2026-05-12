@@ -151,7 +151,7 @@ fn IndividualReports() -> Element {
                             rsx! {
                                 div { class: "selected-student",
                                     span { "{sname} ({srut})" }
-                                    button { class: "btn-icon", onclick: clear_student, "✕" }
+                                    button { class: "btn-icon", "aria-label": "Limpiar seleccion", onclick: clear_student, "✕" }
                                 }
                             }
                         }
@@ -440,7 +440,7 @@ fn CourseReports() -> Element {
                             rsx! {
                                 div { class: "selected-student",
                                     span { "{cname}" }
-                                    button { class: "btn-icon", onclick: move |_| { selected_course.set(None); result.set(None); }, "✕" }
+                                    button { class: "btn-icon", "aria-label": "Cerrar", onclick: move |_| { selected_course.set(None); result.set(None); }, "✕" }
                                 }
                             }
                         }
@@ -639,8 +639,8 @@ fn SigeReports() -> Element {
                                         tr {
                                             { rows.first().map(|first| {
                                                 rsx! {
-                                                    { first.as_object().unwrap().keys().map(|k| {
-                                                        rsx! { th { "{k}" } }
+                                                    { first.as_object().map(|obj| {
+                                                        rsx! { { obj.keys().map(|k| rsx! { th { "{k}" } }) } }
                                                     })}
                                                 }
                                             })}
@@ -649,14 +649,16 @@ fn SigeReports() -> Element {
                                     tbody {
                                         for row in &rows {
                                             tr {
-                                                { row.as_object().unwrap().values().map(|v| {
-                                                    let val = match v {
-                                                        serde_json::Value::String(s) => s.clone(),
-                                                        serde_json::Value::Number(n) => n.to_string(),
-                                                        serde_json::Value::Bool(b) => b.to_string(),
-                                                        _ => "".to_string(),
-                                                    };
-                                                    rsx! { td { "{val}" } }
+                                                { row.as_object().map(|obj| {
+                                                    rsx! { { obj.values().map(|v| {
+                                                        let val = match v {
+                                                            serde_json::Value::String(s) => s.clone(),
+                                                            serde_json::Value::Number(n) => n.to_string(),
+                                                            serde_json::Value::Bool(b) => b.to_string(),
+                                                            _ => "".to_string(),
+                                                        };
+                                                        rsx! { td { "{val}" } }
+                                                    }) } }
                                                 })}
                                             }
                                         }

@@ -43,7 +43,7 @@ async fn main() {
     models::seed_admin(&pool)
         .await
         .expect("Failed to seed admin user");
-    tracing::info!("Admin user: admin@colegio.cl / admin123");
+    tracing::info!("Admin user seeded (check .env for credentials)");
 
     models::seed_roles(&pool).await;
     models::seed_permission_definitions(&pool).await;

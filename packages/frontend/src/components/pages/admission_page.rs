@@ -310,11 +310,11 @@ pub fn AdmissionPage() -> Element {
                     }).collect();
 
                     rsx! {
-                        div { class: "modal-overlay", onclick: move |_| selected_id.set(None),
+                        div { class: "modal-overlay", role: "dialog", "aria-modal": "true", "aria-label": "Detalle del postulante", tabindex: "-1", onclick: move |_| selected_id.set(None), onkeydown: move |e| { if e.key() == Key::Escape { selected_id.set(None); } },
                             div { class: "modal-content", onclick: move |e| e.stop_propagation(),
                                 div { class: "modal-header",
                                     h2 { "{pname}" }
-                                    button { class: "btn-icon", onclick: move |_| selected_id.set(None), "✕" }
+                                    button { class: "btn-icon", "aria-label": "Cerrar", onclick: move |_| selected_id.set(None), "✕" }
                                 }
                                 {
                                     let stages_data = stages();

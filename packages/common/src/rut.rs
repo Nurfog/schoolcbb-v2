@@ -22,7 +22,11 @@ impl Rut {
             return Err(RutError::TooShort);
         }
         let (body, dv) = cleaned.split_at(cleaned.len() - 1);
-        if !Self::validate_dv(body, dv.chars().next().unwrap()) {
+        let dv_char = match dv.chars().next() {
+            Some(c) => c,
+            None => return Err(RutError::TooShort),
+        };
+        if !Self::validate_dv(body, dv_char) {
             return Err(RutError::InvalidDigit);
         }
         Ok(Self(cleaned))
@@ -58,7 +62,7 @@ impl Rut {
         match dv {
             11 => '0',
             10 => 'K',
-            _ => std::char::from_digit(dv as u32, 10).unwrap(),
+            _ => std::char::from_digit(dv as u32, 10).unwrap_or('0'),
         }
     }
 

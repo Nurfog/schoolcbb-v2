@@ -13,7 +13,7 @@ pub struct AuditEntry {
 #[cfg(feature = "db")]
 pub async fn log(pool: &sqlx::PgPool, entry: &AuditEntry) {
     let id = Uuid::new_v4();
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         r#"
         INSERT INTO audit_log (id, entity_type, entity_id, action, user_id, changes)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -26,5 +26,8 @@ pub async fn log(pool: &sqlx::PgPool, entry: &AuditEntry) {
     .bind(entry.user_id)
     .bind(&entry.changes)
     .execute(pool)
-    .await;
+    .await
+    {
+        tracing::error!("Failed to write audit log: {e}");
+    }
 }
