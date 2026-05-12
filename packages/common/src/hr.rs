@@ -15,7 +15,7 @@ pub struct Employee {
     pub position: Option<String>,
     pub hire_date: Option<NaiveDate>,
     pub category: Option<String>,
-    pub vacation_days_available: f64,
+    pub vacation_days_available: f32,
     pub active: bool,
     pub supervisor_id: Option<Uuid>,
     pub user_id: Option<Uuid>,
@@ -44,7 +44,7 @@ pub struct UpdateEmployeePayload {
     pub position: Option<String>,
     pub category: Option<String>,
     pub hire_date: Option<NaiveDate>,
-    pub vacation_days_available: Option<f64>,
+    pub vacation_days_available: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

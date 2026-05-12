@@ -41,7 +41,7 @@ async fn list_employees(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let mut sql = "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at FROM employees".to_string();
+    let mut sql = "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees".to_string();
     let mut clauses: Vec<String> = vec![];
 
     if let Some(ref _search) = q.search {
@@ -75,7 +75,7 @@ async fn get_employee(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let employee = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
-        "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at FROM employees WHERE id = $1",
+        "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Funcionario no encontrado".into()))?;
 
@@ -112,7 +112,7 @@ async fn create_employee(
     let result = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
         r#"INSERT INTO employees (id, rut, first_name, last_name, email, phone, position, category, hire_date)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           RETURNING id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at"#,
+           RETURNING id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at"#,
     ).bind(id).bind(&payload.rut).bind(&payload.first_name).bind(&payload.last_name)
     .bind(&payload.email).bind(&payload.phone).bind(&payload.position).bind(&payload.category).bind(payload.hire_date)
     .fetch_one(&state.pool).await?;
@@ -129,13 +129,13 @@ async fn update_employee(
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
     let current = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
-        "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at FROM employees WHERE id = $1",
+        "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Funcionario no encontrado".into()))?;
 
     let result = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
         r#"UPDATE employees SET first_name = $1, last_name = $2, email = $3, phone = $4, position = $5, category = $6, hire_date = $7, vacation_days_available = $8, updated_at = NOW() WHERE id = $9
-           RETURNING id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at"#,
+           RETURNING id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at"#,
     ).bind(payload.first_name.unwrap_or(current.first_name))
     .bind(payload.last_name.unwrap_or(current.last_name))
     .bind(payload.email.or(current.email))
@@ -159,7 +159,7 @@ async fn deactivate_employee(
 
     let result = sqlx::query_as::<_, schoolcbb_common::hr::Employee>(
         r#"UPDATE employees SET active = false, updated_at = NOW() WHERE id = $1
-           RETURNING id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, created_at, updated_at"#,
+           RETURNING id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at"#,
     ).bind(id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Funcionario no encontrado".into()))?;
 

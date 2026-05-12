@@ -2321,6 +2321,41 @@ tr.unread td {
 .perm-actions { display: flex; gap: 8px; margin-top: 16px; }
 .perm-divider { height: 1px; background: var(--border); margin: 16px 0; }
 
+/* ─── Tabs ─── */
+.tab-bar, .tabs-header {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+    background: transparent;
+}
+.tab {
+    all: unset;
+    cursor: pointer;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    font-family: var(--font);
+}
+.tab:hover {
+    color: var(--text-primary);
+}
+.tab.active, .tab-active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+.tab-content {
+    min-height: 100px;
+}
+.tabs-container .tab-content {
+    padding: 0;
+}
+
 /* ─── Users Page ─── */
 .users-layout {
     display: grid;

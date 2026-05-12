@@ -15,8 +15,6 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admission/vacancy-check", get(check_vacancies))
-        .route("/api/admission/documents/upload", post(upload_document))
         .route("/api/academic/changelog", get(list_changelog))
         .route("/api/admission/prospects/{id}/tabs", get(get_prospect_tabs))
         .route("/api/interactions", post(log_interaction).get(list_interactions))
