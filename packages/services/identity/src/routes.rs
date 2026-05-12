@@ -27,6 +27,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/auth/users/{id}/role", put(update_role))
         .route("/api/auth/users/{id}/toggle", post(toggle_active))
         .route("/api/user/modules", get(list_modules))
+        .route("/api/user/my-plan", get(my_plan))
         .route("/api/user/favorites/{module_id}", post(toggle_favorite))
         .route("/api/user/profile", put(update_profile))
         .route("/api/user/password", put(change_password))
@@ -44,24 +45,24 @@ pub fn router() -> Router<AppState> {
         .merge(roles_router())
 }
 
-fn require_role(claims: &Claims, required: &str) -> Result<(), AuthError> {
-    if claims.role != required {
-        return Err(AuthError::Forbidden(format!(
-            "Se requiere rol '{}', tiene '{}'",
-            required, claims.role
-        )));
+pub fn require_role(claims: &Claims, required: &str) -> Result<(), AuthError> {
+    if claims.role == "Root" || claims.role == required {
+        return Ok(());
     }
-    Ok(())
+    Err(AuthError::Forbidden(format!(
+        "Se requiere rol '{}', tiene '{}'",
+        required, claims.role
+    )))
 }
 
 fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), AuthError> {
-    if !roles.contains(&claims.role.as_str()) {
-        return Err(AuthError::Forbidden(format!(
-            "Se requiere uno de los roles {:?}, tiene '{}'",
-            roles, claims.role
-        )));
+    if claims.role == "Root" || roles.contains(&claims.role.as_str()) {
+        return Ok(());
     }
-    Ok(())
+    Err(AuthError::Forbidden(format!(
+        "Se requiere uno de los roles {:?}, tiene '{}'",
+        roles, claims.role
+    )))
 }
 
 impl FromRequestParts<AppState> for Claims {
@@ -128,7 +129,7 @@ fn generate_token_pair(
 
 async fn login(
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::user::AuthPayload>,
+    Json(payload): Json<schoolccb_common::user::AuthPayload>,
 ) -> AuthResult<Json<Value>> {
     let user = models::find_by_email(&state.pool, &payload.email)
         .await?
@@ -154,6 +155,7 @@ async fn login(
     )?;
 
     let (refresh_token, _) = models::create_refresh_token(&state.pool, id, 7).await?;
+    let is_root = user.role == "Root";
 
     Ok(Json(json!({
         "token": token,
@@ -165,7 +167,8 @@ async fn login(
             "role": user.role,
             "rut": user.rut,
             "corporation_id": user.corporation_id,
-            "school_id": user.school_id
+            "school_id": user.school_id,
+            "is_root": is_root
         }
     })))
 }
@@ -254,6 +257,8 @@ async fn me(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Va
         .await?
         .ok_or(AuthError::UserNotFound)?;
 
+    let is_root = user.role == "Root";
+
     Ok(Json(json!({
         "user": {
             "id": user.id,
@@ -262,7 +267,8 @@ async fn me(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Va
             "role": user.role,
             "rut": user.rut,
             "corporation_id": user.corporation_id,
-            "school_id": user.school_id
+            "school_id": user.school_id,
+            "is_root": is_root
         }
     })))
 }
@@ -281,9 +287,9 @@ async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthRe
     .fetch_all(&state.pool)
     .await?;
 
-    let is_sostenedor = claims.role == "Sostenedor";
+    let is_full_access = claims.role == "Root" || claims.role == "Sostenedor";
 
-    let perms: Vec<PermEntry> = if is_sostenedor {
+    let perms: Vec<PermEntry> = if is_full_access {
         sqlx::query_as::<_, PermEntry>(
             "SELECT pd.id, pd.module, pd.resource, true as can_write FROM permission_definitions pd ORDER BY pd.module, pd.resource",
         )
@@ -332,39 +338,34 @@ async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthRe
     Ok(Json(json!({
         "permissions": perms,
         "modules": modules,
-        "can_assign_roles": is_sostenedor || perms.iter().any(|p| p.module == "Users" && p.can_write),
+        "can_assign_roles": is_full_access || perms.iter().any(|p| p.module == "Users" && p.can_write),
     })))
 }
 
 async fn register(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::user::RegisterPayload>,
+    Json(payload): Json<schoolccb_common::user::RegisterPayload>,
 ) -> AuthResult<Json<Value>> {
-    require_any_role(&claims, &["Administrador", "Sostenedor"])?;
-    if payload.role == "Administrador" || payload.role == "Sostenedor" {
-        require_role(&claims, "Sostenedor")?;
+    let is_root = claims.role == "Root";
+    if !is_root {
+        require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+        if payload.role == "Administrador" || payload.role == "Sostenedor" {
+            require_role(&claims, "Sostenedor")?;
+        }
     }
 
     if payload.rut.trim().is_empty() || payload.name.trim().is_empty() {
         return Err(AuthError::Internal("RUT y nombre son obligatorios".into()));
     }
 
-    if ![
-        "Sostenedor",
-        "Director",
-        "UTP",
-        "Administrador",
-        "Profesor",
-        "Apoderado",
-        "Alumno",
-    ]
-    .contains(&payload.role.as_str())
-    {
-        return Err(AuthError::Internal(format!(
-            "Rol inválido: {}",
-            payload.role
-        )));
+    let valid_roles: &[&str] = if is_root {
+        &["Sostenedor", "Administrador", "Director", "UTP", "Profesor", "Apoderado", "Alumno"]
+    } else {
+        &["Director", "UTP", "Administrador", "Profesor", "Apoderado", "Alumno"]
+    };
+    if !valid_roles.contains(&payload.role.as_str()) {
+        return Err(AuthError::Internal(format!("Rol inválido: {}", payload.role)));
     }
 
     let corporation_id = payload
@@ -375,6 +376,10 @@ async fn register(
         .school_id
         .as_ref()
         .and_then(|s| Uuid::parse_str(s).ok());
+
+    if is_root && payload.role == "Sostenedor" && corporation_id.is_none() {
+        return Err(AuthError::Internal("Debe seleccionar una corporación para el rol Sostenedor".into()));
+    }
 
     let user = models::insert_user(
         &state.pool,
@@ -414,7 +419,7 @@ async fn register(
 
 async fn refresh(
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::user::RefreshPayload>,
+    Json(payload): Json<schoolccb_common::user::RefreshPayload>,
 ) -> AuthResult<Json<Value>> {
     let stored = models::find_refresh_token(&state.pool, &payload.refresh_token)
         .await?
@@ -443,6 +448,7 @@ async fn refresh(
     )?;
 
     let (new_refresh_token, _) = models::create_refresh_token(&state.pool, user.id, 7).await?;
+    let is_root = user.role == "Root";
 
     Ok(Json(json!({
         "token": token,
@@ -454,7 +460,8 @@ async fn refresh(
             "role": user.role,
             "rut": user.rut,
             "corporation_id": user.corporation_id,
-            "school_id": user.school_id
+            "school_id": user.school_id,
+            "is_root": is_root
         }
     })))
 }
@@ -725,190 +732,213 @@ async fn update_branding(
     })))
 }
 
-fn builtin_modules() -> Vec<schoolcbb_common::modules::Module> {
+fn builtin_modules() -> Vec<schoolccb_common::modules::Module> {
     vec![
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "students".into(),
             name: "Gestión de Alumnos".into(),
             icon: "students".into(),
             category: "Académico".into(),
             route: "/students".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "attendance".into(),
             name: "Asistencia".into(),
             icon: "attendance".into(),
             category: "Académico".into(),
             route: "/attendance".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "grades".into(),
             name: "Calificaciones".into(),
             icon: "grades".into(),
             category: "Académico".into(),
             route: "/grades".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "agenda".into(),
             name: "Agenda Escolar".into(),
             icon: "agenda".into(),
             category: "Comunicaciones".into(),
             route: "/agenda".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "notifications".into(),
             name: "Centro de Mensajería".into(),
             icon: "notifications".into(),
             category: "Comunicaciones".into(),
             route: "/notifications".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "reports".into(),
             name: "Reportes".into(),
             icon: "reports".into(),
             category: "Administración".into(),
             route: "/reports".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "finance".into(),
             name: "Finanzas".into(),
             icon: "config".into(),
             category: "Administración".into(),
             route: "/finance".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "users".into(),
             name: "Usuarios y Perfiles".into(),
             icon: "users".into(),
             category: "Sistema".into(),
             route: "/users".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "courses".into(),
             name: "Cursos".into(),
             icon: "book".into(),
             category: "Académico".into(),
             route: "/courses".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "enrollments".into(),
             name: "Matrículas".into(),
             icon: "clipboard".into(),
             category: "Académico".into(),
             route: "/enrollments".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "subjects".into(),
             name: "Asignaturas".into(),
             icon: "book".into(),
             category: "Académico".into(),
             route: "/subjects".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "academic-years".into(),
             name: "Años Académicos".into(),
             icon: "calendar".into(),
             category: "Administración".into(),
             route: "/academic-years".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "admission".into(),
             name: "Admisiones".into(),
             icon: "users".into(),
             category: "Administración".into(),
             route: "/admission".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "grade-levels".into(),
             name: "Niveles".into(),
             icon: "book".into(),
             category: "Académico".into(),
             route: "/grade-levels".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "classrooms".into(),
             name: "Salas".into(),
             icon: "home".into(),
             category: "Administración".into(),
             route: "/classrooms".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "audit".into(),
             name: "Auditoría".into(),
             icon: "file-text".into(),
             category: "Sistema".into(),
             route: "/audit".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "roles".into(),
             name: "Roles y Permisos".into(),
             icon: "users".into(),
             category: "Sistema".into(),
             route: "/roles".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "corporations".into(),
             name: "Corporaciones y Colegios".into(),
             icon: "home".into(),
             category: "Sistema".into(),
             route: "/corporations".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "hr".into(),
             name: "Recursos Humanos".into(),
             icon: "users".into(),
             category: "Administración".into(),
             route: "/hr".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "payroll".into(),
             name: "Remuneraciones".into(),
             icon: "dollar".into(),
             category: "Administración".into(),
             route: "/payroll".into(),
+            parent: Some("hr".into()),
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "my-portal".into(),
             name: "Mi Portal (Auto-consulta)".into(),
             icon: "user".into(),
             category: "Administración".into(),
             route: "/my-portal".into(),
+            parent: Some("hr".into()),
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "sige".into(),
             name: "SIGE — Exportación MINEDUC".into(),
             icon: "file-text".into(),
             category: "Administración".into(),
             route: "/sige".into(),
+            parent: None,
             is_favorite: false,
         },
-        schoolcbb_common::modules::Module {
+        schoolccb_common::modules::Module {
             id: "complaints".into(),
             name: "Ley Karin — Denuncias".into(),
             icon: "shield".into(),
             category: "Administración".into(),
             route: "/complaints".into(),
+            parent: None,
             is_favorite: false,
         },
     ]
@@ -923,9 +953,35 @@ async fn list_modules(claims: Claims, State(state): State<AppState>) -> AuthResu
             .fetch_all(&state.pool)
             .await?;
     let fav_set: std::collections::HashSet<String> = favs.into_iter().map(|r| r.0).collect();
-    let modules: Vec<schoolcbb_common::modules::Module> = builtin_modules()
+
+    let all_modules = if claims.role == "Root" {
+        root_modules()
+    } else {
+        let corp_id = claims.corporation_id.as_ref()
+            .and_then(|s| Uuid::parse_str(s).ok());
+        let allowed: std::collections::HashSet<String> = if let Some(cid) = corp_id {
+            let keys: Vec<(String,)> = sqlx::query_as(
+                "SELECT DISTINCT pm.module_key
+                 FROM corporation_licenses cl
+                 JOIN plan_modules pm ON pm.plan_id = cl.plan_id
+                 WHERE cl.corporation_id = $1 AND cl.status = 'active'
+                   AND pm.included = true"
+            )
+            .bind(cid)
+            .fetch_all(&state.pool)
+            .await
+            .unwrap_or_default();
+            keys.into_iter().map(|(k,)| k).collect()
+        } else {
+            std::collections::HashSet::new()
+        };
+        builtin_modules().into_iter()
+            .filter(|m| allowed.contains(&m.id))
+            .collect::<Vec<_>>()
+    };
+    let modules: Vec<schoolccb_common::modules::Module> = all_modules
         .into_iter()
-        .map(|m| schoolcbb_common::modules::Module {
+        .map(|m| schoolccb_common::modules::Module {
             is_favorite: fav_set.contains(&m.id),
             ..m
         })
@@ -933,11 +989,120 @@ async fn list_modules(claims: Claims, State(state): State<AppState>) -> AuthResu
     Ok(Json(json!({ "modules": modules })))
 }
 
+async fn my_plan(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
+    let corp_id = claims.corporation_id.as_ref()
+        .and_then(|s| Uuid::parse_str(s).ok());
+    match corp_id {
+        Some(cid) => {
+            let plan: Option<(Uuid, String, String, Option<chrono::NaiveDate>, String)> = sqlx::query_as(
+                "SELECT lp.id, lp.name, cl.status, cl.end_date, cl.notes
+                 FROM corporation_licenses cl
+                 JOIN license_plans lp ON lp.id = cl.plan_id
+                 WHERE cl.corporation_id = $1 AND cl.status = 'active'
+                 ORDER BY cl.created_at DESC LIMIT 1"
+            )
+            .bind(cid)
+            .fetch_optional(&state.pool)
+            .await?;
+
+            match plan {
+                Some((pid, pname, status, end_date, notes)) => {
+                    let modules: Vec<Value> = sqlx::query_as::<_, (String, String, bool)>(
+                        "SELECT module_key, module_name, included FROM plan_modules WHERE plan_id = $1 ORDER BY module_key"
+                    )
+                    .bind(pid)
+                    .fetch_all(&state.pool)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(k, n, inc)| json!({"key": k, "name": n, "included": inc}))
+                    .collect();
+
+                    Ok(Json(json!({
+                        "plan": {"id": pid, "name": pname, "status": status, "end_date": end_date, "notes": notes},
+                        "modules": modules,
+                    })))
+                }
+                None => Ok(Json(json!({"plan": null, "modules": []}))),
+            }
+        }
+        None => Ok(Json(json!({"plan": null, "modules": []}))),
+    }
+}
+
+fn root_modules() -> Vec<schoolccb_common::modules::Module> {
+    vec![
+        schoolccb_common::modules::Module {
+            id: "root-dashboard".into(),
+            name: "Panel Root".into(),
+            icon: "shield".into(),
+            category: "Root".into(),
+            route: "/root".into(),
+            parent: None,
+            is_favorite: false,
+        },
+        schoolccb_common::modules::Module {
+            id: "corporations".into(),
+            name: "Corporaciones y Colegios".into(),
+            icon: "home".into(),
+            category: "Root".into(),
+            route: "/corporations".into(),
+            parent: None,
+            is_favorite: false,
+        },
+        schoolccb_common::modules::Module {
+            id: "plans".into(),
+            name: "Planes".into(),
+            icon: "key".into(),
+            category: "Root".into(),
+            route: "/admin/plans".into(),
+            parent: None,
+            is_favorite: false,
+        },
+        schoolccb_common::modules::Module {
+            id: "licenses".into(),
+            name: "Contratos".into(),
+            icon: "file-text".into(),
+            category: "Root".into(),
+            route: "/admin/contracts".into(),
+            parent: None,
+            is_favorite: false,
+        },
+        schoolccb_common::modules::Module {
+            id: "payments".into(),
+            name: "Pagos".into(),
+            icon: "dollar".into(),
+            category: "Root".into(),
+            route: "/admin/payments".into(),
+            parent: None,
+            is_favorite: false,
+        },
+        schoolccb_common::modules::Module {
+            id: "audit".into(),
+            name: "Auditoría".into(),
+            icon: "file-text".into(),
+            category: "Root".into(),
+            route: "/audit".into(),
+            parent: None,
+            is_favorite: false,
+        },
+        schoolccb_common::modules::Module {
+            id: "system".into(),
+            name: "Sistema".into(),
+            icon: "settings".into(),
+            category: "Root".into(),
+            route: "/admin/system".into(),
+            parent: None,
+            is_favorite: false,
+        },
+    ]
+}
+
 async fn toggle_favorite(
     claims: Claims,
     State(state): State<AppState>,
     Path(module_id): Path<String>,
-    Json(payload): Json<schoolcbb_common::modules::FavoriteToggle>,
+    Json(payload): Json<schoolccb_common::modules::FavoriteToggle>,
 ) -> AuthResult<Json<Value>> {
     let user_id =
         Uuid::parse_str(&claims.sub).map_err(|_| AuthError::TokenInvalid("Invalid user".into()))?;
@@ -969,7 +1134,7 @@ async fn list_corporations(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    let corporations = sqlx::query_as::<_, schoolcbb_common::school::Corporation>(
+    let corporations = sqlx::query_as::<_, schoolccb_common::school::Corporation>(
         "SELECT id, name, rut, logo_url, settings, active, created_at FROM corporations ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -981,12 +1146,12 @@ async fn list_corporations(
 async fn create_corporation(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::school::CreateCorporationPayload>,
+    Json(payload): Json<schoolccb_common::school::CreateCorporationPayload>,
 ) -> AuthResult<Json<Value>> {
     require_role(&claims, "Sostenedor")?;
 
     let id = Uuid::new_v4();
-    let corp = sqlx::query_as::<_, schoolcbb_common::school::Corporation>(
+    let corp = sqlx::query_as::<_, schoolccb_common::school::Corporation>(
         "INSERT INTO corporations (id, name, rut, logo_url) VALUES ($1, $2, $3, $4)
          RETURNING id, name, rut, logo_url, settings, active, created_at",
     )
@@ -1008,14 +1173,14 @@ async fn list_schools(
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
     let schools = if let Some(corp_id) = q.corporation_id {
-        sqlx::query_as::<_, schoolcbb_common::school::School>(
+        sqlx::query_as::<_, schoolccb_common::school::School>(
             "SELECT id, corporation_id, name, address, phone, logo_url, active, created_at FROM schools WHERE corporation_id = $1 ORDER BY name",
         )
         .bind(corp_id)
         .fetch_all(&state.pool)
         .await?
     } else {
-        sqlx::query_as::<_, schoolcbb_common::school::School>(
+        sqlx::query_as::<_, schoolccb_common::school::School>(
             "SELECT id, corporation_id, name, address, phone, logo_url, active, created_at FROM schools ORDER BY name",
         )
         .fetch_all(&state.pool)
@@ -1028,12 +1193,12 @@ async fn list_schools(
 async fn create_school(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::school::CreateSchoolPayload>,
+    Json(payload): Json<schoolccb_common::school::CreateSchoolPayload>,
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
     let id = Uuid::new_v4();
-    let school = sqlx::query_as::<_, schoolcbb_common::school::School>(
+    let school = sqlx::query_as::<_, schoolccb_common::school::School>(
         "INSERT INTO schools (id, corporation_id, name, address, phone) VALUES ($1, $2, $3, $4, $5)
          RETURNING id, corporation_id, name, address, phone, logo_url, active, created_at",
     )
@@ -1055,7 +1220,7 @@ async fn get_school(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    let school = sqlx::query_as::<_, schoolcbb_common::school::School>(
+    let school = sqlx::query_as::<_, schoolccb_common::school::School>(
         "SELECT id, corporation_id, name, address, phone, logo_url, active, created_at FROM schools WHERE id = $1",
     )
     .bind(id)
@@ -1071,7 +1236,7 @@ async fn get_school(
 async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
-    let roles = sqlx::query_as::<_, schoolcbb_common::roles::RoleRow>(
+    let roles = sqlx::query_as::<_, schoolccb_common::roles::RoleRow>(
         "SELECT id, name, description, is_system, created_at FROM roles ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -1079,7 +1244,7 @@ async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult
 
     let mut result = Vec::new();
     for role in roles {
-        let perms: Vec<schoolcbb_common::roles::ResourcePermission> = sqlx::query_as::<_, PermJoin>(
+        let perms: Vec<schoolccb_common::roles::ResourcePermission> = sqlx::query_as::<_, PermJoin>(
             r#"SELECT pd.id, pd.module, pd.resource, rp.can_create, rp.can_read, rp.can_update, rp.can_delete
                FROM role_permissions rp
                JOIN permission_definitions pd ON pd.id = rp.permission_id
@@ -1089,7 +1254,7 @@ async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult
         .bind(role.id)
         .fetch_all(&state.pool).await?
         .into_iter()
-        .map(|p| schoolcbb_common::roles::ResourcePermission {
+        .map(|p| schoolccb_common::roles::ResourcePermission {
             permission_id: p.id,
             module: p.module,
             resource: p.resource,
@@ -1115,7 +1280,7 @@ async fn list_roles(claims: Claims, State(state): State<AppState>) -> AuthResult
 async fn create_role(
     claims: Claims,
     State(state): State<AppState>,
-    Json(payload): Json<schoolcbb_common::roles::CreateRolePayload>,
+    Json(payload): Json<schoolccb_common::roles::CreateRolePayload>,
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
@@ -1160,7 +1325,7 @@ async fn update_role_permissions(
     claims: Claims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::roles::UpdatePermissionsPayload>,
+    Json(payload): Json<schoolccb_common::roles::UpdatePermissionsPayload>,
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
@@ -1199,7 +1364,7 @@ async fn list_permission_definitions(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 
-    let defs = sqlx::query_as::<_, schoolcbb_common::roles::PermissionDef>(
+    let defs = sqlx::query_as::<_, schoolccb_common::roles::PermissionDef>(
         "SELECT id, module, resource, label, created_at FROM permission_definitions ORDER BY module, resource",
     )
     .fetch_all(&state.pool).await?;
@@ -1223,7 +1388,7 @@ async fn assign_role_to_user(
     claims: Claims,
     State(state): State<AppState>,
     Path(user_id): Path<Uuid>,
-    Json(payload): Json<schoolcbb_common::roles::AssignRolePayload>,
+    Json(payload): Json<schoolccb_common::roles::AssignRolePayload>,
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
 

@@ -4,5 +4,7 @@ pub mod agenda;
 pub mod attendance_today;
 pub mod business_process_flow;
 pub mod custom_fields_section;
+pub mod kpi_card;
 pub mod searchable_select;
+pub mod simple_chart;
 pub mod student_alerts;

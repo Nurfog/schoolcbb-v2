@@ -373,7 +373,7 @@ pub async fn seed_roles(pool: &PgPool) {
 }
 
 pub async fn seed_permission_definitions(pool: &PgPool) {
-    use schoolcbb_common::roles::Module;
+    use schoolccb_common::roles::Module;
     for (module_name, resources) in Module::all() {
         for resource in resources {
             let existing: (i64,) = sqlx::query_as(
@@ -421,6 +421,178 @@ pub async fn update_preferences(
     .bind(show_module_manager)
     .fetch_one(pool)
     .await
+}
+
+pub async fn seed_root_admin(pool: &PgPool) {
+    let root_email =
+        std::env::var("ROOT_EMAIL").unwrap_or_else(|_| "root@schoolccb.cl".into());
+    let root_password =
+        std::env::var("ROOT_PASSWORD").unwrap_or_else(|_| "root123".into());
+
+    let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = $1")
+        .bind(&root_email)
+        .fetch_one(pool)
+        .await
+        .unwrap_or((0,));
+
+    if exists.0 > 0 {
+        return;
+    }
+
+    let hash = hash_password(&root_password);
+    sqlx::query(
+        "INSERT INTO users (id, rut, name, email, password_hash, role, active)
+         VALUES ($1, '0.0.0.0-0', 'Root Admin', $2, $3, 'Root', true)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(&root_email)
+    .bind(&hash)
+    .execute(pool)
+    .await
+    .unwrap_or_else(|_| {
+        tracing::warn!("Could not seed root admin");
+        Default::default()
+    });
+
+    tracing::info!("Root admin created: {root_email}");
+}
+
+pub async fn seed_license_plans(pool: &PgPool) {
+    let exists: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM license_plans WHERE name = 'Básico'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
+
+    if exists.0 > 0 {
+        return;
+    }
+
+fn base_system_modules() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("users", "Usuarios y Perfiles"),
+        ("roles", "Roles y Permisos"),
+        ("config", "Configuración"),
+    ]
+}
+
+    let plans = vec![
+        (
+            "Básico",
+            "Gestión escolar esencial: dashboard, alumnos, cursos, asistencia y notas",
+            49900.0,
+            49900.0 * 12.0,
+            false,
+            1,
+            [vec![
+                ("dashboard", "Dashboard"),
+                ("students", "Gestión de Alumnos"),
+                ("courses", "Cursos"),
+                ("enrollments", "Matrículas"),
+                ("attendance", "Asistencia"),
+                ("grades", "Calificaciones"),
+            ], base_system_modules()].concat(),
+        ),
+        (
+            "Profesional",
+            "Incluye todo lo del plan Básico más RRHH, finanzas, admisión CRM y reportes avanzados",
+            99900.0,
+            99900.0 * 12.0,
+            true,
+            2,
+            [vec![
+                ("dashboard", "Dashboard"),
+                ("students", "Gestión de Alumnos"),
+                ("courses", "Cursos"),
+                ("enrollments", "Matrículas"),
+                ("subjects", "Asignaturas"),
+                ("grade-levels", "Niveles"),
+                ("academic-years", "Años Académicos"),
+                ("classrooms", "Salas"),
+                ("attendance", "Asistencia"),
+                ("grades", "Calificaciones"),
+                ("hr", "Recursos Humanos"),
+                ("payroll", "Remuneraciones"),
+                ("my-portal", "Portal Auto-consulta"),
+                ("finance", "Finanzas"),
+                ("admission", "Admisión CRM"),
+                ("reports", "Reportes"),
+                ("notifications", "Centro de Mensajería"),
+                ("agenda", "Agenda Escolar"),
+            ], base_system_modules()].concat(),
+        ),
+        (
+            "Corporativo",
+            "Solución completa multi-colegio con SIGE, API y todos los módulos",
+            199900.0,
+            199900.0 * 12.0,
+            true,
+            3,
+            [vec![
+                ("dashboard", "Dashboard"),
+                ("students", "Gestión de Alumnos"),
+                ("courses", "Cursos"),
+                ("enrollments", "Matrículas"),
+                ("subjects", "Asignaturas"),
+                ("grade-levels", "Niveles"),
+                ("academic-years", "Años Académicos"),
+                ("classrooms", "Salas"),
+                ("attendance", "Asistencia"),
+                ("grades", "Calificaciones"),
+                ("hr", "Recursos Humanos"),
+                ("payroll", "Remuneraciones"),
+                ("my-portal", "Portal Auto-consulta"),
+                ("finance", "Finanzas"),
+                ("admission", "Admisión CRM"),
+                ("reports", "Reportes"),
+                ("notifications", "Centro de Mensajería"),
+                ("agenda", "Agenda Escolar"),
+                ("sige", "SIGE / MINEDUC"),
+                ("corporations", "Multi-colegio"),
+                ("complaints", "Ley Karin — Denuncias"),
+            ], base_system_modules()].concat(),
+        ),
+    ];
+
+    for (name, desc, price_monthly, price_yearly, featured, sort_order, modules) in plans {
+        let plan_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO license_plans (id, name, description, price_monthly, price_yearly, featured, sort_order)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(plan_id)
+        .bind(name)
+        .bind(desc)
+        .bind(price_monthly)
+        .bind(price_yearly)
+        .bind(featured)
+        .bind(sort_order)
+        .execute(pool)
+        .await
+        .unwrap_or_else(|_| {
+            tracing::warn!("Could not seed plan: {}", name);
+            Default::default()
+        });
+
+        for (module_key, module_name) in modules {
+            sqlx::query(
+                "INSERT INTO plan_modules (id, plan_id, module_key, module_name, included)
+                 VALUES ($1, $2, $3, $4, true)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(plan_id)
+            .bind(module_key)
+            .bind(module_name)
+            .execute(pool)
+            .await
+            .unwrap_or_else(|_| {
+                tracing::warn!("Could not seed module {module_key} for plan {name}");
+                Default::default()
+            });
+        }
+    }
+
+    tracing::info!("License plans seeded: Básico, Profesional, Corporativo");
 }
 
 pub async fn seed_default_school(pool: &PgPool) {
