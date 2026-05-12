@@ -7,6 +7,7 @@ pub struct Module {
     pub icon: String,
     pub category: String,
     pub route: String,
+    pub parent: Option<String>,
     pub is_favorite: bool,
 }
 

@@ -5,8 +5,14 @@ use crate::api::client;
 
 fn jwt_claims() -> Option<Value> {
     let window = web_sys::window()?;
-    let storage = window.local_storage().ok().flatten()?;
-    let token = storage.get_item("jwt_token").ok().flatten()?;
+    let doc = window.document()?;
+    let cookie = js_sys::Reflect::get(&doc, &wasm_bindgen::JsValue::from_str("cookie"))
+        .ok()
+        .and_then(|v| v.as_string())?;
+    let token = cookie.split(';').find_map(|c| {
+        let c = c.trim();
+        c.strip_prefix("jwt_token=").map(|v| v.to_string())
+    })?;
     let parts: Vec<&str> = token.split('.').collect();
     let payload_b64 = parts.get(1)?;
     let decoded = window.atob(payload_b64).ok()?;
@@ -23,6 +29,7 @@ fn initials(name: &str) -> String {
 
 fn role_label(role: &str) -> &'static str {
     match role {
+        "Root" => "Root Admin",
         "Sostenedor" => "Sostenedor",
         "Administrador" => "Admin",
         "Director" => "Director",
@@ -102,22 +109,74 @@ pub fn Sidebar() -> Element {
                     span { class: "label", "Dashboard" }
                 }
 
+                {if user_role == "Root" {
+                    rsx! {
+                        a { class: "nav-item", href: "/root", "aria-current": if is_active("/root") { "page" } else { "false" },
+                            span { class: "icon",
+                                svg { role: "presentation", view_box: "0 0 24 24",
+                                    path { d: "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" }
+                                }
+                            }
+                            span { class: "label", "Panel Root" }
+                        }
+                    }
+                } else { rsx! {} }}
+
                 div { class: "nav-section-label", "Acceso Rápido"}
                 div { class: "sidebar-favs",
                     match modules() {
                         Some(Ok(data)) => {
-                            let favs: Vec<Value> = data["modules"].as_array().cloned().unwrap_or_default()
-                                .into_iter().filter(|m| m["is_favorite"].as_bool().unwrap_or(false)).collect();
-                            if favs.is_empty() {
+                            let all = data["modules"].as_array().cloned().unwrap_or_default();
+                            let fav_ids: std::collections::HashSet<String> = all.iter()
+                                .filter(|m| m["is_favorite"].as_bool().unwrap_or(false))
+                                .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                                .collect();
+                            let parents: Vec<&Value> = all.iter().filter(|m| {
+                                let id = m["id"].as_str().unwrap_or("");
+                                fav_ids.contains(id) && m["parent"].is_null()
+                            }).collect();
+                            let children: Vec<&Value> = all.iter().filter(|m| {
+                                let id = m["id"].as_str().unwrap_or("");
+                                fav_ids.contains(id) && m["parent"].is_string()
+                            }).collect();
+                            if parents.is_empty() && children.is_empty() {
                                 rsx! { p { class: "empty-hint", "Sin favoritos" } }
                             } else {
-                                let items: Vec<_> = favs.into_iter().map(|m| {
-                                    let route = m["route"].as_str().unwrap_or("/").to_string();
-                                    let name = m["name"].as_str().unwrap_or("--").to_string();
-                                    rsx! {
-                                        a { key: "{route}", class: "fav-link", href: "{route}",
-                                            span { class: "fav-dot" }
-                                            span { "{name}" }
+                                let items: Vec<_> = parents.into_iter().map(|p| {
+                                    let pid = p["id"].as_str().unwrap_or("").to_string();
+                                    let pname = p["name"].as_str().unwrap_or("").to_string();
+                                    let proute = p["route"].as_str().unwrap_or("/").to_string();
+                                    let sub: Vec<&Value> = children.iter().filter(|c| {
+                                        c["parent"].as_str() == Some(&pid)
+                                    }).copied().collect();
+                                    if sub.is_empty() {
+                                        rsx! {
+                                            a { key: "{pid}", class: "fav-link", href: "{proute}",
+                                                span { class: "fav-dot" }
+                                                span { "{pname}" }
+                                            }
+                                        }
+                                    } else {
+                                        let sub_items: Vec<_> = sub.into_iter().map(|c| {
+                                            let cid = c["id"].as_str().unwrap_or("").to_string();
+                                            let cname = c["name"].as_str().unwrap_or("").to_string();
+                                            let croute = c["route"].as_str().unwrap_or("/").to_string();
+                                            rsx! {
+                                                a { key: "{cid}", class: "fav-sub-link", href: "{croute}",
+                                                    span { "{cname}" }
+                                                }
+                                            }
+                                        }).collect();
+                                        rsx! {
+                                            div { key: "{pid}", class: "fav-group",
+                                                a { class: "fav-link", href: "{proute}",
+                                                    span { class: "fav-dot" }
+                                                    span { "{pname}" }
+                                                }
+                                                div { class: "fav-submenu",
+                                                    {sub_items.into_iter()}
+                                                }
+                                            }
                                         }
                                     }
                                 }).collect();
@@ -158,10 +217,10 @@ pub fn Sidebar() -> Element {
 
                 button { class: "nav-item logout", onclick: move |_| {
                         if let Some(window) = web_sys::window() {
-                            if let Ok(Some(storage)) = window.local_storage() {
-                                let _ = storage.remove_item("jwt_token");
+                            if let Some(doc) = window.document() {
+                                let _ = js_sys::Reflect::set(&doc, &wasm_bindgen::JsValue::from_str("cookie"), &wasm_bindgen::JsValue::from_str("jwt_token=; Path=/; Max-Age=0"));
                             }
-                            let _ = window.location().set_href("/login");
+                            let _ = window.location().set_href("http://localhost:3010/login");
                         }
                     },
                     span { class: "icon",
