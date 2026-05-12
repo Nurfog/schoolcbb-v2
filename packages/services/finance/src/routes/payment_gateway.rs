@@ -44,7 +44,7 @@ async fn init_payment(
         crate::error::FinanceError::Internal("Pasarela de pago no configurada".into())
     })?;
 
-    let fee = sqlx::query_as::<_, schoolcbb_common::finance::Fee>(
+    let fee = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_amount, paid_date, created_at FROM fees WHERE id = $1",
     )
     .bind(fee_id)
@@ -101,60 +101,66 @@ async fn payment_return(
         ));
     }
 
-    let gateway = state.gateway.ok_or_else(|| {
-        crate::error::FinanceError::Internal("Pasarela de pago no configurada".into())
-    })?;
+    let result = if params.mock.unwrap_or(false) {
+        crate::payment_gateway::PaymentResult {
+            success: true,
+            amount: 0.0,
+            transaction_id: format!("mock-{}", Uuid::new_v4()),
+            authorization_code: "MOCK-000".into(),
+            payment_type: "Mock".into(),
+        }
+    } else {
+        let gateway = state.gateway.ok_or_else(|| {
+            crate::error::FinanceError::Internal("Pasarela de pago no configurada".into())
+        })?;
+        gateway.confirm_transaction(&token).map_err(crate::error::FinanceError::Internal)?
+    };
 
-    match gateway.confirm_transaction(&token) {
-        Ok(result) => {
-            if result.success {
-                let tx: Option<(Uuid, f64)> = sqlx::query_as(
-                    "SELECT fee_id, amount FROM payment_transactions WHERE token = $1 AND status = 'INITIALIZED'",
-                )
+    if result.success {
+        let tx: Option<(Uuid, f64)> = sqlx::query_as(
+            "SELECT fee_id, amount FROM payment_transactions WHERE token = $1 AND status = 'INITIALIZED'",
+        )
+        .bind(&token)
+        .fetch_optional(&state.pool)
+        .await?;
+
+        if let Some((fee_id, amount)) = tx {
+            sqlx::query("UPDATE payment_transactions SET status = 'CONFIRMED', authorization_code = $1, payment_type = $2 WHERE token = $3")
+                .bind(&result.authorization_code)
+                .bind(&result.payment_type)
                 .bind(&token)
-                .fetch_optional(&state.pool)
+                .execute(&state.pool)
                 .await?;
 
-                if let Some((fee_id, amount)) = tx {
-                    sqlx::query("UPDATE payment_transactions SET status = 'CONFIRMED', authorization_code = $1, payment_type = $2 WHERE token = $3")
-                        .bind(&result.authorization_code)
-                        .bind(&result.payment_type)
-                        .bind(&token)
-                        .execute(&state.pool)
-                        .await?;
+            sqlx::query("UPDATE fees SET paid = true, paid_date = NOW(), paid_amount = $1 WHERE id = $2")
+                .bind(amount)
+                .bind(fee_id)
+                .execute(&state.pool)
+                .await?;
 
-                    sqlx::query("UPDATE fees SET paid = true, paid_date = NOW(), paid_amount = $1 WHERE id = $2")
-                        .bind(amount)
-                        .bind(fee_id)
-                        .execute(&state.pool)
-                        .await?;
-
-                    let payment_id = Uuid::new_v4();
-                    sqlx::query(
-                        r#"INSERT INTO payments (id, fee_id, student_id, amount, payment_date, payment_method, reference)
-                           VALUES ($1, $2, (SELECT student_id FROM fees WHERE id = $2), $3, NOW(), 'Webpay', $4)"#,
-                    )
-                    .bind(payment_id)
-                    .bind(fee_id)
-                    .bind(amount)
-                    .bind(&result.transaction_id)
-                    .execute(&state.pool)
-                    .await?;
-                }
-
-                Ok(Json(json!({
-                    "success": true,
-                    "message": "Pago confirmado exitosamente",
-                    "transaction_id": result.transaction_id,
-                    "authorization_code": result.authorization_code,
-                })))
-            } else {
-                Ok(Json(json!({
-                    "success": false,
-                    "message": "La transacción no fue aprobada",
-                })))
-            }
+            let payment_id = Uuid::new_v4();
+            sqlx::query(
+                r#"INSERT INTO payments (id, fee_id, student_id, amount, payment_date, payment_method, reference)
+                   VALUES ($1, $2, (SELECT student_id FROM fees WHERE id = $2), $3, NOW(), 'Webpay', $4)"#,
+            )
+            .bind(payment_id)
+            .bind(fee_id)
+            .bind(amount)
+            .bind(&result.transaction_id)
+            .execute(&state.pool)
+            .await?;
         }
-        Err(e) => Err(crate::error::FinanceError::Internal(e)),
+
+        Ok(Json(json!({
+            "success": true,
+            "message": "Pago confirmado exitosamente",
+            "transaction_id": result.transaction_id,
+            "authorization_code": result.authorization_code,
+        })))
+    } else {
+        Ok(Json(json!({
+            "success": false,
+            "message": "La transacción no fue aprobada",
+        })))
     }
 }

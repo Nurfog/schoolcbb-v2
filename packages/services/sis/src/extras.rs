@@ -21,6 +21,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/admission/prospects/{id}/family", get(list_family_members).post(add_family_member))
         .route("/api/admission/stagnation-check", get(check_stagnation))
         .route("/api/admission/metrics/time-in-stage", get(time_in_stage))
+        .route("/api/admission/check-vacancies", get(check_vacancies))
+        .route("/api/admission/prospects/upload", post(upload_document))
         .route("/api/hr/attendance/geocheck", post(geocerca_validate))
         .route("/api/hr/payroll/export/lre-audit", get(lre_audit))
         .route("/api/hr/attendance/sync-hmac", post(sync_attendance_hmac))
@@ -423,7 +425,7 @@ async fn sync_attendance_hmac(claims: Claims, State(state): State<AppState>, Jso
     }
 
     let log_id = Uuid::new_v4();
-    let result = sqlx::query_as::<_, schoolcbb_common::hr::AttendanceLog>(
+    let result = sqlx::query_as::<_, schoolccb_common::hr::AttendanceLog>(
         r#"INSERT INTO employee_attendance_logs (id, employee_id, timestamp, entry_type, source)
            VALUES ($1, $2, $3, $4, 'api_hmac')
            RETURNING id, employee_id, timestamp, entry_type, device_id, location_hash, source, created_at"#,
