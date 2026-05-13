@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::SisResult;
+use crate::error::{SisError, SisResult};
 use crate::routes::students::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -18,6 +18,13 @@ async fn admission_metrics(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let total_prospects: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM prospects")
         .fetch_one(&state.pool)

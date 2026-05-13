@@ -60,8 +60,11 @@ pub async fn start_grpc_server(pool: PgPool, addr: String) {
 
     tracing::info!("gRPC server starting on {addr}");
 
-    let _ = tonic::transport::Server::builder()
+    if let Err(e) = tonic::transport::Server::builder()
         .add_service(WorkflowEventsServer::new(service))
-        .serve(addr.parse().unwrap())
-        .await;
+        .serve(addr.parse().expect("dirección gRPC inválida"))
+        .await
+    {
+        tracing::error!("gRPC server failed: {e}");
+    }
 }

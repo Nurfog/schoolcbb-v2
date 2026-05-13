@@ -69,6 +69,13 @@ async fn list_courses(
         &claims,
         &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "courses",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let (where_clause, _param_idx) = build_filters(&q, &claims);
     let sql = format!(
@@ -173,6 +180,13 @@ async fn get_course(
         &claims,
         &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "courses",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let course = sqlx::query_as::<_, RawCourse>(
         "SELECT id, name, subject, grade_level, section, teacher_id, plan, classroom_id FROM courses WHERE id = $1",

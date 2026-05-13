@@ -1,5 +1,23 @@
 use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema, SimpleObject};
 use serde_json::Value;
+use std::fmt::Write;
+use tracing;
+
+fn urlencoding(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for byte in s.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                result.push(byte as char);
+            }
+            b' ' => result.push_str("%20"),
+            _ => {
+                let _ = write!(result, "%{:02X}", byte);
+            }
+        }
+    }
+    result
+}
 
 pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 
@@ -13,6 +31,7 @@ pub fn build_schema(sis_url: &str, academic_url: &str, client: reqwest::Client) 
         .finish()
 }
 
+#[derive(Debug)]
 pub struct ServicesConfig {
     pub sis_url: String,
     pub academic_url: String,
@@ -26,14 +45,23 @@ impl QueryRoot {
     async fn students(&self, ctx: &Context<'_>, search: Option<String>) -> Vec<StudentGql> {
         let client = match ctx.data::<reqwest::Client>() {
             Ok(c) => c,
-            Err(_) => return vec![],
+            Err(e) => {
+                tracing::warn!("students resolver: missing reqwest::Client in context: {e:?}");
+                return vec![];
+            }
         };
         let cfg = match ctx.data::<ServicesConfig>() {
             Ok(c) => c,
-            Err(_) => return vec![],
+            Err(e) => {
+                tracing::warn!("students resolver: missing ServicesConfig in context: {e:?}");
+                return vec![];
+            }
         };
         let endpoint = match search {
-            Some(q) => format!("/api/students?search={}", q.replace(' ', "%20")),
+            Some(q) => format!(
+                "/api/students?search={}",
+                urlencoding(&q)
+            ),
             None => "/api/students".to_string(),
         };
 
@@ -59,21 +87,33 @@ impl QueryRoot {
                             })
                             .collect();
                     }
+                    tracing::warn!("students resolver: response missing 'students' array");
+                } else {
+                    tracing::warn!("students resolver: failed to parse upstream JSON response");
                 }
                 vec![]
             }
-            Err(_) => vec![],
+            Err(e) => {
+                tracing::warn!("students resolver: upstream request failed: {e}");
+                vec![]
+            }
         }
     }
 
     async fn subjects(&self, ctx: &Context<'_>) -> Vec<SubjectGql> {
         let client = match ctx.data::<reqwest::Client>() {
             Ok(c) => c,
-            Err(_) => return vec![],
+            Err(e) => {
+                tracing::warn!("subjects resolver: missing reqwest::Client in context: {e:?}");
+                return vec![];
+            }
         };
         let cfg = match ctx.data::<ServicesConfig>() {
             Ok(c) => c,
-            Err(_) => return vec![],
+            Err(e) => {
+                tracing::warn!("subjects resolver: missing ServicesConfig in context: {e:?}");
+                return vec![];
+            }
         };
         let token = get_token(ctx);
         let mut req = client.get(format!("{}/api/grades/subjects", cfg.academic_url));
@@ -95,10 +135,16 @@ impl QueryRoot {
                             })
                             .collect();
                     }
+                    tracing::warn!("subjects resolver: response missing 'subjects' array");
+                } else {
+                    tracing::warn!("subjects resolver: failed to parse upstream JSON response");
                 }
                 vec![]
             }
-            Err(_) => vec![],
+            Err(e) => {
+                tracing::warn!("subjects resolver: upstream request failed: {e}");
+                vec![]
+            }
         }
     }
 
@@ -110,11 +156,17 @@ impl QueryRoot {
     ) -> Option<StudentReportGql> {
         let client = match ctx.data::<reqwest::Client>() {
             Ok(c) => c,
-            Err(_) => return None,
+            Err(e) => {
+                tracing::warn!("student_report resolver: missing reqwest::Client in context: {e:?}");
+                return None;
+            }
         };
         let cfg = match ctx.data::<ServicesConfig>() {
             Ok(c) => c,
-            Err(_) => return None,
+            Err(e) => {
+                tracing::warn!("student_report resolver: missing ServicesConfig in context: {e:?}");
+                return None;
+            }
         };
         let token = get_token(ctx);
         let mut req = client.get(format!(
@@ -134,10 +186,14 @@ impl QueryRoot {
                         final_promotion: data["final_promotion"].as_str().unwrap_or("").to_string(),
                     })
                 } else {
+                    tracing::warn!("student_report resolver: failed to parse upstream JSON response");
                     None
                 }
             }
-            Err(_) => None,
+            Err(e) => {
+                tracing::warn!("student_report resolver: upstream request failed: {e}");
+                None
+            }
         }
     }
 }

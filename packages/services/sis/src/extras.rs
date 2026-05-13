@@ -30,6 +30,13 @@ pub fn router() -> Router<AppState> {
 
 async fn check_vacancies(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "Admision"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let courses = sqlx::query(
         r#"SELECT c.id, c.grade_level, c.section, c.name, c.max_students,
@@ -126,6 +133,13 @@ struct InteractionPayload {
 
 async fn list_changelog(claims: Claims, State(state): State<AppState>, Query(q): Query<ChangelogFilter>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "academic",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut sql = "SELECT id, entity_type, entity_id, action, field_name, old_value, new_value, changed_by, created_at FROM academic_changelog".to_string();
     let mut clauses: Vec<String> = vec![];
@@ -209,6 +223,13 @@ async fn log_interaction(claims: Claims, State(state): State<AppState>, Json(pay
 
 async fn list_interactions(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "Admision"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let rows = sqlx::query(
         "SELECT id, event_type, source, payload, created_at FROM event_log WHERE event_type LIKE 'interaction.%' ORDER BY created_at DESC LIMIT 100",
@@ -227,6 +248,13 @@ async fn list_interactions(claims: Claims, State(state): State<AppState>) -> Sis
 
 async fn list_family_members(claims: Claims, State(state): State<AppState>, Path(pid): Path<Uuid>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Admision"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let members = sqlx::query(
         "SELECT id, prospect_id, student_id, rut, first_name, last_name, relationship, is_enrolled, created_at FROM family_members WHERE prospect_id = $1 ORDER BY created_at DESC",
@@ -266,6 +294,13 @@ async fn add_family_member(claims: Claims, State(state): State<AppState>, Path(p
 
 async fn check_stagnation(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "Admision"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let rows = sqlx::query(
         r#"SELECT p.id, p.first_name, p.last_name, ps.name as stage_name, p.updated_at,
@@ -288,6 +323,13 @@ async fn check_stagnation(claims: Claims, State(state): State<AppState>) -> SisR
 
 async fn time_in_stage(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "Admision"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let rows = sqlx::query(
         r#"SELECT ps.id, ps.name, ps."order",
@@ -355,6 +397,13 @@ fn haversine(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
 
 async fn lre_audit(claims: Claims, State(state): State<AppState>, Query(q): Query<LreAuditFilter>) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let month = q.month;
     let rows = sqlx::query(

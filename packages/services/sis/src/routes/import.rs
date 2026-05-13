@@ -169,7 +169,7 @@ async fn import_csv(
         let id = Uuid::new_v4();
         match sqlx::query(INSERT_SQL)
             .bind(id)
-            .bind(&rut.0)
+            .bind(rut.as_str())
             .bind(first_name)
             .bind(last_name)
             .bind(if email.is_empty() {

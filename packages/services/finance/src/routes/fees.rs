@@ -75,18 +75,34 @@ pub fn router() -> Router<AppState> {
 
 async fn list_fees(claims: Claims, State(state): State<AppState>) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "finance",
+    )
+    .await
+    .map_err(|e| FinanceError::Forbidden(e))?;
 
-    let school_condition = claims
+    let school_id: Option<Uuid> = claims
         .school_id
         .as_ref()
-        .map(|sid| format!(" WHERE school_id = '{}'::uuid", sid))
-        .unwrap_or_default();
+        .and_then(|s| Uuid::parse_str(s).ok());
 
-    let fees = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
-        &format!("SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees{} ORDER BY due_date DESC LIMIT 100", school_condition),
-    )
-    .fetch_all(&state.pool)
-    .await?;
+    let corporation_id: Option<Uuid> = claims
+        .corporation_id
+        .as_ref()
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    let (sql, corp_val) = if let Some(_sc) = school_id {
+        let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $2").unwrap_or("");
+        (format!("SELECT f.id, f.student_id, f.description, f.amount, f.due_date, f.paid, f.paid_date, f.paid_amount, f.created_at FROM fees f JOIN schools sch ON sch.id = f.school_id WHERE f.school_id = $1{} ORDER BY f.due_date DESC LIMIT 100", corp_clause), corporation_id)
+    } else {
+        ("SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees ORDER BY due_date DESC LIMIT 100".to_string(), None)
+    };
+    let mut q = sqlx::query_as::<_, schoolccb_common::finance::Fee>(&sql);
+    if let Some(sc) = school_id { q = q.bind(sc); }
+    if let Some(cc) = corp_val { q = q.bind(cc); }
+    let fees = q.fetch_all(&state.pool).await?;
 
     Ok(Json(json!({ "fees": fees, "total": fees.len() })))
 }
@@ -97,6 +113,13 @@ async fn get_fee(
     Path(id): Path<Uuid>,
 ) -> FinanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "finance",
+    )
+    .await
+    .map_err(|e| FinanceError::Forbidden(e))?;
 
     let fee = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees WHERE id = $1",
@@ -208,6 +231,13 @@ async fn fees_by_student(
             "Apoderado",
         ],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "finance",
+    )
+    .await
+    .map_err(|e| FinanceError::Forbidden(e))?;
 
     let fees = sqlx::query_as::<_, schoolccb_common::finance::Fee>(
         "SELECT id, student_id, description, amount, due_date, paid, paid_date, paid_amount, created_at FROM fees WHERE student_id = $1 ORDER BY due_date",

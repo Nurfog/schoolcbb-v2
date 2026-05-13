@@ -23,6 +23,13 @@ pub fn router() -> Router<AppState> {
 
 async fn list_years(claims: Claims, State(state): State<AppState>) -> AcademicResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "academic-years",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
     let years = sqlx::query_as::<_, schoolccb_common::academic::AcademicYear>(
         "SELECT id, year, name, is_active, created_at FROM academic_years ORDER BY year DESC",

@@ -83,6 +83,13 @@ async fn certificate_student(
             "Apoderado",
         ],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "reports",
+    )
+    .await
+    .map_err(|e| ReportError::Forbidden(e))?;
 
     let student = sqlx::query_as::<_, StudentRow>(
         r#"

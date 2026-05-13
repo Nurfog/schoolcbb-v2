@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 use serde_json::Value;
+use wasm_bindgen::prelude::*;
 
 use crate::api::client;
 
@@ -14,14 +15,38 @@ pub fn SearchableSelect(
     initial_label: Option<String>,
 ) -> Element {
     let mut query = use_signal(|| String::new());
+    let debounced_query = use_signal(|| String::new());
+    let mut debounce_handle = use_signal(|| None::<i32>);
     let mut is_open = use_signal(|| false);
     let init_val = initial_label.clone().unwrap_or_default();
     let mut selected_label = use_signal(|| init_val);
     let init_some = initial_label.is_some();
     let mut has_selected = use_signal(|| init_some);
 
-    let results = use_resource(move || {
+    use_effect(move || {
         let q = query();
+        if q != debounced_query() {
+            if let Some(h) = debounce_handle.take() {
+                web_sys::window().unwrap().clear_timeout_with_handle(h);
+            }
+            let mut dq = debounced_query.clone();
+            let cb = Closure::once(move || {
+                dq.set(q);
+            });
+            let handle = web_sys::window()
+                .unwrap()
+                .set_timeout_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref(),
+                    300,
+                )
+                .unwrap();
+            cb.forget();
+            debounce_handle.set(Some(handle));
+        }
+    });
+
+    let results = use_resource(move || {
+        let q = debounced_query();
         let url = fetch_url.clone();
         let rk = results_key.clone();
         async move {

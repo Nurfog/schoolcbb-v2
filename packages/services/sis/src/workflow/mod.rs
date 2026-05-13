@@ -14,6 +14,8 @@ struct ProspectRow {
     rut: Option<String>,
     email: Option<String>,
     phone: Option<String>,
+    grade_level: Option<String>,
+    section: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -224,7 +226,7 @@ impl WorkflowEngine {
 
     async fn promote_to_student(&self, prospect_id: Uuid, _triggered_by: Option<Uuid>) {
         let prospect: Option<ProspectRow> = sqlx::query_as(
-            r#"SELECT id, first_name, last_name, rut, email, phone FROM prospects WHERE id = $1"#,
+            r#"SELECT id, first_name, last_name, rut, email, phone, grade_level, section FROM admission_prospects WHERE id = $1"#,
         )
         .bind(prospect_id)
         .fetch_optional(&self.pool)
@@ -281,6 +283,51 @@ impl WorkflowEngine {
                     prospect_id,
                     student_id
                 );
+
+                let enrollment_id = Uuid::new_v4();
+                let current_year = chrono::Utc::now().format("%Y").to_string();
+                let year: i32 = current_year.parse().unwrap_or(2026);
+
+                if let (Some(grade_level), Some(section)) = (&prospect.grade_level, &prospect.section) {
+                    let course: Option<(Uuid,)> = sqlx::query_as(
+                        "SELECT id FROM courses WHERE grade_level = $1 AND section = $2 LIMIT 1",
+                    )
+                    .bind(grade_level)
+                    .bind(section)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .unwrap_or(None);
+
+                    if let Some((course_id,)) = course {
+                        let _ = sqlx::query(
+                            r#"INSERT INTO enrollments (id, student_id, course_id, year, active)
+                               VALUES ($1, $2, $3, $4, true)"#,
+                        )
+                        .bind(enrollment_id)
+                        .bind(student_id)
+                        .bind(course_id)
+                        .bind(year)
+                        .execute(&self.pool)
+                        .await;
+
+                        tracing::info!(
+                            "Workflow: enrollment created for student {} in course {}",
+                            student_id,
+                            course_id
+                        );
+                    } else {
+                        tracing::warn!(
+                            "Workflow: no course found for grade_level={} section={}, skipping enrollment",
+                            grade_level,
+                            section
+                        );
+                    }
+                } else {
+                    tracing::warn!(
+                        "Workflow: prospect {} has no grade_level/section, skipping enrollment",
+                        prospect_id
+                    );
+                }
 
                 self.create_activity(
                     prospect_id,

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Certificado de alumno regular para un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertificateRegular {
     pub student_id: Uuid,
@@ -14,6 +15,7 @@ pub struct CertificateRegular {
     pub issuer_name: String,
 }
 
+/// Concentración de notas de un estudiante en un año completo.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GradeConcentration {
     pub student_id: Uuid,
@@ -25,6 +27,7 @@ pub struct GradeConcentration {
     pub final_average: f64,
 }
 
+/// Concentración de notas de un semestre.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SemesterConcentration {
     pub semester: i32,
@@ -32,6 +35,7 @@ pub struct SemesterConcentration {
     pub global_average: f64,
 }
 
+/// Detalle de notas por asignatura dentro de una concentración.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubjectConcentration {
     pub subject_name: String,
@@ -42,6 +46,7 @@ pub struct SubjectConcentration {
     pub max_grade: f64,
 }
 
+/// Acta de calificaciones finales de un curso.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinalRecord {
     pub course_id: Uuid,
@@ -53,6 +58,7 @@ pub struct FinalRecord {
     pub summary: FinalRecordSummary,
 }
 
+/// Estudiante dentro de un acta de calificaciones finales.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinalRecordStudent {
     pub student_id: Uuid,
@@ -63,6 +69,7 @@ pub struct FinalRecordStudent {
     pub promotion: String,
 }
 
+/// Calificación final de un estudiante en una asignatura (ambos semestres).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinalSubjectGrade {
     pub subject_name: String,
@@ -72,6 +79,7 @@ pub struct FinalSubjectGrade {
     pub final_avg: f64,
 }
 
+/// Resumen estadístico de un acta de calificaciones finales.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinalRecordSummary {
     pub total_students: usize,
@@ -80,6 +88,7 @@ pub struct FinalRecordSummary {
     pub average_promotion_rate: f64,
 }
 
+/// Exportación de datos de estudiantes para plataforma SIGE.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigeStudentExport {
     pub rows: Vec<SigeStudentRow>,
@@ -87,6 +96,7 @@ pub struct SigeStudentExport {
     pub generated_at: String,
 }
 
+/// Fila individual de la exportación SIGE de estudiantes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigeStudentRow {
     pub rut: String,
@@ -100,6 +110,7 @@ pub struct SigeStudentRow {
     pub nee: String,
 }
 
+/// Exportación de datos de asistencia para plataforma SIGE.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigeAttendanceExport {
     pub rows: Vec<SigeAttendanceRow>,
@@ -108,6 +119,7 @@ pub struct SigeAttendanceExport {
     pub month: u32,
 }
 
+/// Fila individual de la exportación SIGE de asistencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigeAttendanceRow {
     pub rut: String,

@@ -10,6 +10,7 @@ mod workflow;
 
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::Router;
 use schoolccb_common::event_bus::BroadcastBus;
 use sqlx::PgPool;
@@ -92,6 +93,7 @@ async fn main() {
     };
 
     let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(routes::router())
         .merge(admission::router())
         .merge(hr::router())

@@ -1,3 +1,9 @@
+//! Tipos y estructuras compartidas del sistema SchoolCBB.
+//!
+//! Este crate define los tipos de datos comunes utilizados por todos los
+//! módulos de la aplicación: estudiantes, asistencia, calificaciones, RRHH,
+//! finanzas, roles, RUT chileno, licencias, y más.
+
 pub mod academic;
 pub mod admission;
 pub mod attendance;

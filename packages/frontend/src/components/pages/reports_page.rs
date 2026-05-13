@@ -366,6 +366,8 @@ fn CourseReports() -> Element {
     let mut search_course = use_signal(String::new);
     let mut result = use_signal(|| None::<Result<serde_json::Value, String>>);
     let mut loading = use_signal(|| false);
+    let mut perf_result = use_signal(|| None::<Result<serde_json::Value, String>>);
+    let mut perf_loading = use_signal(|| false);
     let courses = use_resource(move || {
         let q = search_course();
         async move {
@@ -383,6 +385,20 @@ fn CourseReports() -> Element {
                 let res = client::fetch_final_record(&cid, y).await;
                 loading.set(false);
                 result.set(Some(res));
+            });
+        }
+    };
+
+    let generate_performance = move |_| {
+        if let Some(ref course) = selected_course() {
+            let cid = course["id"].as_str().unwrap_or("").to_string();
+            let y = selected_year();
+            perf_loading.set(true);
+            perf_result.set(None);
+            spawn(async move {
+                let res = client::fetch_course_performance(&cid, y).await;
+                perf_loading.set(false);
+                perf_result.set(Some(res));
             });
         }
     };
@@ -475,6 +491,90 @@ fn CourseReports() -> Element {
                     Some(Ok(j)) => rsx! { FinalRecordResult { data: j } },
                     Some(Err(e)) => rsx! { div { class: "empty-state", "Error: {e}" } },
                     None => rsx! {},
+                }
+            }
+            div { class: "report-section", style: "margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);",
+                h3 { "Rendimiento por Curso" }
+                div { class: "filter-group",
+                    span { style: "font-size: 13px; color: var(--text-secondary);",
+                        "Curso: {selected_course().map(|c| c[\"name\"].as_str().unwrap_or(\"\").to_string()).unwrap_or_else(|| \"—\".to_string())} — Año: {selected_year}"
+                    }
+                }
+                div { class: "form-actions",
+                    button {
+                        class: "btn btn-secondary",
+                        disabled: selected_course().is_none() || perf_loading(),
+                        onclick: generate_performance,
+                        if perf_loading() { "Cargando..." } else { "Ver Rendimiento" }
+                    }
+                }
+                {
+                    match perf_result() {
+                        Some(Ok(j)) => rsx! { CoursePerformanceResult { data: j } },
+                        Some(Err(e)) => rsx! { div { class: "empty-state", "Error: {e}" } },
+                        None => rsx! {},
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn CoursePerformanceResult(data: serde_json::Value) -> Element {
+    let cp = &data["course_performance"];
+    let course_name = cp["course_name"].as_str().unwrap_or("").to_string();
+    let year = cp["year"].as_i64().unwrap_or(0);
+    let subjects = cp["subjects"].as_array().cloned().unwrap_or_default();
+
+    let rows: Vec<(String, f64, i64, f64, f64, String)> = subjects.iter().map(|s| {
+        let sname = s["subject_name"].as_str().unwrap_or("-").to_string();
+        let avg = s["average_grade"].as_f64().unwrap_or(0.0);
+        let count = s["grades_count"].as_i64().or_else(|| s["student_count"].as_i64()).unwrap_or(0);
+        let min_g = s["min_grade"].as_f64().unwrap_or(0.0);
+        let max_g = s["max_grade"].as_f64().unwrap_or(0.0);
+        let avg_class = if avg >= 4.0 { "grade-good".to_string() } else { "grade-bad".to_string() };
+        (sname, avg, count, min_g, max_g, avg_class)
+    }).collect();
+
+    rsx! {
+        div { class: "report-result",
+            p { "Rendimiento de {course_name} - Año {year}" }
+            table { class: "data-table", style: "margin-top: 12px;",
+                thead { tr {
+                    th { "Asignatura" }
+                    th { "Promedio" }
+                    th { "Notas" }
+                    th { "Mín" }
+                    th { "Máx" }
+                }}
+                tbody { for (sname, avg, count, min_g, max_g, avg_class) in &rows {
+                    tr {
+                        td { "{sname}" }
+                        td { class: "{avg_class}", "{avg:.1}" }
+                        td { "{count}" }
+                        td { "{min_g:.1}" }
+                        td { "{max_g:.1}" }
+                    }
+                }}
+            }
+            {
+                let pass_count = cp["pass_count"].as_i64();
+                let fail_count = cp["fail_count"].as_i64();
+                match (pass_count, fail_count) {
+                    (Some(p), Some(f)) => rsx! {
+                        div { class: "summary-cards", style: "margin-top: 12px;",
+                            div { class: "summary-card",
+                                span { class: "summary-value", "{p}" }
+                                span { class: "summary-label", "Aprobados" }
+                            }
+                            div { class: "summary-card danger",
+                                span { class: "summary-value", "{f}" }
+                                span { class: "summary-label", "Reprobados" }
+                            }
+                        }
+                    },
+                    _ => rsx! {},
                 }
             }
         }

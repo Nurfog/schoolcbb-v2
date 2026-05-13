@@ -1,6 +1,7 @@
 mod config;
 mod routes;
 
+use axum::routing::get;
 use axum::Router;
 use minijinja::Environment;
 use std::{collections::HashMap, sync::Arc};
@@ -55,6 +56,7 @@ async fn main() {
     });
 
     let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(routes::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

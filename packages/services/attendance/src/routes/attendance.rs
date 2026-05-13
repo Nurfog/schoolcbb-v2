@@ -29,7 +29,7 @@ impl FromRequestParts<AppState> for Claims {
 
     async fn from_request_parts(
         parts: &mut Parts,
-        _state: &AppState,
+        state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
@@ -38,7 +38,7 @@ impl FromRequestParts<AppState> for Claims {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(AttendanceError::Unauthorized)?;
 
-        let secret = &_state.config.jwt_secret;
+        let secret = &state.config.jwt_secret;
 
         let token_data = jsonwebtoken::decode::<Claims>(
             auth_header,
@@ -116,51 +116,81 @@ async fn list_attendance(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "attendance",
+    )
+    .await
+    .map_err(|e| AttendanceError::Forbidden(e))?;
 
-    let school_condition = claims
+    let school_id: Option<Uuid> = claims
         .school_id
         .as_ref()
-        .map(|sid| format!(" AND a.school_id = '{}'::uuid", sid))
-        .unwrap_or_default();
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    let corporation_id: Option<Uuid> = claims
+        .corporation_id
+        .as_ref()
+        .and_then(|s| Uuid::parse_str(s).ok());
 
     let records = if let (Some(sid), Some(cid)) = (filter.student_id, filter.course_id) {
         if let (Some(from), Some(to)) = (filter.from, filter.to) {
-            sqlx::query_as::<_, RawAttendance>(
-                &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-                 FROM attendance WHERE student_id = $1 AND course_id = $2 AND date >= $3 AND date <= $4{} ORDER BY date DESC", school_condition)
-            ).bind(sid).bind(cid).bind(from).bind(to).fetch_all(&state.pool).await?
+            let (sql, corp_val) = if school_id.is_some() {
+                let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $6").unwrap_or("");
+                (format!("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE student_id = $1 AND course_id = $2 AND date >= $3 AND date <= $4 AND a.school_id = $5{} ORDER BY a.date DESC", corp_clause), corporation_id)
+            } else {
+                ("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE student_id = $1 AND course_id = $2 AND date >= $3 AND date <= $4 ORDER BY date DESC".to_string(), None)
+            };
+            let mut q = sqlx::query_as::<_, RawAttendance>(&sql).bind(sid).bind(cid).bind(from).bind(to);
+            if let Some(sc) = school_id { q = q.bind(sc); }
+            if let Some(cc) = corp_val { q = q.bind(cc); }
+            q.fetch_all(&state.pool).await?
         } else {
-            sqlx::query_as::<_, RawAttendance>(
-                &format!("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-                 FROM attendance WHERE student_id = $1 AND course_id = $2{} ORDER BY date DESC", school_condition)
-            ).bind(sid).bind(cid).fetch_all(&state.pool).await?
+            let (sql, corp_val) = if school_id.is_some() {
+                let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $4").unwrap_or("");
+                (format!("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE student_id = $1 AND course_id = $2 AND a.school_id = $3{} ORDER BY a.date DESC", corp_clause), corporation_id)
+            } else {
+                ("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE student_id = $1 AND course_id = $2 ORDER BY date DESC".to_string(), None)
+            };
+            let mut q = sqlx::query_as::<_, RawAttendance>(&sql).bind(sid).bind(cid);
+            if let Some(sc) = school_id { q = q.bind(sc); }
+            if let Some(cc) = corp_val { q = q.bind(cc); }
+            q.fetch_all(&state.pool).await?
         }
     } else if let Some(sid) = filter.student_id {
-        sqlx::query_as::<_, RawAttendance>(&format!(
-            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE student_id = $1{} ORDER BY date DESC",
-            school_condition
-        ))
-        .bind(sid)
-        .fetch_all(&state.pool)
-        .await?
+        let (sql, corp_val) = if school_id.is_some() {
+            let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $3").unwrap_or("");
+            (format!("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE student_id = $1 AND a.school_id = $2{} ORDER BY a.date DESC", corp_clause), corporation_id)
+        } else {
+            ("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE student_id = $1 ORDER BY date DESC".to_string(), None)
+        };
+        let mut q = sqlx::query_as::<_, RawAttendance>(&sql).bind(sid);
+        if let Some(sc) = school_id { q = q.bind(sc); }
+        if let Some(cc) = corp_val { q = q.bind(cc); }
+        q.fetch_all(&state.pool).await?
     } else if let Some(cid) = filter.course_id {
-        sqlx::query_as::<_, RawAttendance>(&format!(
-            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE course_id = $1{} ORDER BY date DESC",
-            school_condition
-        ))
-        .bind(cid)
-        .fetch_all(&state.pool)
-        .await?
+        let (sql, corp_val) = if school_id.is_some() {
+            let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $3").unwrap_or("");
+            (format!("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE course_id = $1 AND a.school_id = $2{} ORDER BY a.date DESC", corp_clause), corporation_id)
+        } else {
+            ("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE course_id = $1 ORDER BY date DESC".to_string(), None)
+        };
+        let mut q = sqlx::query_as::<_, RawAttendance>(&sql).bind(cid);
+        if let Some(sc) = school_id { q = q.bind(sc); }
+        if let Some(cc) = corp_val { q = q.bind(cc); }
+        q.fetch_all(&state.pool).await?
     } else {
-        sqlx::query_as::<_, RawAttendance>(&format!(
-            "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation
-             FROM attendance WHERE 1=1{} ORDER BY date DESC LIMIT 100",
-            school_condition
-        ))
-        .fetch_all(&state.pool)
-        .await?
+        let (sql, corp_val) = if school_id.is_some() {
+            let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $2").unwrap_or("");
+            (format!("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE 1=1 AND a.school_id = $1{} ORDER BY a.date DESC LIMIT 100", corp_clause), corporation_id)
+        } else {
+            ("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE 1=1 ORDER BY date DESC LIMIT 100".to_string(), None)
+        };
+        let mut q = sqlx::query_as::<_, RawAttendance>(&sql);
+        if let Some(sc) = school_id { q = q.bind(sc); }
+        if let Some(cc) = corp_val { q = q.bind(cc); }
+        q.fetch_all(&state.pool).await?
     };
 
     Ok(Json(json!({ "records": records, "total": records.len() })))
@@ -175,6 +205,13 @@ async fn get_attendance(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "attendance",
+    )
+    .await
+    .map_err(|e| AttendanceError::Forbidden(e))?;
 
     let record = sqlx::query_as::<_, RawAttendance>(
         "SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE id = $1",
@@ -205,7 +242,8 @@ async fn create_attendance(
         ));
     }
 
-    let status = schoolccb_common::attendance::AttendanceStatus::from_str(&payload.status);
+    let status = schoolccb_common::attendance::AttendanceStatus::from_str(&payload.status)
+        .ok_or_else(|| AttendanceError::Validation(format!("Estado de asistencia inválido: {}", payload.status)))?;
     let id = Uuid::new_v4();
 
     let result = sqlx::query_as::<_, RawAttendance>(
@@ -254,13 +292,12 @@ async fn update_attendance(
     .await?
     .ok_or(AttendanceError::NotFound("Registro de asistencia no encontrado".into()))?;
 
-    let status = payload
-        .status
-        .as_deref()
-        .map(schoolccb_common::attendance::AttendanceStatus::from_str)
-        .unwrap_or(schoolccb_common::attendance::AttendanceStatus::from_str(
-            &existing.status,
-        ));
+    let status = match &payload.status {
+        Some(s) => schoolccb_common::attendance::AttendanceStatus::from_str(s)
+            .ok_or_else(|| AttendanceError::Validation(format!("Estado de asistencia inválido: {s}")))?,
+        None => schoolccb_common::attendance::AttendanceStatus::from_str(&existing.status)
+            .unwrap_or(schoolccb_common::attendance::AttendanceStatus::Presente),
+    };
     let time = payload.time.or(existing.time);
     let observation = payload.observation.or(existing.observation);
 
@@ -321,7 +358,13 @@ async fn bulk_create_attendance(
     let mut errors: Vec<Value> = vec![];
 
     for record in &payload.records {
-        let status = schoolccb_common::attendance::AttendanceStatus::from_str(&record.status);
+        let Some(status) = schoolccb_common::attendance::AttendanceStatus::from_str(&record.status) else {
+            errors.push(json!({
+                "student_id": record.student_id,
+                "error": format!("Estado de asistencia inválido: {}", record.status),
+            }));
+            continue;
+        };
         let id = Uuid::new_v4();
 
         let result = sqlx::query(
@@ -370,6 +413,13 @@ async fn today_attendance(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "attendance",
+    )
+    .await
+    .map_err(|e| AttendanceError::Forbidden(e))?;
 
     let today = chrono::Utc::now().date_naive();
     let records = sqlx::query_as::<_, RawAttendance>(

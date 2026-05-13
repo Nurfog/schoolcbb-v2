@@ -37,6 +37,7 @@ pub fn StudentsPage() -> Element {
                 input {
                     class: "search-input",
                     placeholder: "Buscar por nombre o RUT...",
+                    "aria-label": "Buscar alumnos",
                     value: "{search_query}",
                     oninput: on_search,
                 }
@@ -46,11 +47,11 @@ pub fn StudentsPage() -> Element {
             table { class: "data-table",
                 thead {
                     tr {
-                        th { "RUT" }
-                        th { "Nombre" }
-                        th { "Curso" }
-                        th { "Sección" }
-                        th { "Estado" }
+                        th { scope: "col", "RUT" }
+                        th { scope: "col", "Nombre" }
+                        th { scope: "col", "Curso" }
+                        th { scope: "col", "Sección" }
+                        th { scope: "col", "Estado" }
                     }
                 }
                 tbody {

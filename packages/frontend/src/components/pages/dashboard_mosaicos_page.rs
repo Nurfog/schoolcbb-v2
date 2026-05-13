@@ -1,9 +1,11 @@
 use dioxus::prelude::*;
 
 use crate::api::client;
+use crate::seo::use_page_title;
 
 #[component]
 pub fn DashboardMosaicosPage() -> Element {
+    use_page_title("Dashboard");
     let summary = use_resource(|| async move { client::fetch_dashboard_summary().await });
     let attendance = use_resource(|| async move { client::fetch_attendance_today().await });
     let alerts = use_resource(|| async move { client::fetch_student_alerts().await });

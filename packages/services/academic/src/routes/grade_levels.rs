@@ -81,6 +81,13 @@ async fn list_levels(claims: Claims, State(state): State<AppState>) -> AcademicR
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "academic",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
     let levels = sqlx::query_as::<_, schoolccb_common::academic::GradeLevel>(
         "SELECT id, code, name, plan, sort_order, active, created_at FROM grade_levels ORDER BY sort_order",

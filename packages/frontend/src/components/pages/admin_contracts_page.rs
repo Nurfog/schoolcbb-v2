@@ -187,7 +187,7 @@ pub fn AdminContractsPage() -> Element {
         {extend_id().as_ref().map(|_id| {
             rsx! {
                 div { class: "modal-overlay", onclick: move |_| extend_id.set(None),
-                    div { class: "modal", onclick: move |e| e.stop_propagation(),
+                    div { class: "modal", role: "dialog", "aria-modal": "true", onclick: move |e| e.stop_propagation(),
                         h3 { "Prorrogar Licencia" }
                         div { class: "form-group",
                             label { "D\u{00ed}as a agregar:" }
@@ -209,7 +209,7 @@ pub fn AdminContractsPage() -> Element {
         {change_plan_id().as_ref().map(|_id| {
             rsx! {
                 div { class: "modal-overlay", onclick: move |_| change_plan_id.set(None),
-                    div { class: "modal", onclick: move |e| e.stop_propagation(),
+                    div { class: "modal", role: "dialog", "aria-modal": "true", onclick: move |e| e.stop_propagation(),
                         h3 { "Cambiar Plan" }
                         div { class: "form-group",
                             label { "Nuevo plan:" }

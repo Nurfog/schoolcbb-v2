@@ -15,7 +15,7 @@ pub async fn get_students(
         rut: String,
         first_name: String,
         last_name: String,
-        email: String,
+        email: Option<String>,
         phone: Option<String>,
         grade_level: String,
         section: String,
@@ -41,7 +41,7 @@ pub async fn get_students(
         .into_iter()
         .map(|r| schoolccb_common::student::Student {
             id: r.id,
-            rut: schoolccb_common::rut::Rut(r.rut),
+            rut: r.rut.into(),
             first_name: r.first_name,
             last_name: r.last_name,
             email: r.email,
@@ -72,6 +72,8 @@ pub async fn get_students(
 pub async fn get_attendance_today(
     pool: &PgPool,
     date: &str,
+    school_id: Option<Uuid>,
+    corporation_id: Option<Uuid>,
 ) -> Result<Vec<DailyAttendance>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RawAttendance {
@@ -86,16 +88,21 @@ pub async fn get_attendance_today(
         observation: Option<String>,
     }
 
-    let raw = sqlx::query_as::<_, RawAttendance>(
-        r#"
-        SELECT id, student_id, course_id, date, time, status,
-               subject, teacher_id, observation
-        FROM attendance WHERE date = $1::date
-        "#,
-    )
-    .bind(date)
-    .fetch_all(pool)
-    .await?;
+    let (sql, school_bind, corp_bind) = match (school_id, corporation_id) {
+        (Some(sid), Some(cid)) => {
+            ("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE a.date = $1::date AND a.school_id = $2 AND sch.corporation_id = $3".to_string(), Some(sid), Some(cid))
+        }
+        (Some(sid), None) => {
+            ("SELECT a.id, a.student_id, a.course_id, a.date, a.time, a.status, a.subject, a.teacher_id, a.observation FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE a.date = $1::date AND a.school_id = $2".to_string(), Some(sid), None)
+        }
+        _ => {
+            ("SELECT id, student_id, course_id, date, time, status, subject, teacher_id, observation FROM attendance WHERE date = $1::date".to_string(), None, None)
+        }
+    };
+    let mut q = sqlx::query_as::<_, RawAttendance>(&sql).bind(date);
+    if let Some(sid) = school_bind { q = q.bind(sid); }
+    if let Some(cid) = corp_bind { q = q.bind(cid); }
+    let raw = q.fetch_all(pool).await?;
 
     Ok(raw
         .into_iter()
@@ -181,7 +188,11 @@ pub async fn get_monthly_summary(
         .collect())
 }
 
-pub async fn get_attendance_alerts(pool: &PgPool) -> Result<Vec<AttendanceAlert>, sqlx::Error> {
+pub async fn get_attendance_alerts(
+    pool: &PgPool,
+    school_id: Option<Uuid>,
+    corporation_id: Option<Uuid>,
+) -> Result<Vec<AttendanceAlert>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RawAlert {
         student_id: Uuid,
@@ -194,43 +205,75 @@ pub async fn get_attendance_alerts(pool: &PgPool) -> Result<Vec<AttendanceAlert>
         severity: String,
     }
 
-    let raw = sqlx::query_as::<_, RawAlert>(
-        r#"
-        WITH recent AS (
-            SELECT
-                s.id as student_id,
-                CONCAT(s.first_name, ' ', s.last_name) as student_name,
-                s.rut,
-                COUNT(*) FILTER (WHERE a.status = 'Ausente') as total_absences,
-                COUNT(*) as total_days
-            FROM students s
-            JOIN attendance a ON a.student_id = s.id
-            WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
-              AND s.enrolled = true
-            GROUP BY s.id, s.first_name, s.last_name, s.rut
-        )
-        SELECT
-            student_id, student_name, rut,
-            EXTRACT(MONTH FROM CURRENT_DATE)::int as month,
-            EXTRACT(YEAR FROM CURRENT_DATE)::int as year,
-            CASE WHEN total_days > 0
-                THEN (1.0 - total_absences::float / total_days) * 100
-                ELSE 100.0
-            END as attendance_percentage,
-            total_absences,
-            CASE
-                WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 85 THEN 'Alto'
-                WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 90 THEN 'Medio'
-                ELSE 'Bajo'
-            END as severity
-        FROM recent
-        WHERE total_absences > 0
-        ORDER BY total_absences DESC
-        LIMIT 10
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
+    let (sql, has_school, has_corp) = if let (Some(_sid), Some(_cid)) = (school_id, corporation_id) {
+        let q = format!(
+            "WITH recent AS (
+                SELECT s.id as student_id, CONCAT(s.first_name, ' ', s.last_name) as student_name, s.rut,
+                       COUNT(*) FILTER (WHERE a.status = 'Ausente') as total_absences, COUNT(*) as total_days
+                FROM students s
+                JOIN attendance a ON a.student_id = s.id
+                JOIN schools sch ON sch.id = s.school_id
+                WHERE a.date >= CURRENT_DATE - INTERVAL '30 days' AND s.enrolled = true
+                  AND s.school_id = $1 AND sch.corporation_id = $2
+                GROUP BY s.id, s.first_name, s.last_name, s.rut
+            )
+            SELECT student_id, student_name, rut,
+                   EXTRACT(MONTH FROM CURRENT_DATE)::int as month, EXTRACT(YEAR FROM CURRENT_DATE)::int as year,
+                   CASE WHEN total_days > 0 THEN (1.0 - total_absences::float / total_days) * 100 ELSE 100.0 END as attendance_percentage,
+                   total_absences,
+                   CASE WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 85 THEN 'Alto'
+                        WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 90 THEN 'Medio' ELSE 'Bajo'
+                   END as severity
+            FROM recent WHERE total_absences > 0 ORDER BY total_absences DESC LIMIT 10"
+        );
+        (q, true, true)
+    } else if school_id.is_some() {
+        let q = format!(
+            "WITH recent AS (
+                SELECT s.id as student_id, CONCAT(s.first_name, ' ', s.last_name) as student_name, s.rut,
+                       COUNT(*) FILTER (WHERE a.status = 'Ausente') as total_absences, COUNT(*) as total_days
+                FROM students s
+                JOIN attendance a ON a.student_id = s.id
+                JOIN schools sch ON sch.id = s.school_id
+                WHERE a.date >= CURRENT_DATE - INTERVAL '30 days' AND s.enrolled = true
+                  AND s.school_id = $1
+                GROUP BY s.id, s.first_name, s.last_name, s.rut
+            )
+            SELECT student_id, student_name, rut,
+                   EXTRACT(MONTH FROM CURRENT_DATE)::int as month, EXTRACT(YEAR FROM CURRENT_DATE)::int as year,
+                   CASE WHEN total_days > 0 THEN (1.0 - total_absences::float / total_days) * 100 ELSE 100.0 END as attendance_percentage,
+                   total_absences,
+                   CASE WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 85 THEN 'Alto'
+                        WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 90 THEN 'Medio' ELSE 'Bajo'
+                   END as severity
+            FROM recent WHERE total_absences > 0 ORDER BY total_absences DESC LIMIT 10"
+        );
+        (q, true, false)
+    } else {
+        let q = format!(
+            "WITH recent AS (
+                SELECT s.id as student_id, CONCAT(s.first_name, ' ', s.last_name) as student_name, s.rut,
+                       COUNT(*) FILTER (WHERE a.status = 'Ausente') as total_absences, COUNT(*) as total_days
+                FROM students s
+                JOIN attendance a ON a.student_id = s.id
+                WHERE a.date >= CURRENT_DATE - INTERVAL '30 days' AND s.enrolled = true
+                GROUP BY s.id, s.first_name, s.last_name, s.rut
+            )
+            SELECT student_id, student_name, rut,
+                   EXTRACT(MONTH FROM CURRENT_DATE)::int as month, EXTRACT(YEAR FROM CURRENT_DATE)::int as year,
+                   CASE WHEN total_days > 0 THEN (1.0 - total_absences::float / total_days) * 100 ELSE 100.0 END as attendance_percentage,
+                   total_absences,
+                   CASE WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 85 THEN 'Alto'
+                        WHEN (1.0 - total_absences::float / GREATEST(total_days, 1)) * 100 < 90 THEN 'Medio' ELSE 'Bajo'
+                   END as severity
+            FROM recent WHERE total_absences > 0 ORDER BY total_absences DESC LIMIT 10"
+        );
+        (q, false, false)
+    };
+    let mut q = sqlx::query_as::<_, RawAlert>(&sql);
+    if has_school { q = q.bind(school_id.unwrap()); }
+    if has_corp { q = q.bind(corporation_id.unwrap()); }
+    let raw = q.fetch_all(pool).await?;
 
     Ok(raw
         .into_iter()
@@ -298,36 +341,73 @@ pub async fn get_agenda_events(
 
 pub async fn get_dashboard_summary(
     pool: &PgPool,
+    school_id: Option<Uuid>,
+    corporation_id: Option<Uuid>,
 ) -> Result<schoolccb_common::user::DashboardSummary, sqlx::Error> {
-    let total_students: (i64,) =
+    let total_students: (i64,) = if let (Some(sid), Some(cid)) = (school_id, corporation_id) {
+        sqlx::query_as("SELECT COUNT(*) FROM students s JOIN schools sch ON sch.id = s.school_id WHERE s.enrolled = true AND s.school_id = $1 AND sch.corporation_id = $2")
+            .bind(sid).bind(cid)
+            .fetch_one(pool).await?
+    } else if let Some(sid) = school_id {
+        sqlx::query_as("SELECT COUNT(*) FROM students s JOIN schools sch ON sch.id = s.school_id WHERE s.enrolled = true AND s.school_id = $1")
+            .bind(sid)
+            .fetch_one(pool).await?
+    } else {
         sqlx::query_as("SELECT COUNT(*) FROM students WHERE enrolled = true")
-            .fetch_one(pool)
-            .await?;
+            .fetch_one(pool).await?
+    };
 
-    let total_teachers: (i64,) =
+    let total_teachers: (i64,) = if let (Some(sid), Some(cid)) = (school_id, corporation_id) {
+        sqlx::query_as("SELECT COUNT(*) FROM users u JOIN schools sch ON sch.id = u.school_id WHERE u.role = 'Profesor' AND u.active = true AND u.school_id = $1 AND sch.corporation_id = $2")
+            .bind(sid).bind(cid)
+            .fetch_one(pool).await?
+    } else if let Some(sid) = school_id {
+        sqlx::query_as("SELECT COUNT(*) FROM users u JOIN schools sch ON sch.id = u.school_id WHERE u.role = 'Profesor' AND u.active = true AND u.school_id = $1")
+            .bind(sid)
+            .fetch_one(pool).await?
+    } else {
         sqlx::query_as("SELECT COUNT(*) FROM users WHERE role = 'Profesor' AND active = true")
-            .fetch_one(pool)
-            .await?;
+            .fetch_one(pool).await?
+    };
 
     let today = chrono::Utc::now().date_naive().to_string();
-    let attendance_today: f64 = get_attendance_percentage_today(pool, &today).await?;
+    let attendance_today: f64 = get_attendance_percentage_today(pool, &today, school_id, corporation_id).await?;
 
-    let alerts_count: (i64,) = sqlx::query_as(
-        r#"
-        SELECT COUNT(*) FROM (
-            SELECT s.id
-            FROM students s
-            JOIN attendance a ON a.student_id = s.id
-            WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
-              AND a.status = 'Ausente'
-              AND s.enrolled = true
-            GROUP BY s.id
-            HAVING COUNT(*) >= 3
-        ) sub
-        "#,
-    )
-    .fetch_one(pool)
-    .await?;
+    let alerts_count: (i64,) = if let (Some(sid), Some(cid)) = (school_id, corporation_id) {
+        sqlx::query_as(
+            r#"SELECT COUNT(*) FROM (
+                SELECT s.id FROM students s
+                JOIN attendance a ON a.student_id = s.id
+                JOIN schools sch ON sch.id = s.school_id
+                WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND a.status = 'Ausente' AND s.enrolled = true
+                  AND s.school_id = $1 AND sch.corporation_id = $2
+                GROUP BY s.id HAVING COUNT(*) >= 3
+            ) sub"#,
+        ).bind(sid).bind(cid).fetch_one(pool).await?
+    } else if let Some(sid) = school_id {
+        sqlx::query_as(
+            r#"SELECT COUNT(*) FROM (
+                SELECT s.id FROM students s
+                JOIN attendance a ON a.student_id = s.id
+                JOIN schools sch ON sch.id = s.school_id
+                WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND a.status = 'Ausente' AND s.enrolled = true
+                  AND s.school_id = $1
+                GROUP BY s.id HAVING COUNT(*) >= 3
+            ) sub"#,
+        ).bind(sid).fetch_one(pool).await?
+    } else {
+        sqlx::query_as(
+            r#"SELECT COUNT(*) FROM (
+                SELECT s.id FROM students s
+                JOIN attendance a ON a.student_id = s.id
+                WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND a.status = 'Ausente' AND s.enrolled = true
+                GROUP BY s.id HAVING COUNT(*) >= 3
+            ) sub"#,
+        ).fetch_one(pool).await?
+    };
 
     let today_events = get_agenda_events(pool, &today).await?;
 
@@ -340,25 +420,28 @@ pub async fn get_dashboard_summary(
     })
 }
 
-async fn get_attendance_percentage_today(pool: &PgPool, date: &str) -> Result<f64, sqlx::Error> {
+async fn get_attendance_percentage_today(pool: &PgPool, date: &str, school_id: Option<Uuid>, corporation_id: Option<Uuid>) -> Result<f64, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct Row {
         total: i64,
         present: i64,
     }
 
-    let result = sqlx::query_as::<_, Row>(
-        r#"
-        SELECT
-            COUNT(*) as total,
-            COUNT(*) FILTER (WHERE status = 'Presente' OR status = 'Justificado') as present
-        FROM attendance
-        WHERE date = $1::date
-        "#,
-    )
-    .bind(date)
-    .fetch_optional(pool)
-    .await?;
+    let (sql, school_bind, corp_bind) = match (school_id, corporation_id) {
+        (Some(sid), Some(cid)) => {
+            ("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE a.status = 'Presente' OR a.status = 'Justificado') as present FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE a.date = $1::date AND a.school_id = $2 AND sch.corporation_id = $3".to_string(), Some(sid), Some(cid))
+        }
+        (Some(sid), None) => {
+            ("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE a.status = 'Presente' OR a.status = 'Justificado') as present FROM attendance a JOIN schools sch ON sch.id = a.school_id WHERE a.date = $1::date AND a.school_id = $2".to_string(), Some(sid), None)
+        }
+        _ => {
+            ("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'Presente' OR status = 'Justificado') as present FROM attendance WHERE date = $1::date".to_string(), None, None)
+        }
+    };
+    let mut q = sqlx::query_as::<_, Row>(&sql).bind(date);
+    if let Some(sid) = school_bind { q = q.bind(sid); }
+    if let Some(cid) = corp_bind { q = q.bind(cid); }
+    let result = q.fetch_optional(pool).await?;
 
     match result {
         Some(r) if r.total > 0 => Ok((r.present as f64 / r.total as f64) * 100.0),

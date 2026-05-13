@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     routing::{get, post, put},
 };
-use chrono::Utc;
+use chrono::{Datelike, Utc};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -52,7 +52,7 @@ async fn calculate_payroll_preview(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
+    let _employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
         "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Empleado no encontrado".into()))?;
@@ -70,11 +70,13 @@ async fn calculate_payroll_preview(
         Some(ref p) => (p.pension_fund.clone(), p.health_system.clone(), p.health_fixed_amount),
         None => ("Provida".into(), "Fonasa".into(), None),
     };
-    let pension_fund = schoolccb_common::hr::PensionFund::from_str(&pension_str);
-    let health_system = schoolccb_common::hr::HealthSystem::from_str(&health_str);
+    let pension_fund = schoolccb_common::hr::PensionFund::from_str(&pension_str)
+        .unwrap_or(schoolccb_common::hr::PensionFund::Provida);
+    let health_system = schoolccb_common::hr::HealthSystem::from_str(&health_str)
+        .unwrap_or(schoolccb_common::hr::HealthSystem::Fonasa);
 
     let calculation = schoolccb_common::hr::calculate_payroll(
-        &employee, &contract, &payload, &pension_fund, &health_system, health_fixed,
+        &contract, &payload, &pension_fund, &health_system, health_fixed,
     );
 
     Ok(Json(json!(calculation)))
@@ -87,7 +89,7 @@ async fn create_payroll(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
+    sqlx::query_as::<_, schoolccb_common::hr::Employee>(
         "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",
     ).bind(payload.employee_id).fetch_optional(&state.pool).await?
         .ok_or(SisError::NotFound("Empleado no encontrado".into()))?;
@@ -105,11 +107,13 @@ async fn create_payroll(
         Some(ref p) => (p.pension_fund.clone(), p.health_system.clone(), p.health_fixed_amount),
         None => ("Provida".into(), "Fonasa".into(), None),
     };
-    let pension_fund = schoolccb_common::hr::PensionFund::from_str(&pension_str);
-    let health_system = schoolccb_common::hr::HealthSystem::from_str(&health_str);
+    let pension_fund = schoolccb_common::hr::PensionFund::from_str(&pension_str)
+        .unwrap_or(schoolccb_common::hr::PensionFund::Provida);
+    let health_system = schoolccb_common::hr::HealthSystem::from_str(&health_str)
+        .unwrap_or(schoolccb_common::hr::HealthSystem::Fonasa);
 
     let calc = schoolccb_common::hr::calculate_payroll(
-        &employee, &contract, &payload, &pension_fund, &health_system, health_fixed,
+        &contract, &payload, &pension_fund, &health_system, health_fixed,
     );
 
     let payroll_id = Uuid::new_v4();
@@ -136,9 +140,17 @@ async fn list_payrolls(
     Query(filter): Query<PayrollFilter>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
-    let month = filter.month.unwrap_or(5);
-    let year = filter.year.unwrap_or(2026);
+    let now = Utc::now();
+    let month = filter.month.unwrap_or(now.month() as i32);
+    let year = filter.year.unwrap_or(now.year());
 
     let rows = sqlx::query(
         r#"SELECT p.*, e.first_name, e.last_name, e.rut
@@ -228,8 +240,9 @@ async fn export_lre(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let month = filter.month.unwrap_or(5);
-    let year = filter.year.unwrap_or(2026);
+    let now = Utc::now();
+    let month = filter.month.unwrap_or(now.month() as i32);
+    let year = filter.year.unwrap_or(now.year());
 
     let rows = sqlx::query(
         r#"SELECT p.*, e.first_name, e.last_name, e.rut
@@ -276,8 +289,9 @@ async fn export_previred(
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
 
-    let month = filter.month.unwrap_or(5);
-    let year = filter.year.unwrap_or(2026);
+    let now = Utc::now();
+    let month = filter.month.unwrap_or(now.month() as i32);
+    let year = filter.year.unwrap_or(now.year());
 
     let rows = sqlx::query(
         r#"SELECT p.*, e.first_name, e.last_name, e.rut
@@ -346,6 +360,13 @@ async fn list_employee_leave_requests(
     Path(id): Path<Uuid>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let requests = sqlx::query_as::<_, schoolccb_common::hr::LeaveRequest>(
         "SELECT id, employee_id, leave_type, start_date, end_date, reason, status, approved_by, approved_at, created_at, updated_at FROM leave_requests WHERE employee_id = $1 ORDER BY created_at DESC",
@@ -360,6 +381,13 @@ async fn list_all_leave_requests(
     Query(filter): Query<LeaveRequestFilter>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut sql = String::from(
         "SELECT lr.*, e.first_name, e.last_name FROM leave_requests lr JOIN employees e ON lr.employee_id = e.id WHERE 1=1",
@@ -511,6 +539,13 @@ async fn list_attendance_logs(
     Query(filter): Query<AttendanceFilter>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut sql = String::from(
         "SELECT id, employee_id, timestamp, entry_type, device_id, location_hash, source, created_at FROM employee_attendance_logs WHERE employee_id = $1",
@@ -801,10 +836,14 @@ async fn my_attendance(
     let emp = sqlx::query("SELECT id FROM employees WHERE user_id = $1")
         .bind(user_id)
         .fetch_optional(&state.pool)
-        .await?
-        .ok_or(SisError::NotFound("Perfil laboral no encontrado".into()))?;
+        .await?;
 
-    let emp_id: Uuid = emp.get("id");
+    let emp_id = match emp {
+        Some(e) => e.get::<Uuid, _>("id"),
+        None => {
+            return Ok(Json(json!({ "attendance_logs": [], "total": 0 })));
+        }
+    };
 
     let logs = sqlx::query(
         r#"SELECT id, employee_id, timestamp, entry_type, device_id, source, created_at
@@ -966,6 +1005,13 @@ async fn list_complaints(
     State(state): State<AppState>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let complaints = sqlx::query_as::<_, schoolccb_common::hr::Complaint>(
         "SELECT id, complainant_name, complainant_email, accused_rut, complaint_type, description, status, resolution, created_at, updated_at FROM complaints ORDER BY created_at DESC",

@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::SisResult;
+use crate::error::{SisError, SisResult};
 use crate::routes::students::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -30,6 +30,13 @@ async fn list_classrooms(claims: Claims, State(state): State<AppState>) -> SisRe
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let rooms = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "SELECT id, name, capacity, location, active, created_at FROM classrooms ORDER BY name",
     )
@@ -47,6 +54,13 @@ async fn get_classroom(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let room = sqlx::query_as::<_, schoolccb_common::admission::Classroom>(
         "SELECT id, name, capacity, location, active, created_at FROM classrooms WHERE id = $1",
     )

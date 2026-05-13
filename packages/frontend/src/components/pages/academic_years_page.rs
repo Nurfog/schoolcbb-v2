@@ -7,17 +7,18 @@ pub fn AcademicYearsPage() -> Element {
     let mut years = use_resource(|| client::fetch_academic_years());
     let mut show_form = use_signal(|| false);
     let mut editing_id = use_signal(|| None::<String>);
-    let mut year = use_signal(|| 2026i32);
+    let now_year = js_sys::Date::new_0().get_full_year() as i32;
+    let mut year = use_signal(|| now_year);
     let mut name = use_signal(|| String::new());
     let mut is_active = use_signal(|| false);
     let mut saving = use_signal(|| false);
-    let mut clone_from = use_signal(|| 2025i32);
-    let mut clone_to = use_signal(|| 2026i32);
+    let mut clone_from = use_signal(|| now_year - 1);
+    let mut clone_to = use_signal(|| now_year);
     let mut clone_msg = use_signal(|| None::<String>);
     let mut show_clone = use_signal(|| false);
 
     let mut reset_form = move || {
-        year.set(2026);
+        year.set(js_sys::Date::new_0().get_full_year() as i32);
         name.set(String::new());
         is_active.set(false);
         editing_id.set(None);
@@ -51,6 +52,9 @@ pub fn AcademicYearsPage() -> Element {
     };
 
     let do_delete = move |id: String| {
+        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) {
+            return;
+        }
         spawn(async move {
             let _ = client::delete_academic_year(&id).await;
             years.restart();
@@ -96,11 +100,11 @@ pub fn AcademicYearsPage() -> Element {
                             }
                             div { class: "form-group",
                                 label { "Nombre:" }
-                                input { class: "form-input", value: "{name}", oninput: move |e| name.set(e.value()), placeholder: "Año Escolar 2026" }
+                                input { class: "form-input", value: "{name}", oninput: move |e| name.set(e.value()), placeholder: "Año Escolar" }
                             }
                             div { class: "form-group",
                                 label { "Activo:" }
-                                input { class: "form-input", r#type: "checkbox", checked: is_active, oninput: move |e| is_active.set(e.value() == "true") }
+                                input { class: "form-input", r#type: "checkbox", checked: is_active(), oninput: move |e| is_active.set(e.value() == "true") }
                             }
                         }
                         div { class: "form-actions",

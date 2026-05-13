@@ -2,18 +2,43 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use serde_json::Value;
+use wasm_bindgen::prelude::*;
 
 use crate::api::client;
 
 #[component]
 pub fn QuickSearch(is_open: Signal<bool>) -> Element {
     let mut query = use_signal(|| String::new());
+    let debounced_query = use_signal(|| String::new());
+    let mut debounce_handle = use_signal(|| None::<i32>);
     let mut results = use_signal(|| Vec::<Value>::new());
     let mut loading = use_signal(|| false);
     let mut selected_idx = use_signal(|| 0i32);
 
-    let _ = use_resource(move || {
+    use_effect(move || {
         let q = query();
+        if q != debounced_query() {
+            if let Some(h) = debounce_handle.take() {
+                web_sys::window().unwrap().clear_timeout_with_handle(h);
+            }
+            let mut dq = debounced_query.clone();
+            let cb = Closure::once(move || {
+                dq.set(q);
+            });
+            let handle = web_sys::window()
+                .unwrap()
+                .set_timeout_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref(),
+                    300,
+                )
+                .unwrap();
+            cb.forget();
+            debounce_handle.set(Some(handle));
+        }
+    });
+
+    let _ = use_resource(move || {
+        let q = debounced_query();
         async move {
             if q.len() < 2 {
                 results.set(Vec::new());

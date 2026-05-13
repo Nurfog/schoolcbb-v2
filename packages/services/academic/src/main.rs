@@ -3,8 +3,12 @@ mod error;
 mod grpc;
 mod routes;
 
+#[cfg(test)]
+mod tests;
+
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::Router;
 use sqlx::PgPool;
 use tonic::transport::Server;
@@ -45,6 +49,7 @@ async fn main() {
     };
 
     let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(routes::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
@@ -58,7 +63,7 @@ async fn main() {
         let grpc = grpc::AcademicGrpc { pool: pool_clone };
         Server::builder()
             .add_service(schoolccb_proto::academic_service_server::AcademicServiceServer::new(grpc))
-            .serve(grpc_addr.parse().unwrap())
+            .serve(grpc_addr.parse().expect("dirección gRPC inválida"))
             .await
             .unwrap();
     });
@@ -387,6 +392,81 @@ async fn seed_subjects(pool: &sqlx::PgPool) {
                 ("3° Medio", Some("Artístico"), 12),
                 ("4° Medio", Some("Artístico"), 14),
             ],
+        },
+        // ─── Parvularia (Nivel Transición) ──────────────────────────
+        SubjectSeed {
+            code: "LEN-PRV",
+            name: "Lenguaje Verbal",
+            hours: vec![("Nivel Transición", None, 6)],
+        },
+        SubjectSeed {
+            code: "MAT-PRV",
+            name: "Pensamiento Matemático",
+            hours: vec![("Nivel Transición", None, 4)],
+        },
+        SubjectSeed {
+            code: "CIE-PRV",
+            name: "Exploración del Entorno",
+            hours: vec![("Nivel Transición", None, 3)],
+        },
+        SubjectSeed {
+            code: "SOC-PRV",
+            name: "Identidad y Convivencia",
+            hours: vec![("Nivel Transición", None, 3)],
+        },
+        SubjectSeed {
+            code: "ART-PRV",
+            name: "Expresión Artística",
+            hours: vec![("Nivel Transición", None, 2)],
+        },
+        SubjectSeed {
+            code: "EFI-PRV",
+            name: "Corporeidad y Movimiento",
+            hours: vec![("Nivel Transición", None, 3)],
+        },
+        // ─── Lengua Indígena ────────────────────────────────────────
+        SubjectSeed {
+            code: "LIN01",
+            name: "Lengua Indígena (Mapuzugun)",
+            hours: vec![
+                ("1° Básico", None, 2),
+                ("2° Básico", None, 2),
+                ("3° Básico", None, 2),
+                ("4° Básico", None, 2),
+                ("5° Básico", None, 2),
+                ("6° Básico", None, 2),
+            ],
+        },
+        // ─── Inglés Propuesta (1°-6° Básico) ────────────────────────
+        SubjectSeed {
+            code: "ING-P01",
+            name: "Inglés (Propuesta 1° Básico)",
+            hours: vec![("1° Básico", None, 2)],
+        },
+        SubjectSeed {
+            code: "ING-P02",
+            name: "Inglés (Propuesta 2° Básico)",
+            hours: vec![("2° Básico", None, 2)],
+        },
+        SubjectSeed {
+            code: "ING-P03",
+            name: "Inglés (Propuesta 3° Básico)",
+            hours: vec![("3° Básico", None, 3)],
+        },
+        SubjectSeed {
+            code: "ING-P04",
+            name: "Inglés (Propuesta 4° Básico)",
+            hours: vec![("4° Básico", None, 3)],
+        },
+        SubjectSeed {
+            code: "ING-P05",
+            name: "Inglés (Propuesta 5° Básico)",
+            hours: vec![("5° Básico", None, 3)],
+        },
+        SubjectSeed {
+            code: "ING-P06",
+            name: "Inglés (Propuesta 6° Básico)",
+            hours: vec![("6° Básico", None, 3)],
         },
     ];
 

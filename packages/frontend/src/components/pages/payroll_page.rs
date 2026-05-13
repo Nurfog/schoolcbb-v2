@@ -12,8 +12,8 @@ fn first_letter(s: &str) -> String {
 
 #[component]
 pub fn PayrollPage() -> Element {
-    let now_year = 2026;
-    let now_month = 5;
+    let now_year = js_sys::Date::new_0().get_full_year() as i32;
+    let now_month = js_sys::Date::new_0().get_month() + 1;
     let mut selected_month = use_signal(|| now_month);
     let mut selected_year = use_signal(|| now_year);
     let mut show_generate = use_signal(|| false);

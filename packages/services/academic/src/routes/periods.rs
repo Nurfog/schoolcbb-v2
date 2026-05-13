@@ -28,6 +28,13 @@ async fn list_periods(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "grades",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
     let periods = sqlx::query_as::<_, schoolccb_common::academic::AcademicPeriod>(
         "SELECT id, name, year, semester, start_date, end_date, is_active FROM academic_periods ORDER BY year DESC, semester",

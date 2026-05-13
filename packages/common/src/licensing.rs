@@ -2,19 +2,25 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Plan de licenciamiento con precios mensual y anual.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicensePlan {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub price_monthly: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub price_yearly: f64,
     pub featured: bool,
     pub sort_order: i32,
     pub active: bool,
+    pub is_custom: bool,
+    pub show_in_portal: bool,
     pub created_at: DateTime<Utc>,
 }
 
+/// Módulo incluido o excluido en un plan de licencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanModule {
     pub id: Uuid,
@@ -22,8 +28,10 @@ pub struct PlanModule {
     pub module_key: String,
     pub module_name: String,
     pub included: bool,
+    pub sub_modules: Option<Vec<String>>,
 }
 
+/// Licencia asignada a una corporación para un plan específico.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorporationLicense {
     pub id: Uuid,
@@ -39,10 +47,12 @@ pub struct CorporationLicense {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Pago asociado a una licencia de corporación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicensePayment {
     pub id: Uuid,
     pub corporation_license_id: Uuid,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub amount: f64,
     pub currency: String,
     pub payment_method: String,
@@ -56,6 +66,7 @@ pub struct LicensePayment {
     pub created_at: DateTime<Utc>,
 }
 
+/// Extensión de días adicionales para una licencia (periodo de gracia).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicenseExtension {
     pub id: Uuid,
@@ -66,6 +77,7 @@ pub struct LicenseExtension {
     pub created_at: DateTime<Utc>,
 }
 
+/// Resumen del estado de licencia de una corporación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicenseSummary {
     pub corporation_name: String,
@@ -79,24 +91,32 @@ pub struct LicenseSummary {
     pub total_employees: i64,
 }
 
+/// Payload para crear un nuevo plan de licencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateLicensePlanPayload {
     pub name: String,
     pub description: Option<String>,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub price_monthly: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub price_yearly: f64,
     pub featured: bool,
     pub sort_order: i32,
+    pub is_custom: bool,
+    pub show_in_portal: bool,
     pub modules: Vec<PlanModuleInput>,
 }
 
+/// Módulo de entrada al crear un plan de licencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanModuleInput {
     pub module_key: String,
     pub module_name: String,
     pub included: bool,
+    pub sub_modules: Option<Vec<String>>,
 }
 
+/// Payload para asignar una licencia a una corporación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignLicensePayload {
     pub corporation_id: Uuid,
@@ -107,15 +127,18 @@ pub struct AssignLicensePayload {
     pub grace_period_days: Option<i32>,
 }
 
+/// Payload para extender una licencia existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtendLicensePayload {
     pub days: i32,
     pub reason: String,
 }
 
+/// Payload para registrar un pago de licencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterPaymentPayload {
     pub corporation_license_id: Uuid,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub amount: f64,
     pub currency: Option<String>,
     pub payment_method: String,
@@ -124,6 +147,7 @@ pub struct RegisterPaymentPayload {
     pub notes: Option<String>,
 }
 
+/// Sobrescritura manual de habilitación de un módulo para una corporación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorporationModuleOverride {
     pub id: Uuid,
@@ -132,4 +156,12 @@ pub struct CorporationModuleOverride {
     pub enabled: bool,
     pub reason: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Input para sobrescribir el estado de un módulo en una corporación.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorporationModuleOverrideInput {
+    pub module_key: String,
+    pub enabled: bool,
+    pub reason: Option<String>,
 }

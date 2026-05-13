@@ -55,9 +55,11 @@ pub fn UsersPage() -> Element {
     let mut nemail = use_signal(String::new);
     let mut npass = use_signal(String::new);
     let mut nrole = use_signal(|| "Sostenedor".to_string());
+    let mut nadmin_type = use_signal(|| "".to_string());
     let mut ncorp = use_signal(String::new);
     let mut nschool = use_signal(String::new);
     let mut saving = use_signal(|| false);
+    let mut school_filter = use_signal(|| String::new());
 
     let do_create = move |_| {
         let rut = nrut();
@@ -65,6 +67,7 @@ pub fn UsersPage() -> Element {
         let email = nemail();
         let pass = npass();
         let role = nrole();
+        let admin_type = nadmin_type();
         let corp = ncorp();
         let school = nschool();
         if rut.is_empty() || name.is_empty() { return; }
@@ -74,6 +77,7 @@ pub fn UsersPage() -> Element {
                 "rut": rut, "name": name, "email": email,
                 "password": pass, "role": role,
             });
+            if !admin_type.is_empty() { payload["admin_type"] = json!(admin_type); }
             if !corp.is_empty() { payload["corporation_id"] = json!(corp); }
             if !school.is_empty() { payload["school_id"] = json!(school); }
             let _ = client::post_json("/api/auth/register", &payload).await;
@@ -126,6 +130,18 @@ pub fn UsersPage() -> Element {
                 let cid = c["id"].as_str().unwrap_or("").to_string();
                 let cn = c["name"].as_str().unwrap_or("").to_string();
                 rsx! { option { key: "{cid}", value: "{cid}", "{cn}" } }
+            }).collect()
+        }
+        _ => vec![],
+    };
+
+    let school_filter_options: Vec<Element> = match schools() {
+        Some(Ok(s)) => {
+            let list = s["schools"].as_array().cloned().unwrap_or_default();
+            list.iter().map(|sc| {
+                let sid = sc["id"].as_str().unwrap_or("").to_string();
+                let sname = sc["name"].as_str().unwrap_or("").to_string();
+                rsx! { option { value: "{sid}", "{sname}" } }
             }).collect()
         }
         _ => vec![],
@@ -252,6 +268,15 @@ pub fn UsersPage() -> Element {
                             }
                         }
                     }
+                    if nrole() == "Administrador" {
+                        div { class: "form-group",
+                            label { "Tipo de Admin:" }
+                            select { class: "form-input", value: "{nadmin_type}", oninput: move |e| nadmin_type.set(e.value()),
+                                option { value: "", "Normal (solo su colegio)" }
+                                option { value: "global", "Global (todos los colegios)" }
+                            }
+                        }
+                    }
                 }
                 div { class: "form-actions",
                     button { class: "btn btn-primary", disabled: saving(), onclick: do_create,
@@ -262,19 +287,34 @@ pub fn UsersPage() -> Element {
         }
         div { class: "users-layout",
             div { class: "users-table-wrap",
+                div { class: "page-toolbar", style: "margin-bottom: 8px;",
+                    div { class: "form-group", style: "display: flex; align-items: center; gap: 8px; margin: 0;",
+                        label { "Filtrar por colegio:" }
+                        select { class: "form-input", style: "width: auto;", value: "{school_filter}", oninput: move |e| school_filter.set(e.value()),
+                            option { value: "", "Todos los colegios" }
+                            { school_filter_options.into_iter() }
+                        }
+                    }
+                }
                 table { class: "data-table",
                     thead { tr {
-                        th { "Nombre" } th { "Email" } th { "RUT" } th { "Rol" } th { "Colegio" } th { "Estado" }
+                        th { "Nombre" } th { "Email" } th { "RUT" } th { "Rol" } th { "Tipo Admin" } th { "Estado" }
                     }}
                     tbody {
                         match users() {
                             Some(Ok(data)) => {
                                 let list = get_users(&data);
-                                if list.is_empty() {
+                                let sf = school_filter();
+                                let filtered: Vec<Value> = if sf.is_empty() {
+                                    list
+                                } else {
+                                    list.into_iter().filter(|u| u["school_id"].as_str() == Some(&sf)).collect()
+                                };
+                                if filtered.is_empty() {
                                     rsx! { tr { td { colspan: "6", class: "empty-state", "No hay usuarios" } } }
                                 } else {
                                     rsx! {
-                                        {list.into_iter().map(|user| {
+                                        {filtered.into_iter().map(|user| {
                                             let uid = user["id"].as_str().unwrap_or("").to_string();
                                             let is_sel = selected_user_id.read().as_deref() == Some(&uid);
                                             let mut sel = selected_user_id.clone();
@@ -307,11 +347,11 @@ fn UserRow(user: Value, is_selected: bool, on_select: EventHandler<String>) -> E
     let email = user["email"].as_str().unwrap_or("").to_string();
     let rut = user["rut"].as_str().unwrap_or("").to_string();
     let role = user["role"].as_str().unwrap_or("").to_string();
-    let sid = user["school_id"].as_str().unwrap_or("").to_string();
-    let school_display = if sid.is_empty() { "—".to_string() } else { sid.chars().take(8).collect::<String>() + "…" };
+    let atype = user["admin_type"].as_str().unwrap_or("").to_string();
     let active = user["active"].as_bool().unwrap_or(true);
     let uid = user["id"].as_str().unwrap_or("").to_string();
     let row_class = if is_selected { "selected" } else { "" };
+    let admin_label: Option<&str> = if atype == "global" { Some("Global") } else if !atype.is_empty() { Some(atype.as_str()) } else { None };
     rsx! {
         tr { class: "{row_class}",
             onclick: move |_| on_select.call(uid.clone()),
@@ -319,7 +359,13 @@ fn UserRow(user: Value, is_selected: bool, on_select: EventHandler<String>) -> E
             td { "{email}" }
             td { span { class: "rut-badge", "{rut}" } }
             td { span { class: "role-badge", "{role}" } }
-            td { span { style: "font-size: 11px; color: var(--text-secondary);", "{school_display}" } }
+            td {
+                if let Some(label) = admin_label {
+                    span { class: "badge badge-info", "{label}" }
+                } else {
+                    span { style: "color: var(--text-secondary); font-size: 12px;", "—" }
+                }
+            }
             td {
                 if active {
                     span { class: "status-active", "Activo" }

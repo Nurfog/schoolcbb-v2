@@ -55,6 +55,13 @@ async fn list_stages(claims: Claims, State(state): State<AppState>) -> SisResult
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let stages = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages ORDER BY sort_order",
     ).fetch_all(&state.pool).await?;
@@ -70,6 +77,13 @@ async fn get_stage(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let stage = sqlx::query_as::<_, schoolccb_common::admission::PipelineStage>(
         "SELECT id, name, sort_order, is_final, created_at FROM pipeline_stages WHERE id = $1",
     )

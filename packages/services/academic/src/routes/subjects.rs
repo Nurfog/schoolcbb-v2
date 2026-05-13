@@ -145,6 +145,13 @@ async fn list_subjects(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "subjects",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
     let search_pattern = filter.search.as_ref().map(|q| format!("%{}%", q));
 

@@ -37,11 +37,9 @@ impl FromRequestParts<AppState> for Claims {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(SisError::Unauthorized)?;
 
-        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "cambio-en-produccion".into());
-
         let token_data = jsonwebtoken::decode::<Claims>(
             auth_header,
-            &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+            &jsonwebtoken::DecodingKey::from_secret(_state.config.jwt_secret.as_bytes()),
             &jsonwebtoken::Validation::default(),
         )
         .map_err(|_| SisError::Unauthorized)?;
@@ -66,7 +64,7 @@ pub struct RawStudent {
     pub rut: String,
     pub first_name: String,
     pub last_name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub phone: Option<String>,
     pub grade_level: String,
     pub section: String,
@@ -86,7 +84,7 @@ impl RawStudent {
     fn to_student(&self) -> schoolccb_common::student::Student {
         schoolccb_common::student::Student {
             id: self.id,
-            rut: schoolccb_common::rut::Rut(self.rut.clone()),
+            rut: schoolccb_common::rut::Rut::new_unchecked(&self.rut),
             first_name: self.first_name.clone(),
             last_name: self.last_name.clone(),
             email: self.email.clone(),
@@ -168,6 +166,13 @@ async fn list_students(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "students",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut conditions = vec!["s.enrolled = true".to_string()];
     let mut bind_values: Vec<String> = vec![];
@@ -175,6 +180,10 @@ async fn list_students(
     if let Some(ref sid) = claims.school_id {
         conditions.push(format!("s.school_id = ${}::uuid", conditions.len() + 1));
         bind_values.push(sid.clone());
+        if let Some(ref cid) = claims.corporation_id {
+            conditions.push(format!("sch.corporation_id = ${}::uuid", conditions.len() + 1));
+            bind_values.push(cid.clone());
+        }
     }
 
     if let Some(ref gl) = filter.grade_level {
@@ -193,9 +202,16 @@ async fn list_students(
         bind_values.push(format!("%{}%", q));
     }
 
+    let from_clause = if claims.school_id.is_some() {
+        "FROM students s JOIN schools sch ON sch.id = s.school_id"
+    } else {
+        "FROM students s"
+    };
+
     let sql = format!(
-        "SELECT {} FROM students s WHERE {} ORDER BY s.last_name, s.first_name",
+        "SELECT {} {} WHERE {} ORDER BY s.last_name, s.first_name",
         STUDENT_COLUMNS,
+        from_clause,
         conditions.join(" AND ")
     );
 
@@ -229,6 +245,13 @@ async fn get_student(
             "Apoderado",
         ],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "students",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let raw = sqlx::query_as::<_, RawStudent>(&format!(
         "SELECT {} FROM students WHERE id = $1",
@@ -302,7 +325,7 @@ async fn create_student(
         "#,
     )
     .bind(id)
-    .bind(&rut.0)
+    .bind(rut.as_str())
     .bind(&payload.first_name)
     .bind(&payload.last_name)
     .bind(payload.email.unwrap_or_default())
@@ -352,7 +375,7 @@ async fn update_student(
 
     let first_name = payload.first_name.unwrap_or(existing.first_name);
     let last_name = payload.last_name.unwrap_or(existing.last_name);
-    let email = payload.email.unwrap_or(existing.email);
+    let email = payload.email.or(existing.email);
     let phone = payload.phone.or(existing.phone);
     let grade_level = payload.grade_level.unwrap_or(existing.grade_level);
     let section = payload.section.unwrap_or(existing.section);

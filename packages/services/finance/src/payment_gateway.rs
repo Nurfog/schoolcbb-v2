@@ -138,6 +138,8 @@ impl PaymentGateway for WebpayGateway {
             .map_err(|e| format!("Error al parsear confirmación Webpay: {e}"))?;
 
         let status = data["status"].as_str().unwrap_or("FAILED");
+        // Transbank Webpay Plus uses "AUTHORIZED" for successful transactions.
+        // Other possible statuses: INITIALIZED, REVERSED, NULLIFIED, CAPTURED, FAILED.
         let success = status == "AUTHORIZED";
 
         Ok(PaymentResult {

@@ -19,6 +19,7 @@ pub struct UserRow {
     pub active: bool,
     pub corporation_id: Option<Uuid>,
     pub school_id: Option<Uuid>,
+    pub admin_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +32,7 @@ pub struct Claims {
     pub iat: usize,
     pub school_id: Option<String>,
     pub corporation_id: Option<String>,
+    pub admin_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -44,7 +46,7 @@ pub struct RefreshTokenRow {
 
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
-        "SELECT id, rut, name, email, password_hash, role, active, corporation_id, school_id FROM users WHERE email = $1",
+        "SELECT id, rut, name, email, password_hash, role, active, corporation_id, school_id, admin_type FROM users WHERE email = $1",
     )
     .bind(email)
     .fetch_optional(pool)
@@ -53,7 +55,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>
 
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
-        "SELECT id, rut, name, email, password_hash, role, active, corporation_id, school_id FROM users WHERE id = $1",
+        "SELECT id, rut, name, email, password_hash, role, active, corporation_id, school_id, admin_type FROM users WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -69,15 +71,16 @@ pub async fn insert_user(
     role: &str,
     corporation_id: Option<Uuid>,
     school_id: Option<Uuid>,
+    admin_type: Option<&str>,
 ) -> Result<UserRow, sqlx::Error> {
     let hash = hash_password(password);
 
     let id = Uuid::new_v4();
     sqlx::query_as::<_, UserRow>(
         r#"
-        INSERT INTO users (id, rut, name, email, password_hash, role, active, corporation_id, school_id)
-        VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
-        RETURNING id, rut, name, email, password_hash, role, active, corporation_id, school_id
+        INSERT INTO users (id, rut, name, email, password_hash, role, active, corporation_id, school_id, admin_type)
+        VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+        RETURNING id, rut, name, email, password_hash, role, active, corporation_id, school_id, admin_type
         "#,
     )
     .bind(id)
@@ -88,6 +91,7 @@ pub async fn insert_user(
     .bind(role)
     .bind(corporation_id)
     .bind(school_id)
+    .bind(admin_type)
     .fetch_one(pool)
     .await
 }
@@ -219,7 +223,7 @@ pub async fn update_user_profile(
 ) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "UPDATE users SET name = $1, email = $2, updated_at = NOW() WHERE id = $3
-         RETURNING id, rut, name, email, password_hash, role, active, corporation_id, school_id",
+         RETURNING id, rut, name, email, password_hash, role, active, corporation_id, school_id, admin_type",
     )
     .bind(name)
     .bind(email)
@@ -245,53 +249,94 @@ pub async fn change_password(
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SchoolConfigRow {
     pub id: Uuid,
+    pub corporation_id: Option<Uuid>,
     pub school_name: String,
     pub school_logo_url: String,
     pub primary_color: String,
     pub secondary_color: String,
 }
 
-pub async fn get_branding(pool: &PgPool) -> Result<Option<SchoolConfigRow>, sqlx::Error> {
-    sqlx::query_as::<_, SchoolConfigRow>(
-        "SELECT id, school_name, school_logo_url, primary_color, secondary_color FROM school_config LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await
+pub async fn get_branding(pool: &PgPool, corporation_id: Option<Uuid>) -> Result<Option<SchoolConfigRow>, sqlx::Error> {
+    match corporation_id {
+        Some(cid) => sqlx::query_as::<_, SchoolConfigRow>(
+            "SELECT id, corporation_id, school_name, school_logo_url, primary_color, secondary_color
+             FROM school_config WHERE corporation_id = $1 LIMIT 1",
+        )
+        .bind(cid)
+        .fetch_optional(pool)
+        .await,
+        None => sqlx::query_as::<_, SchoolConfigRow>(
+            "SELECT id, corporation_id, school_name, school_logo_url, primary_color, secondary_color
+             FROM school_config LIMIT 1",
+        )
+        .fetch_optional(pool)
+        .await,
+    }
 }
 
 pub async fn upsert_branding(
     pool: &PgPool,
+    corporation_id: Option<Uuid>,
     school_name: &str,
     school_logo_url: &str,
     primary_color: &str,
     secondary_color: &str,
 ) -> Result<SchoolConfigRow, sqlx::Error> {
-    let existing = get_branding(pool).await?;
+    let existing = get_branding(pool, corporation_id).await?;
     if let Some(_row) = existing {
-        sqlx::query_as::<_, SchoolConfigRow>(
-            "UPDATE school_config SET school_name = $1, school_logo_url = $2, primary_color = $3, secondary_color = $4, updated_at = NOW()
-             RETURNING id, school_name, school_logo_url, primary_color, secondary_color",
-        )
-        .bind(school_name)
-        .bind(school_logo_url)
-        .bind(primary_color)
-        .bind(secondary_color)
-        .fetch_one(pool)
-        .await
+        match corporation_id {
+            Some(cid) => sqlx::query_as::<_, SchoolConfigRow>(
+                "UPDATE school_config SET school_name = $1, school_logo_url = $2, primary_color = $3, secondary_color = $4, updated_at = NOW()
+                 WHERE corporation_id = $5
+                 RETURNING id, corporation_id, school_name, school_logo_url, primary_color, secondary_color",
+            )
+            .bind(school_name)
+            .bind(school_logo_url)
+            .bind(primary_color)
+            .bind(secondary_color)
+            .bind(cid)
+            .fetch_one(pool)
+            .await,
+            None => sqlx::query_as::<_, SchoolConfigRow>(
+                "UPDATE school_config SET school_name = $1, school_logo_url = $2, primary_color = $3, secondary_color = $4, updated_at = NOW()
+                 RETURNING id, corporation_id, school_name, school_logo_url, primary_color, secondary_color",
+            )
+            .bind(school_name)
+            .bind(school_logo_url)
+            .bind(primary_color)
+            .bind(secondary_color)
+            .fetch_one(pool)
+            .await,
+        }
     } else {
         let id = Uuid::new_v4();
-        sqlx::query_as::<_, SchoolConfigRow>(
-            "INSERT INTO school_config (id, school_name, school_logo_url, primary_color, secondary_color)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, school_name, school_logo_url, primary_color, secondary_color",
-        )
-        .bind(id)
-        .bind(school_name)
-        .bind(school_logo_url)
-        .bind(primary_color)
-        .bind(secondary_color)
-        .fetch_one(pool)
-        .await
+        match corporation_id {
+            Some(cid) => sqlx::query_as::<_, SchoolConfigRow>(
+                "INSERT INTO school_config (id, corporation_id, school_name, school_logo_url, primary_color, secondary_color)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 RETURNING id, corporation_id, school_name, school_logo_url, primary_color, secondary_color",
+            )
+            .bind(id)
+            .bind(cid)
+            .bind(school_name)
+            .bind(school_logo_url)
+            .bind(primary_color)
+            .bind(secondary_color)
+            .fetch_one(pool)
+            .await,
+            None => sqlx::query_as::<_, SchoolConfigRow>(
+                "INSERT INTO school_config (id, school_name, school_logo_url, primary_color, secondary_color)
+                 VALUES ($1, $2, $3, $4, $5)
+                 RETURNING id, corporation_id, school_name, school_logo_url, primary_color, secondary_color",
+            )
+            .bind(id)
+            .bind(school_name)
+            .bind(school_logo_url)
+            .bind(primary_color)
+            .bind(secondary_color)
+            .fetch_one(pool)
+            .await,
+        }
     }
 }
 

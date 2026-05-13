@@ -15,8 +15,10 @@ pub fn App() -> Element {
             div { class: "main-area",
                 Topbar {}
                 div { id: "main-content", class: "dashboard-content", role: "main",
-                    ErrorBoundary {
-                        Router::<Route> {}
+                    div { role: "alert", aria_live: "polite",
+                        ErrorBoundary {
+                            Router::<Route> {}
+                        }
                     }
                 }
             }

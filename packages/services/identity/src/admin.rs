@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::error::{AuthError, AuthResult};
-use crate::models::Claims;
+use crate::models::{self, Claims};
 use crate::routes::require_role;
 
 fn require_root(claims: &Claims) -> Result<(), AuthError> {
@@ -26,7 +26,13 @@ pub fn admin_router() -> Router<AppState> {
         // Corporations
         .route("/api/admin/corporations", get(admin_list_corporations).post(admin_create_corporation))
         .route("/api/admin/corporations/{id}/toggle", put(admin_toggle_corporation))
-        .route("/api/admin/corporations/{id}", get(admin_get_corporation))
+        .route("/api/admin/corporations/{id}", get(admin_get_corporation).put(admin_update_corporation).delete(admin_delete_corporation))
+        .route("/api/admin/corporations/{id}/modules", get(admin_get_corporation_modules).put(admin_set_corporation_modules))
+        // Schools
+        .route("/api/admin/schools/{id}", put(admin_update_school).delete(admin_delete_school))
+        // Legal Representatives
+        .route("/api/admin/legal-representatives", get(admin_list_legal_reps).post(admin_create_legal_rep))
+        .route("/api/admin/legal-representatives/{id}", put(admin_update_legal_rep).delete(admin_delete_legal_rep))
         // Plans
         .route("/api/admin/license-plans", get(admin_list_plans).post(admin_create_plan))
         .route("/api/admin/license-plans/{id}", put(admin_update_plan).delete(admin_delete_plan))
@@ -42,6 +48,8 @@ pub fn admin_router() -> Router<AppState> {
         .route("/api/admin/activity-log", get(admin_activity_log))
         // Health
         .route("/api/admin/system/health", get(admin_system_health))
+        // Branding
+        .route("/api/admin/branding", get(admin_get_branding).put(admin_upsert_branding))
         // Public endpoints (no auth)
         .route("/api/public/plans", get(public_plans))
         .route("/api/public/features", get(public_features))
@@ -281,6 +289,164 @@ async fn admin_toggle_corporation(
     Ok(Json(json!({"message": "Corporación actualizada"})))
 }
 
+async fn admin_update_corporation(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolccb_common::school::UpdateCorporationPayload>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query(
+        "UPDATE corporations SET
+            name = COALESCE($1, name),
+            rut = COALESCE($2, rut),
+            logo_url = COALESCE($3, logo_url),
+            legal_representative_name = COALESCE($4, legal_representative_name),
+            legal_representative_rut = COALESCE($5, legal_representative_rut),
+            legal_representative_email = COALESCE($6, legal_representative_email)
+         WHERE id = $7",
+    )
+    .bind(&payload.name)
+    .bind(&payload.rut)
+    .bind(&payload.logo_url)
+    .bind(&payload.legal_representative_name)
+    .bind(&payload.legal_representative_rut)
+    .bind(&payload.legal_representative_email)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "update_corporation", "corporation", Some(id),
+        &json!({"name": &payload.name}),
+    ).await;
+
+    Ok(Json(json!({"message": "Corporación actualizada"})))
+}
+
+async fn admin_delete_corporation(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query("DELETE FROM corporations WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "delete_corporation", "corporation", Some(id), &json!({}),
+    ).await;
+
+    Ok(Json(json!({"message": "Corporación eliminada"})))
+}
+
+async fn admin_get_corporation_modules(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    let overrides: Vec<Value> = sqlx::query_as::<_, (String, bool, Option<String>)>(
+        "SELECT module_key, enabled, reason FROM corporation_module_overrides WHERE corporation_id = $1 ORDER BY module_key",
+    )
+    .bind(id)
+    .fetch_all(&state.pool).await.unwrap_or_default()
+    .into_iter()
+    .map(|(k, e, r)| json!({"module_key": k, "enabled": e, "reason": r}))
+    .collect();
+
+    Ok(Json(json!({"overrides": overrides})))
+}
+
+async fn admin_set_corporation_modules(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<Vec<schoolccb_common::licensing::CorporationModuleOverrideInput>>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query("DELETE FROM corporation_module_overrides WHERE corporation_id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    for m in &payload {
+        sqlx::query(
+            "INSERT INTO corporation_module_overrides (id, corporation_id, module_key, enabled, reason)
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(id)
+        .bind(&m.module_key)
+        .bind(m.enabled)
+        .bind(&m.reason)
+        .execute(&state.pool).await?;
+    }
+
+    log_admin_action(
+        &state.pool, &claims, "set_corporation_modules", "corporation", Some(id),
+        &json!({"overrides": &payload}),
+    ).await;
+
+    Ok(Json(json!({"message": "Módulos actualizados"})))
+}
+
+async fn admin_update_school(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolccb_common::school::UpdateSchoolPayload>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query(
+        "UPDATE schools SET
+            name = COALESCE($1, name),
+            address = COALESCE($2, address),
+            phone = COALESCE($3, phone),
+            logo_url = COALESCE($4, logo_url)
+         WHERE id = $5",
+    )
+    .bind(&payload.name)
+    .bind(&payload.address)
+    .bind(&payload.phone)
+    .bind(&payload.logo_url)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "update_school", "school", Some(id), &json!({}),
+    ).await;
+
+    Ok(Json(json!({"message": "Colegio actualizado"})))
+}
+
+async fn admin_delete_school(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query("DELETE FROM schools WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "delete_school", "school", Some(id), &json!({}),
+    ).await;
+
+    Ok(Json(json!({"message": "Colegio eliminado"})))
+}
+
 // ─── License Plans ───
 
 async fn admin_list_plans(
@@ -289,14 +455,14 @@ async fn admin_list_plans(
 ) -> AuthResult<Json<Value>> {
     require_root(&claims)?;
 
-    let plans: Vec<Value> = sqlx::query_as::<_, (Uuid, String, Option<String>, f64, f64, bool, i32, bool)>(
-        "SELECT id, name, description, price_monthly, price_yearly, featured, sort_order, active
+    let plans: Vec<Value> = sqlx::query_as::<_, (Uuid, String, Option<String>, f64, f64, bool, i32, bool, bool, bool)>(
+        "SELECT id, name, description, price_monthly, price_yearly, featured, sort_order, active, is_custom, show_in_portal
          FROM license_plans ORDER BY sort_order",
     )
     .fetch_all(&state.pool).await.unwrap_or_default()
     .into_iter()
-    .map(|(id, name, desc, pm, py, feat, sort, active)| {
-        json!({"id": id, "name": name, "description": desc, "price_monthly": pm, "price_yearly": py, "featured": feat, "sort_order": sort, "active": active})
+    .map(|(id, name, desc, pm, py, feat, sort, active, is_custom, show_in_portal)| {
+        json!({"id": id, "name": name, "description": desc, "price_monthly": pm, "price_yearly": py, "featured": feat, "sort_order": sort, "active": active, "is_custom": is_custom, "show_in_portal": show_in_portal})
     })
     .collect();
 
@@ -312,8 +478,8 @@ async fn admin_create_plan(
 
     let plan_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO license_plans (id, name, description, price_monthly, price_yearly, featured, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO license_plans (id, name, description, price_monthly, price_yearly, featured, sort_order, is_custom, show_in_portal)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(plan_id)
     .bind(&payload.name)
@@ -322,6 +488,8 @@ async fn admin_create_plan(
     .bind(payload.price_yearly)
     .bind(payload.featured)
     .bind(payload.sort_order)
+    .bind(payload.is_custom)
+    .bind(payload.show_in_portal)
     .execute(&state.pool)
     .await?;
 
@@ -401,14 +569,16 @@ async fn admin_set_plan_modules(
         .await?;
 
     for m in &payload.modules {
+        let sub = m.sub_modules.as_ref().map(|v| serde_json::to_value(v).unwrap_or_default()).unwrap_or(serde_json::Value::Array(vec![]));
         sqlx::query(
-            "INSERT INTO plan_modules (id, plan_id, module_key, module_name, included) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO plan_modules (id, plan_id, module_key, module_name, included, sub_modules) VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(Uuid::new_v4())
         .bind(id)
         .bind(&m.module_key)
         .bind(&m.module_name)
         .bind(m.included)
+        .bind(&sub)
         .execute(&state.pool).await?;
     }
 
@@ -711,7 +881,7 @@ struct PublicPlan {
 async fn public_plans(State(state): State<AppState>) -> AuthResult<Json<Value>> {
     let plan_rows = sqlx::query_as::<_, PublicPlan>(
         "SELECT id, name, description, price_monthly, price_yearly, featured, sort_order
-         FROM license_plans WHERE active = true ORDER BY sort_order",
+         FROM license_plans WHERE active = true AND show_in_portal = true ORDER BY sort_order",
     )
     .fetch_all(&state.pool).await.unwrap_or_default();
 
@@ -756,6 +926,204 @@ async fn public_contact(
     tracing::info!("Contact form submission: {_name} <{_email}>: {_message}");
 
     Ok(Json(json!({"message": "Mensaje recibido. Te contactaremos pronto."})))
+}
+
+// ─── Branding ───
+
+#[derive(Deserialize)]
+struct AdminBrandingQuery {
+    corporation_id: Option<Uuid>,
+}
+
+#[derive(Deserialize)]
+struct AdminBrandingPayload {
+    corporation_id: Uuid,
+    school_name: String,
+    school_logo_url: Option<String>,
+    primary_color: String,
+    secondary_color: String,
+}
+
+async fn admin_get_branding(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<AdminBrandingQuery>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+    let config = models::get_branding(&state.pool, q.corporation_id).await?;
+    if let Some(c) = config {
+        Ok(Json(json!({
+            "corporation_id": c.corporation_id,
+            "school_name": c.school_name,
+            "school_logo_url": c.school_logo_url,
+            "primary_color": c.primary_color,
+            "secondary_color": c.secondary_color
+        })))
+    } else {
+        Ok(Json(json!({
+            "corporation_id": q.corporation_id,
+            "school_name": "",
+            "school_logo_url": "",
+            "primary_color": "#1A2B3C",
+            "secondary_color": "#243B4F"
+        })))
+    }
+}
+
+async fn admin_upsert_branding(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<AdminBrandingPayload>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+    let config = models::upsert_branding(
+        &state.pool,
+        Some(payload.corporation_id),
+        &payload.school_name,
+        &payload.school_logo_url.unwrap_or_default(),
+        &payload.primary_color,
+        &payload.secondary_color,
+    )
+    .await?;
+    log_admin_action(
+        &state.pool, &claims, "upsert_branding", "school_config", config.corporation_id,
+        &json!({"corporation_id": payload.corporation_id, "school_name": &payload.school_name}),
+    ).await;
+    Ok(Json(json!({
+        "corporation_id": config.corporation_id,
+        "school_name": config.school_name,
+        "school_logo_url": config.school_logo_url,
+        "primary_color": config.primary_color,
+        "secondary_color": config.secondary_color
+    })))
+}
+
+// ─── Legal Representatives ───
+
+async fn admin_list_legal_reps(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<LegalRepQuery>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    let reps = match (q.corporation_id, q.school_id) {
+        (Some(cid), _) => sqlx::query_as::<_, schoolccb_common::school::LegalRepresentative>(
+            "SELECT id, corporation_id, school_id, rut, first_name, last_name, email, phone, address, active, created_at, updated_at
+             FROM legal_representatives WHERE corporation_id = $1 ORDER BY last_name, first_name",
+        )
+        .bind(cid)
+        .fetch_all(&state.pool).await.unwrap_or_default()
+        .into_iter()
+        .map(|r| serde_json::to_value(r).unwrap_or_default())
+        .collect(),
+        (_, Some(sid)) => sqlx::query_as::<_, schoolccb_common::school::LegalRepresentative>(
+            "SELECT id, corporation_id, school_id, rut, first_name, last_name, email, phone, address, active, created_at, updated_at
+             FROM legal_representatives WHERE school_id = $1 ORDER BY last_name, first_name",
+        )
+        .bind(sid)
+        .fetch_all(&state.pool).await.unwrap_or_default()
+        .into_iter()
+        .map(|r| serde_json::to_value(r).unwrap_or_default())
+        .collect(),
+        _ => vec![],
+    };
+
+    Ok(Json(json!({"legal_representatives": reps})))
+}
+
+async fn admin_create_legal_rep(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolccb_common::school::CreateLegalRepPayload>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO legal_representatives (id, corporation_id, school_id, rut, first_name, last_name, email, phone, address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(id)
+    .bind(payload.corporation_id)
+    .bind(payload.school_id)
+    .bind(&payload.rut)
+    .bind(&payload.first_name)
+    .bind(&payload.last_name)
+    .bind(&payload.email)
+    .bind(&payload.phone)
+    .bind(&payload.address)
+    .execute(&state.pool)
+    .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "create_legal_rep", "legal_representative", Some(id), &json!({"rut": &payload.rut}),
+    ).await;
+
+    Ok(Json(json!({"id": id, "message": "Representante legal creado"})))
+}
+
+async fn admin_update_legal_rep(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolccb_common::school::UpdateLegalRepPayload>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query(
+        "UPDATE legal_representatives SET
+            rut = COALESCE($1, rut),
+            first_name = COALESCE($2, first_name),
+            last_name = COALESCE($3, last_name),
+            email = COALESCE($4, email),
+            phone = COALESCE($5, phone),
+            address = COALESCE($6, address),
+            active = COALESCE($7, active),
+            updated_at = NOW()
+         WHERE id = $8",
+    )
+    .bind(&payload.rut)
+    .bind(&payload.first_name)
+    .bind(&payload.last_name)
+    .bind(&payload.email)
+    .bind(&payload.phone)
+    .bind(&payload.address)
+    .bind(payload.active)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "update_legal_rep", "legal_representative", Some(id), &json!({}),
+    ).await;
+
+    Ok(Json(json!({"message": "Representante legal actualizado"})))
+}
+
+async fn admin_delete_legal_rep(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_root(&claims)?;
+
+    sqlx::query("UPDATE legal_representatives SET active = false, updated_at = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    log_admin_action(
+        &state.pool, &claims, "deactivate_legal_rep", "legal_representative", Some(id), &json!({}),
+    ).await;
+
+    Ok(Json(json!({"message": "Representante legal desactivado"})))
+}
+
+#[derive(Deserialize)]
+struct LegalRepQuery {
+    corporation_id: Option<Uuid>,
+    school_id: Option<Uuid>,
 }
 
 // ─── Helpers ───

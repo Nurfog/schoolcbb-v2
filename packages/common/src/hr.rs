@@ -2,6 +2,7 @@ use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Datos de un empleado o funcionario del establecimiento.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Employee {
@@ -12,9 +13,12 @@ pub struct Employee {
     pub last_name: String,
     pub email: Option<String>,
     pub phone: Option<String>,
+    /// Cargo o puesto de trabajo.
     pub position: Option<String>,
     pub hire_date: Option<NaiveDate>,
+    /// Categoría laboral (docente, asistente, etc.).
     pub category: Option<String>,
+    /// Días de vacaciones disponibles.
     pub vacation_days_available: f32,
     pub active: bool,
     pub supervisor_id: Option<Uuid>,
@@ -23,6 +27,7 @@ pub struct Employee {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Payload para crear un nuevo empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateEmployeePayload {
     pub rut: String,
@@ -35,6 +40,7 @@ pub struct CreateEmployeePayload {
     pub hire_date: Option<NaiveDate>,
 }
 
+/// Payload para actualizar datos de un empleado existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateEmployeePayload {
     pub first_name: Option<String>,
@@ -47,14 +53,18 @@ pub struct UpdateEmployeePayload {
     pub vacation_days_available: Option<f32>,
 }
 
+/// Contrato laboral de un empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct EmployeeContract {
     pub id: Uuid,
     pub employee_id: Uuid,
+    /// Tipo de contrato (planta, honorarios, etc.).
     pub contract_type: String,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub salary_base: f64,
     pub weekly_hours: i32,
+    /// Indica si se firmó el anexo de la Ley Karin.
     pub ley_karin_signed: bool,
     pub start_date: NaiveDate,
     pub end_date: Option<NaiveDate>,
@@ -62,10 +72,12 @@ pub struct EmployeeContract {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para crear un nuevo contrato laboral.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateContractPayload {
     pub employee_id: Uuid,
     pub contract_type: String,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub salary_base: f64,
     pub weekly_hours: i32,
     pub ley_karin_signed: bool,
@@ -73,6 +85,7 @@ pub struct CreateContractPayload {
     pub end_date: Option<NaiveDate>,
 }
 
+/// Documento asociado a la carpeta de un empleado (contrato, anexo, certificado).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct EmployeeDocument {
@@ -84,15 +97,22 @@ pub struct EmployeeDocument {
     pub created_at: DateTime<Utc>,
 }
 
+/// Tipo de marcación en el registro de asistencia de empleados.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum EntryType {
+    /// Entrada a la jornada laboral.
     Entrada,
+    /// Salida a colación (almuerzo).
     SalidaColacion,
+    /// Retorno desde colación.
     RetornoColacion,
+    /// Salida definitiva de la jornada.
     Salida,
 }
 
 impl EntryType {
+    /// Retorna el nombre legible del tipo de marcación.
     pub fn as_str(&self) -> &'static str {
         match self {
             EntryType::Entrada => "Entrada",
@@ -102,6 +122,7 @@ impl EntryType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Entrada" => Some(EntryType::Entrada),
@@ -113,23 +134,36 @@ impl EntryType {
     }
 }
 
+/// Error de cumplimiento normativo en la jornada laboral.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum ComplianceError {
+    /// La jornada diaria excede el máximo legal.
     ExcesoJornadaDiaria { max_hours: i32, actual_hours: f64 },
+    /// La jornada semanal excede el máximo legal.
     ExcesoSemanal { max_hours: i32, actual_hours: f64 },
+    /// El descanso entre jornadas es insuficiente.
     DescansoInsuficiente { min_hours: i32, actual_hours: f64 },
+    /// Inconsistencia en los registros (ej: salida sin entrada).
     Inconsistencia { detail: String },
 }
 
+/// Validador de cumplimiento de jornada laboral y descansos.
+///
+/// Revisa los registros de marcación para detectar excesos de jornada
+/// diaria/semanal y descansos insuficientes entre jornadas.
 #[derive(Debug, Clone)]
 pub struct AttendanceValidator;
 
 impl AttendanceValidator {
+    /// Valida el cumplimiento normativo de una lista de marcaciones.
+    ///
+    /// Retorna una lista de errores de cumplimiento encontrados.
     pub fn validate_compliance(
         &self,
         logs: &[AttendanceLog],
         max_daily_hours: i32,
-        _max_weekly_hours: i32,
+        max_weekly_hours: i32,
         min_rest_hours: i32,
     ) -> Vec<ComplianceError> {
         let mut errors = vec![];
@@ -168,22 +202,70 @@ impl AttendanceValidator {
             }
         }
 
-        if logs.len() >= 2 {
-            for i in 1..logs.len() {
-                let diff = (logs[i].timestamp - logs[i - 1].timestamp).num_minutes() as f64 / 60.0;
-                if diff < min_rest_hours as f64 && diff > 0.0 {
+        let mut same_day_pairs: Vec<(&AttendanceLog, &AttendanceLog)> = Vec::new();
+        for logs in day_groups.values() {
+            if logs.len() >= 2 {
+                for i in 1..logs.len() {
+                    same_day_pairs.push((logs[i - 1], logs[i]));
+                }
+            }
+        }
+        for (prev, curr) in &same_day_pairs {
+            let diff = (curr.timestamp - prev.timestamp).num_minutes() as f64 / 60.0;
+            if diff < min_rest_hours as f64 && diff > 0.0 {
+                errors.push(ComplianceError::DescansoInsuficiente {
+                    min_hours: min_rest_hours,
+                    actual_hours: diff,
+                });
+            }
+        }
+
+        let mut sorted_dates: Vec<_> = day_groups.keys().collect();
+        sorted_dates.sort();
+        for window in sorted_dates.windows(2) {
+            let prev_date = window[0];
+            let next_date = window[1];
+            let prev_logs = &day_groups[prev_date];
+            let next_logs = &day_groups[next_date];
+            let last_exit = prev_logs
+                .iter()
+                .filter(|l| l.entry_type.as_str() == "Salida")
+                .max_by_key(|l| l.timestamp);
+            let first_entry = next_logs
+                .iter()
+                .filter(|l| l.entry_type.as_str() == "Entrada")
+                .min_by_key(|l| l.timestamp);
+            if let (Some(exit), Some(entry)) = (last_exit, first_entry) {
+                let gap = (entry.timestamp - exit.timestamp).num_minutes() as f64 / 60.0;
+                if gap < min_rest_hours as f64 {
                     errors.push(ComplianceError::DescansoInsuficiente {
                         min_hours: min_rest_hours,
-                        actual_hours: diff,
+                        actual_hours: gap,
                     });
                 }
             }
+        }
+
+        let weekly_hours: f64 = day_groups
+            .values()
+            .filter_map(|logs| {
+                let first = logs.first()?;
+                let last = logs.last()?;
+                Some((last.timestamp - first.timestamp).num_minutes() as f64 / 60.0)
+            })
+            .sum();
+        if weekly_hours > max_weekly_hours as f64 {
+            errors.push(ComplianceError::ExcesoSemanal {
+                max_hours: max_weekly_hours,
+                actual_hours: weekly_hours,
+            });
         }
 
         errors
     }
 }
 
+/// Registro individual de marcación de asistencia de un empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct AttendanceLog {
@@ -197,6 +279,7 @@ pub struct AttendanceLog {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para registrar una nueva marcación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttendanceLogPayload {
     pub employee_id: Uuid,
@@ -206,6 +289,7 @@ pub struct AttendanceLogPayload {
     pub location_hash: Option<String>,
 }
 
+/// Registro de modificación a una marcación de asistencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct AttendanceModification {
@@ -218,6 +302,7 @@ pub struct AttendanceModification {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para modificar una marcación existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttendanceModificationPayload {
     pub attendance_id: Uuid,
@@ -226,6 +311,7 @@ pub struct AttendanceModificationPayload {
     pub reason: String,
 }
 
+/// Resumen diario de asistencia de un empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DailySummary {
     pub date: NaiveDate,
@@ -237,15 +323,18 @@ pub struct DailySummary {
     pub weekly_hours_limit_exceeded: bool,
 }
 
+/// Solicitud de permiso o licencia de un empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct LeaveRequest {
     pub id: Uuid,
     pub employee_id: Uuid,
+    /// Tipo de permiso (vacaciones, licencia médica, personal, etc.).
     pub leave_type: String,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
     pub reason: Option<String>,
+    /// Estado de la solicitud (pendiente, aprobada, rechazada).
     pub status: String,
     pub approved_by: Option<Uuid>,
     pub approved_at: Option<DateTime<Utc>>,
@@ -253,6 +342,7 @@ pub struct LeaveRequest {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva solicitud de permiso.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateLeavePayload {
     pub employee_id: Uuid,
@@ -262,12 +352,14 @@ pub struct CreateLeavePayload {
     pub reason: Option<String>,
 }
 
+/// Payload para aprobar o rechazar una solicitud de permiso.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeaveApprovalPayload {
     pub status: String,
     pub approved_by: Uuid,
 }
 
+/// Denuncia o reclamo interno (Ley Karin).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Complaint {
@@ -275,14 +367,17 @@ pub struct Complaint {
     pub complainant_name: Option<String>,
     pub complainant_email: Option<String>,
     pub accused_rut: Option<String>,
+    /// Tipo de denuncia (acoso laboral, acoso sexual, maltrato, etc.).
     pub complaint_type: String,
     pub description: String,
+    /// Estado de la denuncia (recibida, investigando, resuelta, cerrada).
     pub status: String,
     pub resolution: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva denuncia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateComplaintPayload {
     pub complainant_name: Option<String>,
@@ -292,13 +387,28 @@ pub struct CreateComplaintPayload {
     pub description: String,
 }
 
+/// Payload para resolver una denuncia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolveComplaintPayload {
     pub status: String,
     pub resolution: String,
 }
 
+/// Administradora de Fondos de Pensiones (AFP) del empleado.
+///
+/// Cada variante incluye la tasa de comisión actual:
+///
+/// | AFP       | Comisión |
+/// |-----------|----------|
+/// | Capital   | 11,44%   |
+/// | Cuprum    | 11,44%   |
+/// | Habitat   | 11,27%   |
+/// | Planvital | 11,02%   |
+/// | Provida   | 11,45%   |
+/// | Modelo    | 10,58%   |
+/// | Uno       | 10,87%   |
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum PensionFund {
     Capital,
     Cuprum,
@@ -310,6 +420,7 @@ pub enum PensionFund {
 }
 
 impl PensionFund {
+    /// Retorna la tasa de comisión vigente de la AFP (ej: `0.1144` para Capital).
     pub fn commission_rate(&self) -> f64 {
         match self {
             PensionFund::Capital => 0.1144,
@@ -324,40 +435,56 @@ impl PensionFund {
 }
 
 impl PensionFund {
-    pub fn from_str(s: &str) -> Self {
+    /// Parsea una AFP desde su nombre (`"Capital"`, `"Cuprum"`, etc.).
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "Capital" => PensionFund::Capital,
-            "Cuprum" => PensionFund::Cuprum,
-            "Habitat" => PensionFund::Habitat,
-            "Planvital" => PensionFund::Planvital,
-            "Provida" => PensionFund::Provida,
-            "Modelo" => PensionFund::Modelo,
-            "Uno" => PensionFund::Uno,
-            _ => PensionFund::Provida,
+            "Capital" => Some(PensionFund::Capital),
+            "Cuprum" => Some(PensionFund::Cuprum),
+            "Habitat" => Some(PensionFund::Habitat),
+            "Planvital" => Some(PensionFund::Planvital),
+            "Provida" => Some(PensionFund::Provida),
+            "Modelo" => Some(PensionFund::Modelo),
+            "Uno" => Some(PensionFund::Uno),
+            _ => None,
         }
     }
 }
 
 impl std::fmt::Display for PensionFund {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
+/// Sistema de salud del empleado.
+///
+/// - `Fonasa`: sistema público, descuento fijo de 7%.
+/// - `Isapre`: sistema privado, con nombre del plan y mijo fijo pactado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum HealthSystem {
+    /// Fondo Nacional de Salud (descuento 7% sobre renta imponible).
     Fonasa,
+    /// Institución de Salud Previsional (monto fijo pactado).
     Isapre {
         plan_name: String,
+        #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
         fixed_amount: f64,
     },
 }
 
 impl HealthSystem {
-    pub fn from_str(s: &str) -> Self {
+    #[allow(clippy::should_implement_trait)]
+    /// Parse a health system from a stored string.
+    /// "Fonasa" returns Some(Fonasa).
+    /// Isapre plans require external data (plan_name, fixed_amount) and are
+    /// not constructed from a single string — returns None for Isapre strings
+    /// to signal that the caller must provide the associated data separately.
+    pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "Fonasa" => HealthSystem::Fonasa,
-            _ => HealthSystem::Fonasa,
+            "Fonasa" => Some(HealthSystem::Fonasa),
+            _ => None,
         }
     }
 }
@@ -366,11 +493,12 @@ impl std::fmt::Display for HealthSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             HealthSystem::Fonasa => write!(f, "Fonasa"),
-            HealthSystem::Isapre { plan_name, .. } => write!(f, "Isapre ({})", plan_name),
+            HealthSystem::Isapre { plan_name, .. } => write!(f, "Isapre ({plan_name})"),
         }
     }
 }
 
+/// Asociación entre un empleado y su AFP / sistema de salud.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct EmployeePensionFund {
@@ -379,10 +507,12 @@ pub struct EmployeePensionFund {
     pub pension_fund: String,
     pub health_system: String,
     pub health_plan_name: Option<String>,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub health_fixed_amount: Option<f64>,
     pub created_at: DateTime<Utc>,
 }
 
+/// Registro de liquidación de sueldo de un empleado para un mes y año.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Payroll {
@@ -390,69 +520,106 @@ pub struct Payroll {
     pub employee_id: Uuid,
     pub month: i32,
     pub year: i32,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub salary_base: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub gratificacion: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub non_taxable_earnings: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub taxable_income: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub afp_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub health_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub unemployment_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub income_tax: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub other_deductions: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub net_salary: f64,
+    /// Indica si fue exportado al libro de remuneraciones electrónico (LRE).
     pub lre_exported: bool,
+    /// Indica si fue exportado a Previred.
     pub previred_exported: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
+/// Línea individual del detalle de una liquidación de sueldo.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PayrollLineItem {
     pub concept: String,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub amount: f64,
+    /// Categoría del ítem: `"Imponible"`, `"No Imponible"`, `"Descuento Legal"`, `"Descuento"`.
     pub category: String,
 }
 
+/// Resultado del cálculo de una liquidación de sueldo, con desglose completo.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PayrollCalculation {
     pub employee_id: Uuid,
     pub month: i32,
     pub year: i32,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub salary_base: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub gratificacion: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub non_taxable_earnings: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub taxable_income: f64,
     pub afp_rate: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub afp_discount: f64,
     pub health_rate: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub health_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub unemployment_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub income_tax: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub other_deductions: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub net_salary: f64,
     pub breakdown: Vec<PayrollLineItem>,
 }
 
+/// Payload para solicitar el cálculo de una liquidación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PayrollPayload {
     pub employee_id: Uuid,
     pub month: i32,
     pub year: i32,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub non_taxable_earnings: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub other_deductions: f64,
 }
 
+/// Registro de nómina para exportación a Previred.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreviredRecord {
     pub rut: String,
     pub name: String,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub gross_salary: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub afp_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub health_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub unemployment_discount: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub net_salary: f64,
 }
 
+/// Cerca geográfica (geofence) asociada a un empleado para control de asistencia
+/// por ubicación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct EmployeeGeofence {
@@ -465,6 +632,7 @@ pub struct EmployeeGeofence {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva cerca geográfica.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeofencePayload {
     pub employee_id: Uuid,
@@ -474,6 +642,7 @@ pub struct GeofencePayload {
     pub name: String,
 }
 
+/// Licencia médica de un empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct MedicalLicense {
@@ -490,6 +659,7 @@ pub struct MedicalLicense {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva licencia médica.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateMedicalLicensePayload {
     pub employee_id: Uuid,
@@ -500,6 +670,7 @@ pub struct CreateMedicalLicensePayload {
     pub diagnosis: Option<String>,
 }
 
+/// Evaluación docente o de desempeño de un empleado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct TeacherEvaluation {
@@ -514,6 +685,7 @@ pub struct TeacherEvaluation {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva evaluación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateEvaluationPayload {
     pub employee_id: Uuid,
@@ -524,15 +696,24 @@ pub struct CreateEvaluationPayload {
     pub year: i32,
 }
 
+/// Calculadora de liquidación de sueldo.
+///
+/// Permite configurar sueldo base, gratificación, tasa AFP y monto fijo
+/// de Isapre para obtener el sueldo líquido.
 #[derive(Debug, Clone)]
 pub struct PayrollCalculator {
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub base_salary: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub gratificacion: f64,
     pub afp_rate: f64,
+    #[doc = "Moneda en CLP - usar con precaución: f64 puede causar errores de redondeo"]
     pub isapre_fixed_amount: Option<f64>,
 }
 
 impl PayrollCalculator {
+    /// Crea una nueva calculadora con el sueldo base y valores por defecto
+    /// (gratificación = 25% del base con tope de $500.000, AFP 10%).
     pub fn new(base_salary: f64) -> Self {
         Self {
             base_salary,
@@ -542,21 +723,25 @@ impl PayrollCalculator {
         }
     }
 
+    /// Establece el monto de gratificación.
     pub fn with_gratificacion(mut self, grat: f64) -> Self {
         self.gratificacion = grat;
         self
     }
 
+    /// Establece la tasa de cotización AFP.
     pub fn with_afp_rate(mut self, rate: f64) -> Self {
         self.afp_rate = rate;
         self
     }
 
+    /// Establece el mijo fijo de Isapre.
     pub fn with_isapre(mut self, amount: f64) -> Self {
         self.isapre_fixed_amount = Some(amount);
         self
     }
 
+    /// Calcula el sueldo líquido: imponible - AFP - salud - cesantía.
     pub fn calculate_liquid(&self) -> f64 {
         let taxable = self.base_salary + self.gratificacion;
         let afp_discount = taxable * self.afp_rate;
@@ -566,8 +751,12 @@ impl PayrollCalculator {
     }
 }
 
+/// Calcula una liquidación de sueldo completa a partir del contrato, los
+/// datos del empleado (AFP, salud) y el payload de entrada.
+///
+/// Retorna un [`PayrollCalculation`] con todos los haberes, descuentos legales
+/// y el desglose por ítem.
 pub fn calculate_payroll(
-    _employee: &Employee,
     contract: &EmployeeContract,
     payload: &PayrollPayload,
     pension_fund: &PensionFund,
@@ -575,7 +764,7 @@ pub fn calculate_payroll(
     health_fixed_amount: Option<f64>,
 ) -> PayrollCalculation {
     let salary_base = contract.salary_base;
-    let monthly_gratificacion = (salary_base * 0.25 * payload.month as f64 / 12.0).min(500000.0);
+    let monthly_gratificacion = (salary_base * 0.25).min(500000.0);
     let non_taxable = payload.non_taxable_earnings;
     let taxable_income = salary_base + monthly_gratificacion;
 
@@ -592,10 +781,11 @@ pub fn calculate_payroll(
     let afp_discount = taxable_income * total_afp_rate;
 
     let health_rate = 0.07;
-    let health_discount = if matches!(health_system, HealthSystem::Fonasa) || health_fixed_amount.is_none() {
-        taxable_income * health_rate
-    } else {
-        health_fixed_amount.unwrap_or(0.0)
+    let health_discount = match health_system {
+        HealthSystem::Fonasa => taxable_income * health_rate,
+        HealthSystem::Isapre { .. } => {
+            health_fixed_amount.unwrap_or(taxable_income * health_rate)
+        }
     };
 
     let unemployment_discount = taxable_income * 0.006;
@@ -629,7 +819,7 @@ pub fn calculate_payroll(
             category: "Descuento Legal".into(),
         },
         PayrollLineItem {
-            concept: format!("Salud ({})", health_system),
+            concept: format!("Salud ({health_system})"),
             amount: -health_discount,
             category: "Descuento Legal".into(),
         },
@@ -674,11 +864,14 @@ pub fn calculate_payroll(
     }
 }
 
+/// Calcula el impuesto a la renta de segunda categoría (global complementario)
+/// mensual según las tablas de impuesto progresivo chilenas.
+///
+/// El cálculo se realiza anualizando la renta imponible mensual, aplicando
+/// los tramos y tasas vigentes, y luego dividiendo por 12.
 fn calculate_income_tax(monthly_taxable_income: f64) -> f64 {
     let annual_taxable = monthly_taxable_income * 12.0;
-    let tax = if annual_taxable <= 0.0 {
-        0.0
-    } else if annual_taxable <= 937_440.0 {
+    let tax = if annual_taxable <= 937_440.0 {
         0.0
     } else if annual_taxable <= 1_874_880.0 {
         (annual_taxable - 937_440.0) * 0.04
@@ -696,6 +889,16 @@ fn calculate_income_tax(monthly_taxable_income: f64) -> f64 {
     (tax / 12.0).max(0.0)
 }
 
+/// Calcula los días progresivos de vacaciones según los años de servicio.
+///
+/// | Años de servicio | Días de vacaciones |
+/// |------------------|--------------------|
+/// | 0–10             | 15                 |
+/// | 11–15            | 18                 |
+/// | 16–20            | 21                 |
+/// | 21–25            | 24                 |
+/// | 26–30            | 27                 |
+/// | 31+              | 30                 |
 pub fn calculate_progressive_vacation_days(years_of_service: i32) -> f64 {
     match years_of_service {
         0..=10 => 15.0,
@@ -707,6 +910,8 @@ pub fn calculate_progressive_vacation_days(years_of_service: i32) -> f64 {
     }
 }
 
+/// Calcula la diferencia en años completos entre dos fechas.
+/// Retorna 0 si la fecha de contratación es posterior a `from_date`.
 pub fn years_between(hire_date: NaiveDate, from_date: NaiveDate) -> i32 {
     let mut years = from_date.year() - hire_date.year();
     if from_date.ordinal() < hire_date.ordinal() {

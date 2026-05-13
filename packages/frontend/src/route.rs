@@ -35,7 +35,10 @@ use crate::components::pages::sige_page::SigePage;
 use crate::components::pages::student_detail_page::StudentDetailPage;
 use crate::components::pages::students_page::StudentsPage;
 use crate::components::pages::subjects_page::SubjectsPage;
+use crate::components::pages::curriculum_agent::CurriculumAgent;
+use crate::components::pages::dashboard_mosaicos_page::DashboardMosaicosPage;
 use crate::components::pages::root_page::RootDashboard;
+use crate::components::pages::sostenedor_page::SostenedorPage;
 use crate::components::pages::users_page::UsersPage;
 
 pub fn has_token() -> bool {
@@ -73,6 +76,8 @@ pub enum Route {
     SessionLogin {},
     #[route("/dashboard")]
     Dashboard {},
+    #[route("/sostenedor")]
+    SostenedorPortal {},
     #[route("/root")]
     RootDashboard {},
     #[route("/")]
@@ -133,6 +138,8 @@ pub enum Route {
     Sige {},
     #[route("/complaints")]
     Complaints {},
+    #[route("/curriculum")]
+    Curriculum {},
     #[route("/admin/plans")]
     AdminPlans {},
     #[route("/admin/contracts")]
@@ -175,7 +182,7 @@ pub fn SessionLogin() -> Element {
                             }
                         }
                         _ => {
-                            let _ = w.location().set_href("http://localhost:3010/login?error=Ocurrió un error al iniciar sesión");
+                            let _ = w.location().set_href("/login?error=Ocurrió un error al iniciar sesión");
                         }
                     }
                 });
@@ -207,9 +214,8 @@ fn urlencoding_decode(s: &str) -> String {
 #[component]
 pub fn Dashboard() -> Element {
     require_auth();
-    let nav = navigator();
-    nav.replace("/");
-    rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
+    use_page_title("Dashboard");
+    rsx! { DashboardMosaicosPage {} }
 }
 
 #[component]
@@ -222,13 +228,20 @@ pub fn RootDashboardRoute() -> Element {
 #[component]
 pub fn ModuleManagerRoot() -> Element {
     require_auth();
+    use_page_title("Inicio");
     let prefs = use_resource(|| async move { client::fetch_json("/api/user/preferences").await });
+    let mut redirected = use_signal(|| false);
 
     match prefs() {
         Some(Ok(data)) => {
             let show = data["show_module_manager"].as_bool().unwrap_or(true);
             if show {
                 rsx! { ModuleManager {} }
+            } else if !*redirected.peek() {
+                redirected.set(true);
+                let nav = navigator();
+                nav.replace("/dashboard");
+                rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
             } else {
                 rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
             }
@@ -237,6 +250,13 @@ pub fn ModuleManagerRoot() -> Element {
             rsx! { div { class: "loading-spinner", "Cargando..." } }
         }
     }
+}
+
+#[component]
+pub fn SostenedorPortal() -> Element {
+    require_auth();
+    use_page_title("Panel del Sostenedor");
+    rsx! { SostenedorPage {} }
 }
 
 #[component]
@@ -333,6 +353,7 @@ pub fn Hr() -> Element {
 #[component]
 pub fn HrDetail(employee_id: String) -> Element {
     require_auth();
+    use_page_title("Detalle Empleado");
     rsx! { HrDetailPage { employee_id: employee_id } }
 }
 
@@ -432,6 +453,13 @@ pub fn Complaints() -> Element {
     require_auth();
     use_page_title("Ley Karin - Canal de Denuncias");
     rsx! { ComplaintsPage {} }
+}
+
+#[component]
+pub fn Curriculum() -> Element {
+    require_auth();
+    use_page_title("Currículum Nacional");
+    rsx! { CurriculumAgent {} }
 }
 
 #[component]

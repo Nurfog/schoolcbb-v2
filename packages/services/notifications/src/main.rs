@@ -1,12 +1,13 @@
 mod config;
 mod error;
+mod push;
 mod ws;
 
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::Router;
 use sqlx::PgPool;
-use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -37,8 +38,7 @@ async fn main() {
     tracing::info!("Notifications Service connected to database");
     schoolccb_common::db_schema::run(&pool).await;
 
-    let (ws_tx, _) = broadcast::channel::<String>(100);
-    let ws_hub = Arc::new(ws::hub::WsHub::new(ws_tx.clone()));
+    let ws_hub = Arc::new(ws::hub::WsHub::new());
 
     let state = AppState {
         pool,
@@ -49,7 +49,9 @@ async fn main() {
     let addr = config.addr();
 
     let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(ws::routes::router())
+        .merge(push::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     tracing::info!("Notifications Service starting on {addr}");

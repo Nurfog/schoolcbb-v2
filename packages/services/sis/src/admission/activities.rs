@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::SisResult;
+use crate::error::{SisError, SisResult};
 use crate::routes::students::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -29,6 +29,13 @@ async fn list_activities(claims: Claims, State(state): State<AppState>) -> SisRe
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let activities = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         "SELECT id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at FROM prospect_activities ORDER BY created_at DESC LIMIT 200",
     ).fetch_all(&state.pool).await?;
@@ -44,6 +51,13 @@ async fn get_activity(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let activity = sqlx::query_as::<_, schoolccb_common::admission::ProspectActivity>(
         "SELECT id, prospect_id, activity_type, subject, description, scheduled_at, is_completed, created_by, created_at FROM prospect_activities WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?

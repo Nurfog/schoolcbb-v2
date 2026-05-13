@@ -104,6 +104,9 @@ fn FeesTab() -> Element {
     };
 
     let do_delete = move |fee_id: String| {
+        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) {
+            return;
+        }
         spawn(async move {
             let _ = client::delete_fee(&fee_id).await;
             fees.restart();
@@ -520,6 +523,9 @@ fn ScholarshipsTab() -> Element {
     };
 
     let do_delete = move |sid: String| {
+        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) {
+            return;
+        }
         spawn(async move {
             let _ = client::delete_scholarship(&sid).await;
             scholarships.restart();

@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::ReportResult;
+use crate::error::{ReportError, ReportResult};
 use crate::routes::certificate::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -34,6 +34,13 @@ async fn concentration(
             "Alumno",
         ],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "reports",
+    )
+    .await
+    .map_err(|e| ReportError::Forbidden(e))?;
 
     let student = sqlx::query_as::<_, (String, String)>(
         "SELECT CONCAT(first_name, ' ', last_name), rut FROM students WHERE id = $1",

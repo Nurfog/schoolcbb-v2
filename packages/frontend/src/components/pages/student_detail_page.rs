@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 use serde_json::Value;
 
 use crate::api::client;
+use crate::seo::use_page_title;
 
 fn first_letter(s: &str) -> String {
     s.chars()
@@ -12,11 +13,13 @@ fn first_letter(s: &str) -> String {
 
 #[component]
 pub fn StudentDetailPage(student_id: String) -> Element {
+    use_page_title("Vista 360° del Alumno");
     let sid_report = student_id.clone();
     let sid_s1 = student_id.clone();
     let sid_s2 = student_id.clone();
     let sid_int = student_id.clone();
     let sid_fees = student_id.clone();
+    let sid_full = student_id.clone();
 
     let current_year = js_sys::Date::new_0().get_full_year() as i32;
 
@@ -48,6 +51,11 @@ pub fn StudentDetailPage(student_id: String) -> Element {
         async move { client::fetch_fees_student(&sid).await }
     });
 
+    let student_full = use_resource(move || {
+        let sid = sid_full.clone();
+        async move { client::fetch_student_full(&sid).await }
+    });
+
     rsx! {
         div { class: "page-header",
             h1 { "Vista 360° del Alumno" }
@@ -75,6 +83,10 @@ pub fn StudentDetailPage(student_id: String) -> Element {
             }}
             { match fees() {
                 Some(Ok(data)) => rsx! { FinanceCard { data: data.clone() } },
+                _ => rsx! {},
+            }}
+            { match student_full() {
+                Some(Ok(data)) => rsx! { FullInfoCard { data: data.clone() } },
                 _ => rsx! {},
             }}
         }
@@ -146,7 +158,14 @@ fn GradesCard(title: String, data: Value) -> Element {
             let avg_class = if avg < 4.0 { "pct-danger" } else { "pct-good" }.to_string();
             let min_str = format!("{:.1}", s["min_grade"].as_f64().unwrap_or(0.0));
             let max_str = format!("{:.1}", s["max_grade"].as_f64().unwrap_or(0.0));
-            (name, avg_str, avg_class, min_str, max_str)
+            let grades = s["grades"].as_array().map(|arr| {
+                arr.iter().map(|g| format!("{}", g.as_f64().unwrap_or(0.0))).collect::<Vec<_>>().join(", ")
+            }).unwrap_or_else(|| {
+                s["individual_grades"].as_array().map(|arr| {
+                    arr.iter().map(|g| format!("{}", g["grade"].as_f64().unwrap_or(0.0))).collect::<Vec<_>>().join(", ")
+                }).unwrap_or_default()
+            });
+            (name, avg_str, avg_class, min_str, max_str, grades)
         })
         .collect();
 
@@ -168,11 +187,11 @@ fn GradesCard(title: String, data: Value) -> Element {
                         }
                     }
                     tbody {
-                        for (name, avg_str, avg_class, min_str, max_str) in &rows {
+                        for (name, avg_str, avg_class, min_str, max_str, grades) in &rows {
                             tr {
                                 td { "{name}" }
                                 td { class: "{avg_class}", "{avg_str}" }
-                                td { "0" }
+                                td { "{grades}" }
                                 td { "{min_str}" }
                                 td { "{max_str}" }
                             }
@@ -309,6 +328,74 @@ fn FinanceCard(data: Value) -> Element {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn FullInfoCard(data: Value) -> Element {
+    let student = &data["student"];
+    let medical = &data["medical"];
+
+    let rut = student["rut"].as_str().unwrap_or("-").to_string();
+    let email = student["email"].as_str().unwrap_or("-").to_string();
+    let phone = student["phone"].as_str().unwrap_or("-").to_string();
+
+    let diseases = medical["diseases"].as_str().and_then(|s| {
+        if s.is_empty() { None } else { Some(s.to_string()) }
+    });
+    let allergies = medical["allergies"].as_str().and_then(|s| {
+        if s.is_empty() { None } else { Some(s.to_string()) }
+    });
+
+    let emergency_name = medical["emergency_contact"]["name"].as_str();
+    let emergency_phone = medical["emergency_contact"]["phone"].as_str();
+    let emergency_relation = medical["emergency_contact"]["relation"].as_str();
+
+    rsx! {
+        div { class: "widget-card",
+            div { class: "widget-card-header",
+                h3 { "Información Adicional" }
+            }
+            div { class: "widget-card-body",
+                div { class: "info-grid", style: "display: flex; flex-direction: column; gap: 8px;",
+                    div { class: "info-item",
+                        strong { "RUT: " }
+                        span { "{rut}" }
+                    }
+                    div { class: "info-item",
+                        strong { "Email: " }
+                        span { "{email}" }
+                    }
+                    div { class: "info-item",
+                        strong { "Teléfono: " }
+                        span { "{phone}" }
+                    }
+                    { diseases.map(|d| rsx! {
+                        div { class: "info-item",
+                            strong { "Enfermedades: " }
+                            span { "{d}" }
+                        }
+                    })}
+                    { allergies.map(|a| rsx! {
+                        div { class: "info-item",
+                            strong { "Alergias: " }
+                            span { "{a}" }
+                        }
+                    })}
+                    { (emergency_name.is_some() && !emergency_name.unwrap_or("").is_empty()).then(|| {
+                        let name = emergency_name.unwrap_or("");
+                        let phone = emergency_phone.unwrap_or("");
+                        let rel = emergency_relation.unwrap_or("");
+                        rsx! {
+                            div { class: "info-item",
+                                strong { "Contacto Emergencia: " }
+                                span { "{name} ({rel}) - {phone}" }
+                            }
+                        }
+                    })}
                 }
             }
         }

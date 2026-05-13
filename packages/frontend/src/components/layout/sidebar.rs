@@ -27,6 +27,31 @@ fn initials(name: &str) -> String {
         .to_uppercase()
 }
 
+const MODULE_NAV_ITEMS: &[(&str, &str, &str)] = &[
+    ("students", "/students", "Alumnos"),
+    ("courses", "/courses", "Cursos"),
+    ("attendance", "/attendance", "Asistencia"),
+    ("grades", "/grades", "Calificaciones"),
+    ("enrollments", "/enrollments", "Matrículas"),
+    ("subjects", "/subjects", "Asignaturas"),
+    ("grade-levels", "/grade-levels", "Niveles"),
+    ("academic-years", "/academic-years", "Años Académicos"),
+    ("classrooms", "/classrooms", "Salas"),
+    ("agenda", "/agenda", "Agenda Escolar"),
+    ("notifications", "/notifications", "Mensajería"),
+    ("finance", "/finance", "Finanzas"),
+    ("reports", "/reports", "Reportes"),
+    ("admission", "/admission", "Admisiones"),
+    ("hr", "/hr", "Recursos Humanos"),
+    ("payroll", "/payroll", "Remuneraciones"),
+    ("sige", "/sige", "SIGE"),
+    ("complaints", "/complaints", "Denuncias"),
+    ("users", "/users", "Usuarios"),
+    ("roles", "/roles", "Roles"),
+    ("audit", "/audit", "Auditoría"),
+    ("corporations", "/corporations", "Corporaciones"),
+];
+
 fn role_label(role: &str) -> &'static str {
     match role {
         "Root" => "Root Admin",
@@ -71,6 +96,7 @@ pub fn Sidebar() -> Element {
     let current_path = web_sys::window()
         .and_then(|w| w.location().pathname().ok())
         .unwrap_or_default();
+    let current_path_clone = current_path.clone();
     let is_active = move |path: &str| current_path == path;
 
     rsx! {
@@ -97,7 +123,7 @@ pub fn Sidebar() -> Element {
                     }
                 }
 
-                a { class: "nav-item", href: "/dashboard", "aria-current": if is_active("/dashboard") { "page" } else { "false" },
+                a { class: "nav-item", href: "/dashboard", aria_current: is_active("/dashboard").then_some("page"),
                     span { class: "icon",
                         svg { role: "presentation", view_box: "0 0 24 24",
                             rect { x: "3", y: "3", width: "7", height: "7", rx: "1" }
@@ -111,7 +137,7 @@ pub fn Sidebar() -> Element {
 
                 {if user_role == "Root" {
                     rsx! {
-                        a { class: "nav-item", href: "/root", "aria-current": if is_active("/root") { "page" } else { "false" },
+                        a { class: "nav-item", href: "/root", aria_current: is_active("/root").then_some("page"),
                             span { class: "icon",
                                 svg { role: "presentation", view_box: "0 0 24 24",
                                     path { d: "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" }
@@ -186,28 +212,91 @@ pub fn Sidebar() -> Element {
                         _ => rsx! { p { class: "empty-hint", "Cargando..." } },
                     }
                 }
+                {if user_role != "Root" {
+                    let module_ids: std::collections::HashSet<String> = match modules() {
+                        Some(Ok(data)) => {
+                            data["modules"].as_array().map(|arr| {
+                                arr.iter().filter_map(|m| m["id"].as_str().map(String::from)).collect()
+                            }).unwrap_or_default()
+                        }
+                        _ => std::collections::HashSet::new()
+                    };
+                    let rendered: Vec<_> = MODULE_NAV_ITEMS.iter().filter_map(|(id, route, label)| {
+                        if module_ids.contains(*id) {
+                            let active = current_path_clone.as_str() == *route;
+                            Some(rsx! {
+                                a { key: "{id}", class: "nav-item", href: "{route}", aria_current: active.then_some("page"),
+                                    span { class: "icon",
+                                        svg { role: "presentation", view_box: "0 0 24 24",
+                                            rect { x: "3", y: "3", width: "18", height: "18", rx: "2" }
+                                        }
+                                    }
+                                    span { class: "label", "{label}" }
+                                }
+                            })
+                        } else {
+                            None
+                        }
+                    }).collect();
+                    if !rendered.is_empty() {
+                        rsx! {
+                            div { class: "nav-section-label", "Módulos"}
+                            {rendered.into_iter()}
+                        }
+                    } else {
+                        rsx! {}
+                    }
+                } else { rsx! {} }}
             }
 
             div { class: "sidebar-footer",
                 div { class: "nav-section-label", "Sistema"}
 
-                a { class: "nav-item config-item", href: "/", "aria-current": if is_active("/") { "page" } else { "false" },
+                {if user_role == "Sostenedor" {
+                    rsx! {
+                        a { class: "nav-item config-item", href: "/sostenedor", aria_current: is_active("/sostenedor").then_some("page"),
+                            span { class: "icon",
+                                svg { role: "presentation", view_box: "0 0 24 24",
+                                    path { d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }
+                                    polyline { points: "9 22 9 12 15 12 15 22" }
+                                }
+                            }
+                            span { class: "label", "Panel Sostenedor" }
+                        }
+                    }
+                } else { rsx! {} }}
+
+                {if user_role != "Root" {
+                    rsx! {
+                        a { class: "nav-item config-item", href: "/curriculum", aria_current: is_active("/curriculum").then_some("page"),
+                            span { class: "icon",
+                                svg { role: "presentation", view_box: "0 0 24 24",
+                                    path { d: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20" }
+                                    path { d: "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" }
+                                    line { x1: "8", y1: "7", x2: "16", y2: "7" }
+                                    line { x1: "8", y1: "11", x2: "14", y2: "11" }
+                                }
+                            }
+                            span { class: "label", "Currículum Nacional" }
+                        }
+                    }
+                } else { rsx! {} }}
+
+                a { class: "nav-item config-item", href: "/", aria_current: is_active("/").then_some("page"),
                     span { class: "icon",
                         svg { role: "presentation", view_box: "0 0 24 24",
-                            rect { x: "3", y: "3", width: "7", height: "7", rx: "1" }
-                            rect { x: "14", y: "3", width: "7", height: "7", rx: "1" }
-                            rect { x: "3", y: "14", width: "7", height: "7", rx: "1" }
-                            rect { x: "14", y: "14", width: "7", height: "7", rx: "1" }
+                            polygon { points: "12 2 2 7 12 12 22 7 12 2" }
+                            polyline { points: "2 12 12 17 22 12" }
+                            polyline { points: "2 17 12 22 22 17" }
                         }
                     }
                     span { class: "label", "Module Manager" }
                 }
 
-                a { class: "nav-item config-item", href: "/config", "aria-current": if is_active("/config") { "page" } else { "false" },
+                a { class: "nav-item config-item", href: "/config", aria_current: is_active("/config").then_some("page"),
                     span { class: "icon",
                         svg { role: "presentation", view_box: "0 0 24 24",
-                            circle { cx: "12", cy: "12", r: "3" }
-                            path { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" }
+                            path { d: "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" }
                         }
                     }
                     span { class: "label", "Configuración" }
@@ -220,7 +309,7 @@ pub fn Sidebar() -> Element {
                             if let Some(doc) = window.document() {
                                 let _ = js_sys::Reflect::set(&doc, &wasm_bindgen::JsValue::from_str("cookie"), &wasm_bindgen::JsValue::from_str("jwt_token=; Path=/; Max-Age=0"));
                             }
-                            let _ = window.location().set_href("http://localhost:3010/login");
+                            let _ = window.location().set_href("/login");
                         }
                     },
                     span { class: "icon",

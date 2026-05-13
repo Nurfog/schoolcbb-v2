@@ -1,5 +1,6 @@
 services:
   db:
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: schoolccb
@@ -15,7 +16,215 @@ services:
       timeout: 5s
       retries: 5
 
+  identity:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-identity
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  sis:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-sis
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3002
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  academic:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-academic
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3003
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  attendance:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-attendance
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3004
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3004/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  notifications:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-notifications
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3005
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3005/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  finance:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-finance
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3006
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3006/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  reporting:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-reporting
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3007
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3007/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  portal:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-portal
+    ports:
+      - "3010:3010"
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3010
+      RUST_LOG: info
+      IDENTITY_URL: http://identity:3001
+      FRONTEND_URL: http://localhost:8080
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3010/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  curriculum:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-curriculum
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3011
+      RUST_LOG: info
+      CURRICULUM_KB_DIR: /app/.agents/skills/cn
+    volumes:
+      - ./.agents:/app/.agents:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3011/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   gateway:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile
@@ -36,146 +245,43 @@ services:
       FINANCE_URL: http://finance:3006
       REPORTING_URL: http://reporting:3007
       PORTAL_URL: http://portal:3010
+      CURRICULUM_URL: http://curriculum:3011
     depends_on:
-      - identity
-
-  identity:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-identity
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3001
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      identity:
         condition: service_healthy
-
-  sis:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-sis
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3002
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      sis:
         condition: service_healthy
-
-  academic:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-academic
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3003
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      academic:
         condition: service_healthy
-
-  attendance:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-attendance
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3004
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      attendance:
         condition: service_healthy
-
-  notifications:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-notifications
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3005
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      notifications:
         condition: service_healthy
-
-  finance:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-finance
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3006
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      finance:
         condition: service_healthy
-
-  reporting:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-reporting
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3007
-      RUST_LOG: info
-      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
-      JWT_SECRET: cambio-en-produccion
-    depends_on:
-      db:
+      reporting:
         condition: service_healthy
-
-  portal:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: schoolccb-portal
-    ports:
-      - "3010:3010"
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: 3010
-      RUST_LOG: info
-      IDENTITY_URL: http://identity:3001
-      FRONTEND_URL: http://localhost:8080
-    depends_on:
-      - identity
+      portal:
+        condition: service_healthy
+      curriculum:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   frontend:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
       - "8080:80"
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
 
 volumes:
   pgdata:

@@ -39,7 +39,7 @@ fn auth_header() -> Option<String> {
     get_token().map(|t| format!("Bearer {}", t))
 }
 
-async fn request(method: &str, endpoint: &str, body: Option<&Value>) -> Result<Value, String> {
+async fn request_inner(method: &str, endpoint: &str, body: Option<&Value>) -> Result<Value, String> {
     let url = abs_url(endpoint);
     let mut req = match method {
         "GET" => client().get(&url),
@@ -54,12 +54,28 @@ async fn request(method: &str, endpoint: &str, body: Option<&Value>) -> Result<V
     if let Some(auth) = auth_header() {
         req = req.header("Authorization", auth);
     }
-    req.send()
-        .await
-        .map_err(|e| format!("Error: {e}"))?
-        .json::<Value>()
-        .await
-        .map_err(|e| format!("Parse: {e}"))
+    let resp = req.send().await.map_err(|e| format!("Error: {e}"))?;
+    let status = resp.status();
+    let body: Value = resp.json().await.map_err(|e| format!("Parse: {e}"))?;
+    if status == 502 {
+        return Err("502".to_string());
+    }
+    Ok(body)
+}
+
+async fn request(method: &str, endpoint: &str, body: Option<&Value>) -> Result<Value, String> {
+    let mut last_error = String::new();
+    for attempt in 0..3 {
+        let result = request_inner(method, endpoint, body).await;
+        match result {
+            Err(e) if e == "502" && attempt < 2 => {
+                last_error = "Servicio temporalmente no disponible".to_string();
+            }
+            Err(e) => return Err(e),
+            Ok(v) => return Ok(v),
+        }
+    }
+    Err(last_error)
 }
 
 pub async fn fetch_json(endpoint: &str) -> Result<Value, String> {
@@ -101,19 +117,15 @@ pub async fn login(email: &str, password: &str) -> Result<Value, String> {
 }
 
 // ─── Dashboard ───
-#[allow(dead_code)]
 pub async fn fetch_dashboard_summary() -> Result<Value, String> {
     fetch_json("/api/dashboard/summary").await
 }
-#[allow(dead_code)]
 pub async fn fetch_attendance_today() -> Result<Value, String> {
     fetch_json("/api/dashboard/attendance-today").await
 }
-#[allow(dead_code)]
 pub async fn fetch_student_alerts() -> Result<Value, String> {
     fetch_json("/api/dashboard/student-alerts").await
 }
-#[allow(dead_code)]
 pub async fn fetch_agenda() -> Result<Value, String> {
     fetch_json("/api/dashboard/agenda").await
 }
@@ -145,7 +157,6 @@ pub async fn fetch_students(
     };
     fetch_json(&format!("/api/students{}", qs)).await
 }
-#[allow(dead_code)]
 pub async fn fetch_student_full(student_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/students/{}", student_id)).await
 }
@@ -172,7 +183,6 @@ pub async fn fetch_student_report(student_id: &str, year: i32) -> Result<Value, 
     ))
     .await
 }
-#[allow(dead_code)]
 pub async fn fetch_course_performance(course_id: &str, year: i32) -> Result<Value, String> {
     fetch_json(&format!(
         "/api/grades/reports/course/{}/{}",
@@ -188,7 +198,6 @@ pub async fn fetch_grades_by_subject(subject_id: &str, year: i32) -> Result<Valu
 pub async fn fetch_attendance_monthly(year: i32, month: u32) -> Result<Value, String> {
     fetch_json(&format!("/api/attendance/monthly/{}/{}", year, month)).await
 }
-#[allow(dead_code)]
 pub async fn fetch_attendance_by_course_date(course_id: &str, date: &str) -> Result<Value, String> {
     fetch_json(&format!(
         "/api/attendance/course/{}/date/{}",
@@ -248,6 +257,11 @@ pub async fn delete_scholarship(scholarship_id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/finance/scholarships/{}", scholarship_id)).await
 }
 
+// ─── Legal Representatives ───
+pub async fn fetch_legal_reps(corporation_id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/legal-representatives?corporation_id={}", corporation_id)).await
+}
+
 // ─── Reports ───
 pub async fn fetch_student_certificate(student_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/reports/certificate/student/{}", student_id)).await
@@ -270,24 +284,26 @@ pub async fn fetch_sige_attendance(year: i32, month: u32) -> Result<Value, Strin
 }
 
 // ─── Corporations & Schools ───
-#[allow(dead_code)]
 pub async fn fetch_corporations() -> Result<Value, String> {
     fetch_json("/api/corporations").await
 }
-#[allow(dead_code)]
 pub async fn create_corporation(payload: &Value) -> Result<Value, String> {
     post_json("/api/corporations", payload).await
 }
-#[allow(dead_code)]
 pub async fn fetch_schools(corporation_id: Option<&str>) -> Result<Value, String> {
     match corporation_id {
         Some(id) => fetch_json(&format!("/api/schools?corporation_id={}", id)).await,
         None => fetch_json("/api/schools").await,
     }
 }
-#[allow(dead_code)]
 pub async fn create_school(payload: &Value) -> Result<Value, String> {
     post_json("/api/schools", payload).await
+}
+pub async fn update_school(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/schools/{}", id), payload).await
+}
+pub async fn toggle_school(id: &str) -> Result<Value, String> {
+    put_json(&format!("/api/schools/{}/toggle", id), &json!({})).await
 }
 
 // ─── Academic Years ───
@@ -404,11 +420,9 @@ pub async fn update_role_permissions(id: &str, payload: &Value) -> Result<Value,
 pub async fn fetch_permission_definitions() -> Result<Value, String> {
     fetch_json("/api/permissions/definitions").await
 }
-#[allow(dead_code)]
 pub async fn fetch_user_roles(user_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/users/{}/roles", user_id)).await
 }
-#[allow(dead_code)]
 pub async fn assign_role(user_id: &str, role_id: &str) -> Result<Value, String> {
     post_json(
         &format!("/api/users/{}/roles", user_id),
@@ -416,7 +430,6 @@ pub async fn assign_role(user_id: &str, role_id: &str) -> Result<Value, String> 
     )
     .await
 }
-#[allow(dead_code)]
 pub async fn remove_role(user_id: &str, role_id: &str) -> Result<Value, String> {
     delete_json(&format!("/api/users/{}/roles/{}", user_id, role_id)).await
 }
@@ -475,7 +488,6 @@ pub async fn admin_extend_license(id: &str, payload: &Value) -> Result<Value, St
 pub async fn admin_change_plan(id: &str, payload: &Value) -> Result<Value, String> {
     put_json(&format!("/api/admin/licenses/{}/change-plan", id), payload).await
 }
-#[allow(dead_code)]
 pub async fn admin_update_license_status(id: &str, payload: &Value) -> Result<Value, String> {
     put_json(&format!("/api/admin/licenses/{}/status", id), payload).await
 }
@@ -490,6 +502,30 @@ pub async fn admin_activity_log() -> Result<Value, String> {
 }
 pub async fn admin_system_health() -> Result<Value, String> {
     fetch_json("/api/admin/system/health").await
+}
+pub async fn admin_list_corporations() -> Result<Value, String> {
+    fetch_json("/api/admin/corporations").await
+}
+pub async fn admin_create_corporation(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admin/corporations", payload).await
+}
+pub async fn admin_update_corporation(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admin/corporations/{}", id), payload).await
+}
+pub async fn admin_toggle_corporation(id: &str) -> Result<Value, String> {
+    put_json(&format!("/api/admin/corporations/{}/toggle", id), &json!({})).await
+}
+pub async fn admin_fetch_legal_reps(corporation_id: &str) -> Result<Value, String> {
+    fetch_json(&format!("/api/admin/legal-representatives?corporation_id={}", corporation_id)).await
+}
+pub async fn admin_create_legal_rep(payload: &Value) -> Result<Value, String> {
+    post_json("/api/admin/legal-representatives", payload).await
+}
+pub async fn admin_update_legal_rep(id: &str, payload: &Value) -> Result<Value, String> {
+    put_json(&format!("/api/admin/legal-representatives/{}", id), payload).await
+}
+pub async fn admin_delete_legal_rep(id: &str) -> Result<Value, String> {
+    delete_json(&format!("/api/admin/legal-representatives/{}", id)).await
 }
 
 pub async fn check_vacancies() -> Result<Value, String> {

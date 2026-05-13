@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::ReportResult;
+use crate::error::{ReportError, ReportResult};
 use crate::routes::certificate::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -23,6 +23,13 @@ async fn final_record(
     Path((course_id, year)): Path<(Uuid, i32)>,
 ) -> ReportResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "reports",
+    )
+    .await
+    .map_err(|e| ReportError::Forbidden(e))?;
 
     let course = sqlx::query_as::<_, (String, String, String)>(
         "SELECT name, grade_level, section FROM courses WHERE id = $1",

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::SisResult;
+use crate::error::{SisError, SisResult};
 use crate::routes::students::{Claims, require_any_role};
 
 #[derive(Deserialize)]
@@ -59,6 +59,13 @@ async fn list_definitions(
     Query(q): Query<ListDefinitionsFilter>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let rows = match q.entity_type {
         Some(ref et) => sqlx::query_as::<_, CustomFieldRow>(

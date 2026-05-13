@@ -3,7 +3,15 @@ use uuid::Uuid;
 
 use crate::rut::Rut;
 
+/// Condición de matrícula del estudiante según clasificación SIGE.
+///
+/// | Código | Significado      |
+/// |--------|------------------|
+/// | AL     | Alumno Regular   |
+/// | RE     | Repitente        |
+/// | TR     | Trasladado       |
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum CondicionMatricula {
     #[serde(rename = "AL")]
     AlumnoRegular,
@@ -13,7 +21,15 @@ pub enum CondicionMatricula {
     Trasladado,
 }
 
+/// Clasificación de prioridad del estudiante (SEP / PIE).
+///
+/// | Código | Significado              |
+/// |--------|--------------------------|
+/// | 1      | Prioritario (SEP)        |
+/// | 2      | Preferente               |
+/// | 0      | No prioritario           |
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum Prioritario {
     #[serde(rename = "1")]
     Si,
@@ -23,7 +39,15 @@ pub enum Prioritario {
     No,
 }
 
+/// Necesidades Educativas Especiales (NEE).
+///
+/// | Código | Significado         |
+/// |--------|---------------------|
+/// | T      | Transitoria         |
+/// | P      | Permanente          |
+/// | N      | Sin NEE             |
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum NEE {
     #[serde(rename = "T")]
     Transitoria,
@@ -33,28 +57,36 @@ pub enum NEE {
     No,
 }
 
+/// Datos completos de un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Student {
     pub id: Uuid,
     pub rut: Rut,
     pub first_name: String,
     pub last_name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub phone: Option<String>,
+    /// Nivel de enseñanza (ej: `"1° Básico"`).
     pub grade_level: String,
+    /// Letra o identificación de la sección (ej: `"A"`).
     pub section: String,
+    /// Código de nivel para exportación SIGE (ej: `"1"`, `"2"`, `"7"`).
     pub cod_nivel: Option<String>,
     pub condicion: CondicionMatricula,
     pub prioritario: Prioritario,
     pub nee: NEE,
+    /// Indica si el estudiante se encuentra matriculado activamente.
     pub enrolled: bool,
 }
 
 impl Student {
+    /// Retorna el nombre completo del estudiante: `"{first_name} {last_name}"`.
     pub fn full_name(&self) -> String {
         format!("{} {}", self.first_name, self.last_name)
     }
 
+    /// Retorna el umbral de asistencia aplicable según si el estudiante
+    /// presenta NEE. General: 85%, NEE: 75%.
     pub fn attendance_threshold(&self) -> f64 {
         match self.nee {
             NEE::No => crate::attendance::THRESHOLD_ASISTENCIA_GENERAL,
@@ -63,6 +95,7 @@ impl Student {
     }
 }
 
+/// Curso o asignatura impartida por un profesor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Course {
     pub id: Uuid,
@@ -71,10 +104,12 @@ pub struct Course {
     pub grade_level: String,
     pub section: String,
     pub teacher_id: Uuid,
+    /// Plan de estudios (`"FG"`, `"HC"`, `"TP"`).
     pub plan: Option<String>,
     pub classroom_id: Option<Uuid>,
 }
 
+/// Relación de matrícula entre un estudiante y un curso en un año académico.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Enrollment {
     pub id: Uuid,
@@ -84,6 +119,7 @@ pub struct Enrollment {
     pub active: bool,
 }
 
+/// Información médica y de contacto de emergencia del estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MedicalInfo {
     pub diseases: Option<String>,
@@ -93,6 +129,7 @@ pub struct MedicalInfo {
     pub emergency_contact_relation: Option<String>,
 }
 
+/// Relación entre un estudiante y su apoderado o tutor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuardianRelationship {
     pub id: Uuid,
@@ -101,10 +138,13 @@ pub struct GuardianRelationship {
     pub guardian_name: String,
     pub guardian_rut: String,
     pub relationship: String,
+    /// Autorizado para retirar al estudiante del establecimiento.
     pub authorized_pickup: bool,
+    /// Recibe notificaciones del sistema.
     pub receives_notifications: bool,
 }
 
+/// Payload para crear un nuevo estudiante con datos personales e información médica.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateStudentPayload {
     pub rut: String,
@@ -125,6 +165,7 @@ pub struct CreateStudentPayload {
     pub emergency_contact_relation: Option<String>,
 }
 
+/// Payload para actualizar los datos de un estudiante existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateStudentPayload {
     pub first_name: Option<String>,
@@ -151,10 +192,10 @@ mod tests {
     fn make_student(nee: NEE) -> Student {
         Student {
             id: Uuid::nil(),
-            rut: Rut("111111111".into()),
+            rut: Rut::new_unchecked("111111111"),
             first_name: "Juan".into(),
             last_name: "Perez".into(),
-            email: "juan@test.cl".into(),
+            email: Some("juan@test.cl".into()),
             phone: None,
             grade_level: "1° Básico".into(),
             section: "A".into(),

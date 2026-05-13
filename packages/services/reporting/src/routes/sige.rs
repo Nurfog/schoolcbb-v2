@@ -6,7 +6,7 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::AppState;
-use crate::error::ReportResult;
+use crate::error::{ReportError, ReportResult};
 use crate::routes::certificate::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -20,6 +20,13 @@ pub fn router() -> Router<AppState> {
 
 async fn sige_students(claims: Claims, State(state): State<AppState>) -> ReportResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "sige",
+    )
+    .await
+    .map_err(|e| ReportError::Forbidden(e))?;
 
     let rows = sqlx::query_as::<_, SigeStudentRow>(
         r#"
@@ -49,6 +56,13 @@ async fn sige_attendance(
     Path((year, month)): Path<(i32, u32)>,
 ) -> ReportResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "sige",
+    )
+    .await
+    .map_err(|e| ReportError::Forbidden(e))?;
 
     let rows = sqlx::query_as::<_, SigeAttendanceRow>(
         r#"
@@ -119,6 +133,14 @@ struct SigeStudentRow {
     prioritario: String,
     nee: String,
 }
+
+// SIGE per-subject export gap:
+// MINEDUC SIGE format requires per-subject fields TIPO_EVAL and SITUACION_FINAL
+// for each student enrolled in a subject:
+//   TIPO_EVAL: PA (Promedio Anual), SF (Semestral Final), AN (Anual), EX (Eximido)
+//   SITUACION_FINAL: APR (Aprobado), REP (Reprobado), EXM (Eximido)
+// No per-subject endpoint exists yet — add one at
+// /api/reports/sige/grades/{year}/{semester} when grade data is available.
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 struct SigeAttendanceRow {

@@ -107,6 +107,7 @@ fn RenderCustomFields(defs: Vec<Value>, field_values: Signal<Vec<(String, String
             rsx! {
                 select {
                     class: "form-input",
+                    value: "{field_values.read().get(i).map(|(_, v)| v.clone()).unwrap_or_default()}",
                     onchange: move |e| {
                         let mut fv = field_values.write();
                         if let Some(item) = fv.get_mut(i) {
@@ -121,6 +122,7 @@ fn RenderCustomFields(defs: Vec<Value>, field_values: Signal<Vec<(String, String
             rsx! {
                 input {
                     class: "form-input",
+                    value: "{field_values.read().get(i).map(|(_, v)| v.clone()).unwrap_or_default()}",
                     oninput: move |e| {
                         let mut fv = field_values.write();
                         if let Some(item) = fv.get_mut(i) {

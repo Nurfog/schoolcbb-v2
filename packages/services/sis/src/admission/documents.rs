@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::SisResult;
+use crate::error::{SisError, SisResult};
 use crate::routes::students::{Claims, require_any_role};
 use crate::workflow::CrmEvent;
 
@@ -32,6 +32,13 @@ async fn list_documents(claims: Claims, State(state): State<AppState>) -> SisRes
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let docs = sqlx::query_as::<_, schoolccb_common::admission::ProspectDocument>(
         "SELECT id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at FROM prospect_documents ORDER BY created_at DESC LIMIT 200",
     ).fetch_all(&state.pool).await?;
@@ -47,6 +54,13 @@ async fn get_document(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let doc = sqlx::query_as::<_, schoolccb_common::admission::ProspectDocument>(
         "SELECT id, prospect_id, file_name, s3_url, doc_type, is_verified, uploaded_by, created_at FROM prospect_documents WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?

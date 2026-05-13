@@ -3,20 +3,58 @@ use uuid::Uuid;
 
 use crate::rut::Rut;
 
+/// Tipo de administrador: global (todos los colegios) o por colegio específico.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AdminType {
+    #[serde(rename = "global")]
+    Global,
+    #[serde(rename = "school")]
+    School,
+}
+
+impl AdminType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AdminType::Global => "global",
+            AdminType::School => "school",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "global" => Some(AdminType::Global),
+            "school" => Some(AdminType::School),
+            _ => None,
+        }
+    }
+}
+
+/// Rol funcional de un usuario en el sistema.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum UserRole {
+    /// Superadministrador con acceso total.
     Root,
+    /// Sostenedor o administrador de corporación.
     Sostenedor,
+    /// Director del establecimiento.
     Director,
+    /// Jefe de Unidad Técnico Pedagógica.
     UTP,
+    /// Administrador del establecimiento.
     Administrador,
+    /// Profesor o docente.
     Profesor,
+    /// Apoderado o tutor de un estudiante.
     Apoderado,
+    /// Alumno o estudiante.
     Alumno,
+    /// Usuario del módulo de admisión.
     Admision,
 }
 
 impl UserRole {
+    /// Retorna `true` si el rol tiene permisos administrativos.
     pub fn es_admin(&self) -> bool {
         matches!(
             self,
@@ -38,6 +76,7 @@ impl UserRole {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Root" => Some(UserRole::Root),
@@ -61,6 +100,7 @@ impl std::str::FromStr for UserRole {
     }
 }
 
+/// Usuario del sistema.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: Uuid,
@@ -69,14 +109,18 @@ pub struct User {
     pub email: String,
     pub role: UserRole,
     pub active: bool,
+    pub admin_type: Option<AdminType>,
+    pub managed_school_id: Option<Uuid>,
 }
 
+/// Payload de autenticación (email + contraseña).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthPayload {
     pub email: String,
     pub password: String,
 }
 
+/// Payload para registrar un nuevo usuario.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterPayload {
     pub rut: String,
@@ -86,13 +130,16 @@ pub struct RegisterPayload {
     pub role: String,
     pub corporation_id: Option<String>,
     pub school_id: Option<String>,
+    pub admin_type: Option<String>,
 }
 
+/// Payload para refrescar un token JWT.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshPayload {
     pub refresh_token: String,
 }
 
+/// Respuesta de autenticación exitosa con tokens y datos del usuario.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub token: String,
@@ -100,6 +147,7 @@ pub struct AuthResponse {
     pub user: User,
 }
 
+/// Resumen del dashboard principal del establecimiento.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardSummary {
     pub total_students: i64,
@@ -109,6 +157,7 @@ pub struct DashboardSummary {
     pub today_events: Vec<AgendaEvent>,
 }
 
+/// Evento de la agenda escolar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgendaEvent {
     pub id: Uuid,
@@ -118,14 +167,21 @@ pub struct AgendaEvent {
     pub event_type: EventType,
 }
 
+/// Tipo de evento en la agenda.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum EventType {
+    /// Bloque de clases.
     Clase,
+    /// Reunión de apoderados o del equipo.
     Reunion,
+    /// Evaluación o prueba.
     Evaluacion,
+    /// Evento general (acto, celebración, etc.).
     Evento,
 }
 
+/// Widget de resumen de asistencia del día.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttendanceTodayWidget {
     pub date: String,
@@ -136,6 +192,7 @@ pub struct AttendanceTodayWidget {
     pub justified: i64,
 }
 
+/// Widget de alertas de asistencia.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertWidget {
     pub alerts: Vec<AttendanceAlert>,
@@ -143,6 +200,7 @@ pub struct AlertWidget {
 
 use crate::attendance::AttendanceAlert;
 
+/// Widget de eventos de la agenda.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgendaWidget {
     pub events: Vec<AgendaEvent>,

@@ -6,7 +6,6 @@
 target/
 **/*.md
 **/*.png
-**/*.svg
 **/*.jpg
 **/*.jpeg
 Dockerfile

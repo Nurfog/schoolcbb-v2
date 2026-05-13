@@ -40,6 +40,13 @@ async fn list_employees(
     Query(q): Query<EmployeeFilter>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut sql = "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees".to_string();
     let mut clauses: Vec<String> = vec![];
@@ -73,6 +80,13 @@ async fn get_employee(
     Path(id): Path<Uuid>,
 ) -> SisResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "hr",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let employee = sqlx::query_as::<_, schoolccb_common::hr::Employee>(
         "SELECT id, school_id, rut, first_name, last_name, email, phone, position, category, hire_date, vacation_days_available, active, supervisor_id, user_id, created_at, updated_at FROM employees WHERE id = $1",

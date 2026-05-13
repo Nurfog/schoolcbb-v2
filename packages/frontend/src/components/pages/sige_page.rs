@@ -7,8 +7,8 @@ pub fn SigePage() -> Element {
     let mut tab = use_signal(|| "students".to_string());
     let students =
         use_resource(|| async move { client::fetch_json("/api/reports/sige/students").await });
-    let mut year = use_signal(|| 2026);
-    let mut month = use_signal(|| 5);
+    let mut year = use_signal(|| js_sys::Date::new_0().get_full_year() as i32);
+    let mut month = use_signal(|| js_sys::Date::new_0().get_month() as i32 + 1);
     let attendance = use_resource(move || async move {
         client::fetch_json(&format!(
             "/api/reports/sige/attendance/{}/{}",
@@ -54,7 +54,7 @@ pub fn SigePage() -> Element {
                         div { class: "form-row",
                             div { class: "form-group",
                                 label { "Anio:" }
-                                input { class: "form-input", value: "{year}", oninput: move |e| year.set(e.value().parse().unwrap_or(2026)), type: "number" }
+                                input { class: "form-input", value: "{year}", oninput: move |e| year.set(e.value().parse().unwrap_or_else(|_| js_sys::Date::new_0().get_full_year() as i32)), type: "number" }
                             }
                             div { class: "form-group",
                                 label { "Mes:" }

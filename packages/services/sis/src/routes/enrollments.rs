@@ -53,6 +53,13 @@ async fn list_enrollments(
         &claims,
         &["Sostenedor", "Administrador", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "enrollments",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut conditions = Vec::new();
     let mut bind_values: Vec<String> = vec![];

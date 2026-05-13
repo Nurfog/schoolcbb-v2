@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::subjects::{Claims, require_any_role};
 use crate::AppState;
-use crate::error::AcademicResult;
+use crate::error::{AcademicError, AcademicResult};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -53,6 +53,13 @@ async fn list_course_subjects(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "grades",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
     let rows = sqlx::query_as::<_, CourseSubjectRow>(
         r#"SELECT cs.id, cs.course_id, cs.subject_id, cs.teacher_id,

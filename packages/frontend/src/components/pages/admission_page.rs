@@ -256,6 +256,7 @@ pub fn AdmissionPage() -> Element {
                     }};
 
                     let do_delete_prospect = { let pid = pid.clone(); move |_| {
+                        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) { return; }
                         spawn({
                             let pid = pid.clone();
                             async move {

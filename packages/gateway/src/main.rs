@@ -18,6 +18,8 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
+use schoolccb_gateway::extract_jwt_from_cookie;
+
 #[derive(Clone)]
 struct AppState {
     client: reqwest::Client,
@@ -29,6 +31,7 @@ struct AppState {
     finance_url: String,
     reporting_url: String,
     portal_url: String,
+    curriculum_url: String,
     frontend_url: String,
 }
 
@@ -41,7 +44,11 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     let state = AppState {
-        client: reqwest::Client::new(),
+        client: reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("reqwest Client debe construirse"),
+
         identity_url: env::var("IDENTITY_URL").unwrap_or_else(|_| "http://localhost:3001".into()),
         sis_url: env::var("SIS_URL").unwrap_or_else(|_| "http://localhost:3002".into()),
         academic_url: env::var("ACADEMIC_URL").unwrap_or_else(|_| "http://localhost:3003".into()),
@@ -53,16 +60,17 @@ async fn main() {
         finance_url: env::var("FINANCE_URL").unwrap_or_else(|_| "http://localhost:3006".into()),
         reporting_url: env::var("REPORTING_URL").unwrap_or_else(|_| "http://localhost:3007".into()),
         portal_url: env::var("PORTAL_URL").unwrap_or_else(|_| "http://localhost:3010".into()),
+        curriculum_url: env::var("CURRICULUM_URL").unwrap_or_else(|_| "http://localhost:3011".into()),
     };
+    let frontend_origin = state
+        .frontend_url
+        .parse::<axum::http::HeaderValue>()
+        .expect("FRONTEND_URL debe ser una URL válida");
     let cors = CorsLayer::new()
-        .allow_origin(
-            state
-                .frontend_url
-                .parse::<axum::http::HeaderValue>()
-                .unwrap(),
-        )
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any);
+        .allow_origin(frontend_origin)
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT, axum::http::Method::DELETE, axum::http::Method::OPTIONS])
+        .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::AUTHORIZATION, axum::http::header::COOKIE, axum::http::header::ACCEPT])
+        .allow_credentials(true);
 
     let schema = graphql::build_schema(&state.sis_url, &state.academic_url, state.client.clone());
 
@@ -121,6 +129,7 @@ async fn main() {
         .route("/api/academic/grade-levels", any(proxy_academic))
         .route("/api/academic/grade-levels/{*path}", any(proxy_academic))
         .route("/api/academic/audit-log", any(proxy_academic))
+        .route("/api/academic/audit-log/{*path}", any(proxy_academic))
         .route("/api/attendance", any(proxy_attendance))
         .route("/api/attendance/{*path}", any(proxy_attendance))
         .route("/api/communications", any(proxy_notifications))
@@ -131,6 +140,10 @@ async fn main() {
         .route("/api/finance/{*path}", any(proxy_finance))
         .route("/api/reports", any(proxy_reporting))
         .route("/api/reports/{*path}", any(proxy_reporting))
+        .route("/api/legal-representatives", any(proxy_identity))
+        .route("/api/legal-representatives/{*path}", any(proxy_identity))
+        .route("/api/curriculum", any(proxy_curriculum))
+        .route("/api/curriculum/{*path}", any(proxy_curriculum))
         .route("/graphql", get(graphql_playground).post(graphql_handler))
         .layer(Extension(schema))
         .route("/ws", any(ws_proxy))
@@ -143,8 +156,18 @@ async fn main() {
     let addr = format!("{host}:{port}");
     tracing::info!("Gateway starting on {addr}");
 
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("failed to bind TcpListener to address — is the port already in use?");
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install ctrl_c handler");
+            tracing::info!("Shutting down gracefully...");
+        })
+        .await
+        .expect("axum::serve failed — the server encountered a fatal error during operation");
 }
 
 async fn ws_proxy(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -173,6 +196,10 @@ async fn graphql_handler(
     let vars = body.get("variables");
 
     let mut req = async_graphql::Request::new(query);
+    let operation_name = body.get("operationName").and_then(|v| v.as_str());
+    if let Some(name) = operation_name {
+        req = req.operation_name(name);
+    }
     if let Some(v) = vars {
         if let Some(obj) = v.as_object() {
             let vars = async_graphql::Variables::from_json(serde_json::Value::Object(obj.clone()));
@@ -184,7 +211,17 @@ async fn graphql_handler(
     }
 
     let resp = schema.execute(req).await;
-    Json(serde_json::json!(resp.data))
+    let mut output = serde_json::Map::new();
+    output.insert("data".into(), serde_json::to_value(&resp.data).unwrap_or_default());
+    if !resp.errors.is_empty() {
+        let errors: Vec<serde_json::Value> = resp
+            .errors
+            .iter()
+            .map(|e| serde_json::json!({"message": e.message}))
+            .collect();
+        output.insert("errors".into(), serde_json::Value::Array(errors));
+    }
+    Json(serde_json::Value::Object(output))
 }
 
 async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
@@ -200,12 +237,24 @@ async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
 
             let c2u = tokio::spawn(async move {
                 while let Some(Ok(msg)) = client_receiver.next().await {
-                    let data = msg.into_data();
-                    if upstream_sender
-                        .send(tungstenite::Message::Binary(data.to_vec()))
-                        .await
-                        .is_err()
-                    {
+                    let upstream_msg = match msg {
+                        Message::Text(t) => tungstenite::Message::Text(t.to_string()),
+                        Message::Binary(b) => tungstenite::Message::Binary(b.to_vec()),
+                        Message::Ping(p) => tungstenite::Message::Ping(p.to_vec()),
+                        Message::Pong(p) => tungstenite::Message::Pong(p.to_vec()),
+                        Message::Close(c) => {
+                            let ws_close = c.map(|f| {
+                                let code: u16 = f.code.into();
+                                tungstenite::protocol::CloseFrame {
+                                    code: tungstenite::protocol::frame::coding::CloseCode::from(code),
+                                    reason: std::borrow::Cow::Owned(f.reason.to_string()),
+                                }
+                            });
+                            let _ = upstream_sender.send(tungstenite::Message::Close(ws_close)).await;
+                            break;
+                        }
+                    };
+                    if upstream_sender.send(upstream_msg).await.is_err() {
                         break;
                     }
                 }
@@ -213,12 +262,22 @@ async fn handle_ws_proxy(client_ws: WebSocket, upstream_url: String) {
 
             let u2c = tokio::spawn(async move {
                 while let Some(Ok(msg)) = upstream_receiver.next().await {
-                    let data = msg.into_data();
-                    if client_sender
-                        .send(Message::Binary(axum::body::Bytes::from(data)))
-                        .await
-                        .is_err()
-                    {
+                    let client_msg = match msg {
+                        tungstenite::Message::Text(t) => Message::Text(t.into()),
+                        tungstenite::Message::Binary(b) => Message::Binary(axum::body::Bytes::from(b)),
+                        tungstenite::Message::Ping(p) => Message::Ping(axum::body::Bytes::from(p)),
+                        tungstenite::Message::Pong(p) => Message::Pong(axum::body::Bytes::from(p)),
+                        tungstenite::Message::Close(c) => {
+                            let axum_close = c.map(|f| axum::extract::ws::CloseFrame {
+                                code: f.code.into(),
+                                reason: f.reason.to_string().into(),
+                            });
+                            let _ = client_sender.send(Message::Close(axum_close)).await;
+                            break;
+                        }
+                        _ => continue,
+                    };
+                    if client_sender.send(client_msg).await.is_err() {
                         break;
                     }
                 }
@@ -251,14 +310,7 @@ proxy_handler!(proxy_notifications, "notifications");
 proxy_handler!(proxy_finance, "finance");
 proxy_handler!(proxy_reporting, "reporting");
 proxy_handler!(proxy_portal, "portal");
-
-fn extract_jwt_from_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers.get("cookie")?
-        .to_str().ok()?
-        .split(';')
-        .find_map(|c| c.trim().strip_prefix("jwt_token="))
-        .map(|v| v.to_string())
-}
+proxy_handler!(proxy_curriculum, "curriculum");
 
 async fn proxy_request(state: &AppState, service: &str, req: Request) -> Response {
     let base_url = match service {
@@ -270,6 +322,7 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
         "finance" => &state.finance_url,
         "reporting" => &state.reporting_url,
         "portal" => &state.portal_url,
+        "curriculum" => &state.curriculum_url,
         _ => return (StatusCode::BAD_REQUEST, "Unknown service").into_response(),
     };
 

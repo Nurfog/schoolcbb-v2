@@ -43,6 +43,13 @@ async fn list_prospects(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
 
     let mut sql = "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects".to_string();
     let mut clauses: Vec<String> = vec![];
@@ -91,6 +98,13 @@ async fn get_prospect(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Admision"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "admission",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
     let prospect = sqlx::query_as::<_, schoolccb_common::admission::Prospect>(
         "SELECT id, first_name, last_name, rut, email, phone, current_stage_id, assigned_user_id, source, notes, created_at, updated_at FROM prospects WHERE id = $1",
     ).bind(id).fetch_optional(&state.pool).await?

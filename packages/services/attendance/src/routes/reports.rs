@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::AttendanceResult;
+use crate::error::{AttendanceError, AttendanceResult};
 use crate::routes::attendance::{Claims, require_any_role};
 
 pub fn router() -> Router<AppState> {
@@ -39,6 +39,13 @@ async fn monthly_report(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "attendance",
+    )
+    .await
+    .map_err(|e| AttendanceError::Forbidden(e))?;
 
     let summary = get_monthly_summary(&state.pool, year, month).await?;
 
@@ -177,6 +184,13 @@ async fn export_supereduc(
     Path((year, month)): Path<(i32, u32)>,
 ) -> AttendanceResult<Json<Value>> {
     require_any_role(&claims, &["Administrador", "Sostenedor", "Director", "UTP"])?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "attendance",
+    )
+    .await
+    .map_err(|e| AttendanceError::Forbidden(e))?;
 
     let rows = sqlx::query_as::<_, SupereducRow>(
         r#"

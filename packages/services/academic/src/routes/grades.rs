@@ -50,44 +50,85 @@ async fn list_grades(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "grades",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
-    let school_condition = claims
+    let school_id: Option<Uuid> = claims
         .school_id
         .as_ref()
-        .map(|sid| format!(" AND g.school_id = '{}'::uuid", sid))
-        .unwrap_or_default();
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    let corporation_id: Option<Uuid> = claims
+        .corporation_id
+        .as_ref()
+        .and_then(|s| Uuid::parse_str(s).ok());
 
     let grades = if let Some(sid) = filter.student_id {
         if let Some(csid) = filter.course_subject_id {
             if let Some(sem) = filter.semester {
                 if let Some(y) = filter.year {
-                    sqlx::query_as::<_, RawGrade>(
-                        &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                         FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 AND year = $4{} ORDER BY date DESC", school_condition)
-                    ).bind(sid).bind(csid).bind(sem).bind(y).fetch_all(&state.pool).await?
+                    let (sql, corp_val) = if school_id.is_some() {
+                        let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $6").unwrap_or("");
+                        (format!("SELECT g.id, g.student_id, g.subject, g.grade, g.grade_type, g.semester, g.year, g.date, g.teacher_id, g.observation, g.category_id FROM grades g JOIN schools sch ON sch.id = g.school_id WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 AND year = $4 AND g.school_id = $5{} ORDER BY g.date DESC", corp_clause), corporation_id)
+                    } else {
+                        ("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 AND year = $4 ORDER BY date DESC".to_string(), None)
+                    };
+                    let mut q = sqlx::query_as::<_, RawGrade>(&sql).bind(sid).bind(csid).bind(sem).bind(y);
+                    if let Some(sc) = school_id { q = q.bind(sc); }
+                    if let Some(cc) = corp_val { q = q.bind(cc); }
+                    q.fetch_all(&state.pool).await?
                 } else {
-                    sqlx::query_as::<_, RawGrade>(
-                        &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                         FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3{} ORDER BY date DESC", school_condition)
-                    ).bind(sid).bind(csid).bind(sem).fetch_all(&state.pool).await?
+                    let (sql, corp_val) = if school_id.is_some() {
+                        let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $5").unwrap_or("");
+                        (format!("SELECT g.id, g.student_id, g.subject, g.grade, g.grade_type, g.semester, g.year, g.date, g.teacher_id, g.observation, g.category_id FROM grades g JOIN schools sch ON sch.id = g.school_id WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 AND g.school_id = $4{} ORDER BY g.date DESC", corp_clause), corporation_id)
+                    } else {
+                        ("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE student_id = $1 AND course_subject_id = $2 AND semester = $3 ORDER BY date DESC".to_string(), None)
+                    };
+                    let mut q = sqlx::query_as::<_, RawGrade>(&sql).bind(sid).bind(csid).bind(sem);
+                    if let Some(sc) = school_id { q = q.bind(sc); }
+                    if let Some(cc) = corp_val { q = q.bind(cc); }
+                    q.fetch_all(&state.pool).await?
                 }
             } else {
-                sqlx::query_as::<_, RawGrade>(
-                        &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                         FROM grades WHERE student_id = $1 AND course_subject_id = $2{} ORDER BY date DESC", school_condition)
-                    ).bind(sid).bind(csid).fetch_all(&state.pool).await?
+                let (sql, corp_val) = if school_id.is_some() {
+                    let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $4").unwrap_or("");
+                    (format!("SELECT g.id, g.student_id, g.subject, g.grade, g.grade_type, g.semester, g.year, g.date, g.teacher_id, g.observation, g.category_id FROM grades g JOIN schools sch ON sch.id = g.school_id WHERE student_id = $1 AND course_subject_id = $2 AND g.school_id = $3{} ORDER BY g.date DESC", corp_clause), corporation_id)
+                } else {
+                    ("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE student_id = $1 AND course_subject_id = $2 ORDER BY date DESC".to_string(), None)
+                };
+                let mut q = sqlx::query_as::<_, RawGrade>(&sql).bind(sid).bind(csid);
+                if let Some(sc) = school_id { q = q.bind(sc); }
+                if let Some(cc) = corp_val { q = q.bind(cc); }
+                q.fetch_all(&state.pool).await?
             }
         } else {
-            sqlx::query_as::<_, RawGrade>(
-                &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-                 FROM grades WHERE student_id = $1{} ORDER BY date DESC", school_condition)
-            ).bind(sid).fetch_all(&state.pool).await?
+            let (sql, corp_val) = if school_id.is_some() {
+                let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $3").unwrap_or("");
+                (format!("SELECT g.id, g.student_id, g.subject, g.grade, g.grade_type, g.semester, g.year, g.date, g.teacher_id, g.observation, g.category_id FROM grades g JOIN schools sch ON sch.id = g.school_id WHERE student_id = $1 AND g.school_id = $2{} ORDER BY g.date DESC", corp_clause), corporation_id)
+            } else {
+                ("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE student_id = $1 ORDER BY date DESC".to_string(), None)
+            };
+            let mut q = sqlx::query_as::<_, RawGrade>(&sql).bind(sid);
+            if let Some(sc) = school_id { q = q.bind(sc); }
+            if let Some(cc) = corp_val { q = q.bind(cc); }
+            q.fetch_all(&state.pool).await?
         }
     } else {
-        sqlx::query_as::<_, RawGrade>(
-            &format!("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id
-             FROM grades WHERE 1=1{} ORDER BY date DESC", school_condition)
-        ).fetch_all(&state.pool).await?
+        let (sql, corp_val) = if school_id.is_some() {
+            let corp_clause = corporation_id.map(|_| " AND sch.corporation_id = $2").unwrap_or("");
+            (format!("SELECT g.id, g.student_id, g.subject, g.grade, g.grade_type, g.semester, g.year, g.date, g.teacher_id, g.observation, g.category_id FROM grades g JOIN schools sch ON sch.id = g.school_id WHERE 1=1 AND g.school_id = $1{} ORDER BY g.date DESC", corp_clause), corporation_id)
+        } else {
+            ("SELECT id, student_id, subject, grade, grade_type, semester, year, date, teacher_id, observation, category_id FROM grades WHERE 1=1 ORDER BY date DESC".to_string(), None)
+        };
+        let mut q = sqlx::query_as::<_, RawGrade>(&sql);
+        if let Some(sc) = school_id { q = q.bind(sc); }
+        if let Some(cc) = corp_val { q = q.bind(cc); }
+        q.fetch_all(&state.pool).await?
     };
 
     Ok(Json(json!({ "grades": grades, "total": grades.len() })))

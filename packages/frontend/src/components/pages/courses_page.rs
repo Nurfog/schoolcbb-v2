@@ -63,9 +63,11 @@ pub fn CoursesPage() -> Element {
     };
 
     let do_delete = move |id: String| {
+        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) {
+            return;
+        }
         spawn(async move {
-            let _ =
-                client::post_json(&format!("/api/courses/{}", id), &serde_json::json!({})).await;
+            let _ = client::delete_json(&format!("/api/courses/{}", id)).await;
             courses.restart();
         });
     };
@@ -95,15 +97,15 @@ pub fn CoursesPage() -> Element {
                 h3 { if editing_id().is_some() { "Editar Curso" } else { "Nuevo Curso" } }
                 div { class: "form-grid",
                     div { class: "field",
-                        label { "Nombre del Curso" }
-                        input { class: "form-input", placeholder: "1° Medio A", value: "{name}",
+                        label { r#for: "course-name", "Nombre del Curso" }
+                        input { id: "course-name", class: "form-input", placeholder: "1° Medio A", value: "{name}",
                             oninput: move |e| name.set(e.value()),
                         }
                     }
                     div { class: "field",
-                        label { "Nivel" }
-                        select { class: "form-input", value: "{grade_level}",
-                            oninput: move |e| {
+                        label { r#for: "course-level", "Nivel" }
+                        select { id: "course-level", class: "form-input", value: "{grade_level}",
+                            onchange: move |e| {
                                 grade_level.set(e.value());
                                 plan.set(String::new());
                             },
@@ -131,9 +133,9 @@ pub fn CoursesPage() -> Element {
                         if needs_plan(&grade_level()) {
                             rsx! {
                                 div { class: "field",
-                                    label { "Plan" }
-                                    select { class: "form-input", value: "{plan}",
-                                        oninput: move |e| plan.set(e.value()),
+                                    label { r#for: "course-plan", "Plan" }
+                                    select { id: "course-plan", class: "form-input", value: "{plan}",
+                                        onchange: move |e| plan.set(e.value()),
                                         option { value: "", "Seleccionar..." }
                                         option { value: "HC", "Científico-Humanista" }
                                         option { value: "TP", "Técnico-Profesional" }
@@ -144,8 +146,8 @@ pub fn CoursesPage() -> Element {
                         } else { rsx! {} }
                     }
                     div { class: "field",
-                        label { "Sección" }
-                        input { class: "form-input", placeholder: "A", value: "{section}",
+                        label { r#for: "course-section", "Sección" }
+                        input { id: "course-section", class: "form-input", placeholder: "A", value: "{section}",
                             oninput: move |e| section.set(e.value()),
                         }
                     }
@@ -173,12 +175,12 @@ pub fn CoursesPage() -> Element {
             table { class: "data-table",
                 thead {
                     tr {
-                        th { "Nombre" }
-                        th { "Nivel" }
-                        th { "Plan" }
-                        th { "Sección" }
-                        th { "Profesor ID" }
-                        th { "Acciones" }
+                        th { scope: "col", "Nombre" }
+                        th { scope: "col", "Nivel" }
+                        th { scope: "col", "Plan" }
+                        th { scope: "col", "Sección" }
+                        th { scope: "col", "Profesor ID" }
+                        th { scope: "col", "Acciones" }
                     }
                 }
                 tbody {
@@ -285,13 +287,13 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
     let cid_clone = cid.clone();
     let subjects = use_resource(move || {
         let cid = cid_clone.clone();
-        async move { client::fetch_json(&format!("/api/grades/course-subjects/{}/2025", cid)).await }
+        async move { client::fetch_json(&format!("/api/grades/course-subjects/{}/{}", cid, js_sys::Date::new_0().get_full_year())).await }
     });
 
     let mut assign_subject_id = use_signal(|| "".to_string());
     let mut assign_teacher_id = use_signal(|| "".to_string());
     let mut assign_hours = use_signal(|| "".to_string());
-    let mut assign_year = use_signal(|| "2025".to_string());
+    let mut assign_year = use_signal(|| js_sys::Date::new_0().get_full_year().to_string());
     let mut saving = use_signal(|| false);
 
     let subject_rows = match &subjects() {
@@ -343,7 +345,7 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
             "course_id": course_id,
             "subject_id": assign_subject_id(),
             "teacher_id": assign_teacher_id(),
-            "academic_year": assign_year().parse::<i32>().unwrap_or(2025),
+            "academic_year": assign_year().parse::<i32>().unwrap_or_else(|_| js_sys::Date::new_0().get_full_year() as i32),
             "hours_per_week": assign_hours().parse::<i32>().ok(),
         });
         let mut subjects = subjects.clone();
@@ -361,7 +363,7 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
 
     rsx! {
         div { class: "modal-overlay", onclick: move |_| on_close.call(()),
-            div { class: "modal-content", onclick: move |e| e.stop_propagation(),
+            div { class: "modal-content", role: "dialog", "aria-modal": "true", onclick: move |e| e.stop_propagation(),
                 div { class: "modal-header",
                     h2 { "Asignaturas - {course_name}" }
                     button { class: "btn-icon", onclick: move |_| on_close.call(()),
@@ -395,14 +397,14 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
                             }
                         }
                         div { class: "field",
-                            label { "Horas" }
-                            input { class: "form-input", placeholder: "4", value: "{assign_hours}",
+                            label { r#for: "modal-hours", "Horas" }
+                            input { id: "modal-hours", class: "form-input", placeholder: "4", value: "{assign_hours}",
                                 oninput: move |e| assign_hours.set(e.value()),
                             }
                         }
                         div { class: "field",
-                            label { "Año" }
-                            input { class: "form-input", value: "{assign_year}",
+                            label { r#for: "modal-year", "Año" }
+                            input { id: "modal-year", class: "form-input", value: "{assign_year}",
                                 oninput: move |e| assign_year.set(e.value()),
                             }
                         }
@@ -418,12 +420,12 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
                         table { class: "data-table",
                             thead {
                                 tr {
-                                    th { "Asignatura" }
-                                    th { "Código" }
-                                    th { "Profesor" }
-                                    th { "Horas" }
-                                    th { "Año" }
-                                    th { "Acciones" }
+                                    th { scope: "col", "Asignatura" }
+                                    th { scope: "col", "Código" }
+                                    th { scope: "col", "Profesor" }
+                                    th { scope: "col", "Horas" }
+                                    th { scope: "col", "Año" }
+                                    th { scope: "col", "Acciones" }
                                 }
                             }
                             tbody {
@@ -442,6 +444,7 @@ fn CourseSubjectsModal(course: Value, on_close: EventHandler<()>) -> Element {
                                                     let id = row.5.clone();
                                                     let mut subjects = subjects_rc.clone();
                                                     move |_| {
+                                                        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) { return; }
                                                         let id = id.clone();
                                                         spawn(async move {
                                                             let _ = client::delete_json(&format!("/api/grades/course-subjects/{}", id)).await;

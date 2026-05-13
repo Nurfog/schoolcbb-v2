@@ -2,12 +2,14 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Cuota o arancel asociado a un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Fee {
     pub id: Uuid,
     pub student_id: Uuid,
     pub description: String,
+    /// Monto en CLP.
     pub amount: f64,
     pub due_date: NaiveDate,
     pub paid: bool,
@@ -16,6 +18,7 @@ pub struct Fee {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva cuota.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFeePayload {
     pub student_id: Uuid,
@@ -24,6 +27,7 @@ pub struct CreateFeePayload {
     pub due_date: NaiveDate,
 }
 
+/// Pago realizado para una cuota.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Payment {
@@ -37,6 +41,7 @@ pub struct Payment {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para registrar un nuevo pago.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePaymentPayload {
     pub fee_id: Uuid,
@@ -47,6 +52,7 @@ pub struct CreatePaymentPayload {
     pub reference: Option<String>,
 }
 
+/// Beca o beneficio aplicado a un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Scholarship {
@@ -61,6 +67,7 @@ pub struct Scholarship {
     pub created_at: DateTime<Utc>,
 }
 
+/// Payload para crear una nueva beca.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateScholarshipPayload {
     pub student_id: Uuid,
@@ -70,6 +77,7 @@ pub struct CreateScholarshipPayload {
     pub valid_until: NaiveDate,
 }
 
+/// Resumen financiero completo de un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StudentFinanceSummary {
     pub student_id: Uuid,
@@ -82,10 +90,12 @@ pub struct StudentFinanceSummary {
 }
 
 impl StudentFinanceSummary {
+    /// Saldo pendiente por pagar.
     pub fn balance(&self) -> f64 {
         self.total_pending
     }
 
+    /// Porcentaje de avance de pago (0–100).
     pub fn payment_progress(&self) -> f64 {
         if self.total_fees == 0.0 {
             return 100.0;
@@ -93,6 +103,7 @@ impl StudentFinanceSummary {
         (self.total_paid / self.total_fees) * 100.0
     }
 
+    /// Porcentaje de descuento efectivo por becas.
     pub fn effective_discount(&self) -> f64 {
         self.discount_percentage
     }

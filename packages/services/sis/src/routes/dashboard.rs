@@ -1,8 +1,10 @@
 use axum::{Json, Router, extract::State, routing::get};
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::AppState;
-use crate::error::SisResult;
+use crate::error::{SisError, SisResult};
+use crate::routes::students::Claims;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -12,14 +14,36 @@ pub fn router() -> Router<AppState> {
         .route("/api/dashboard/agenda", get(agenda))
 }
 
-async fn summary(State(state): State<AppState>) -> SisResult<Json<Value>> {
-    let data = crate::routes::models::get_dashboard_summary(&state.pool).await?;
-    Ok(Json(serde_json::to_value(data).unwrap()))
+fn school_and_corp_id(claims: &Claims) -> (Option<Uuid>, Option<Uuid>) {
+    let school_id = claims.school_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
+    let corporation_id = claims.corporation_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
+    (school_id, corporation_id)
 }
 
-async fn attendance_today(State(state): State<AppState>) -> SisResult<Json<Value>> {
+async fn summary(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "dashboard",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
+    let (school_id, corporation_id) = school_and_corp_id(&claims);
+    let data = crate::routes::models::get_dashboard_summary(&state.pool, school_id, corporation_id).await?;
+    Ok(Json(serde_json::to_value(data).map_err(|e| SisError::Internal(e.to_string()))?))
+}
+
+async fn attendance_today(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "dashboard",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
+    let (school_id, corporation_id) = school_and_corp_id(&claims);
     let today = chrono::Utc::now().date_naive().to_string();
-    let records = crate::routes::models::get_attendance_today(&state.pool, &today).await?;
+    let records = crate::routes::models::get_attendance_today(&state.pool, &today, school_id, corporation_id).await?;
 
     let total = records.len() as i64;
     let present = records
@@ -51,12 +75,20 @@ async fn attendance_today(State(state): State<AppState>) -> SisResult<Json<Value
     })))
 }
 
-async fn student_alerts(State(state): State<AppState>) -> SisResult<Json<Value>> {
-    let alerts = crate::routes::models::get_attendance_alerts(&state.pool).await?;
+async fn student_alerts(claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "dashboard",
+    )
+    .await
+    .map_err(|e| SisError::Forbidden(e))?;
+    let (school_id, corporation_id) = school_and_corp_id(&claims);
+    let alerts = crate::routes::models::get_attendance_alerts(&state.pool, school_id, corporation_id).await?;
     Ok(Json(serde_json::json!({ "alerts": alerts })))
 }
 
-async fn agenda(State(state): State<AppState>) -> SisResult<Json<Value>> {
+async fn agenda(_claims: Claims, State(state): State<AppState>) -> SisResult<Json<Value>> {
     let today = chrono::Utc::now().date_naive().to_string();
     let events = crate::routes::models::get_agenda_events(&state.pool, &today).await?;
     Ok(Json(serde_json::json!({ "events": events })))

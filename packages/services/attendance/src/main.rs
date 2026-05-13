@@ -4,6 +4,7 @@ mod routes;
 
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::Router;
 use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
@@ -41,6 +42,7 @@ async fn main() {
     };
 
     let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(routes::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

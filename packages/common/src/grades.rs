@@ -2,18 +2,22 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Valor de una calificación en escala chilena (1.0 a 7.0, redondeado a 1 decimal).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Grade(f64);
 
+/// Error al construir una [`Grade`] con un valor fuera del rango válido.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum GradeError {
+    /// El valor debe estar entre 1.0 y 7.0.
     #[error("Nota fuera de rango: debe estar entre 1.0 y 7.0")]
     OutOfRange,
-    #[error("Nota debe tener máximo 1 decimal")]
-    TooManyDecimals,
 }
 
 impl Grade {
+    /// Crea una nueva calificación validando que esté entre 1.0 y 7.0.
+    /// Redondea al décimo más cercano.
     pub fn new(value: f64) -> Result<Self, GradeError> {
         if !(1.0..=7.0).contains(&value) {
             return Err(GradeError::OutOfRange);
@@ -22,33 +26,46 @@ impl Grade {
         Ok(Self(rounded))
     }
 
+    /// Retorna el valor numérico de la calificación.
     pub fn value(&self) -> f64 {
         self.0
     }
 
+    /// Retorna `true` si la nota es igual o superior a 4.0 (aprobado).
     pub fn is_passing(&self) -> bool {
         self.0 >= 4.0
     }
 
+    /// Retorna `true` si la nota es igual o superior a 6.0 (excelente).
     pub fn is_excellent(&self) -> bool {
         self.0 >= 6.0
     }
 }
 
+/// Tipo de calificación.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum GradeType {
+    /// Calificación que pondera para el promedio final.
     Sumativa,
+    /// Calificación formativa (no pondera).
     Formativa,
 }
 
+/// Semestre académico.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Semester {
+    /// Primer semestre.
     First = 1,
+    /// Segundo semestre.
     Second = 2,
 }
 
+/// Mínimo de calificaciones por asignatura por semestre exigido por normativa.
 pub const MIN_CALIFICACIONES_SEMESTRE: usize = 2;
 
+/// Calificación de un estudiante en una asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubjectGrade {
     pub id: Uuid,
@@ -63,6 +80,7 @@ pub struct SubjectGrade {
     pub observation: Option<String>,
 }
 
+/// Promedio y estadísticas de un estudiante en una asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubjectAverage {
     pub subject: String,
@@ -72,12 +90,17 @@ pub struct SubjectAverage {
     pub max_grade: f64,
 }
 
+/// Resultado de la evaluación de promoción de un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub enum PromotionResult {
+    /// El estudiante cumple los requisitos para ser promovido.
     Promovido,
+    /// El estudiante no cumple los requisitos y reprueba el año.
     Reprobado,
 }
 
+/// Reporte de calificaciones de un estudiante por semestre.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StudentGradeReport {
     pub student_id: Uuid,
@@ -90,6 +113,7 @@ pub struct StudentGradeReport {
 }
 
 impl StudentGradeReport {
+    /// Calcula el promedio global a partir de los promedios por asignatura.
     pub fn calculate(promedios: &[SubjectAverage]) -> f64 {
         if promedios.is_empty() {
             return 0.0;
@@ -98,6 +122,12 @@ impl StudentGradeReport {
         sum / promedios.len() as f64
     }
 
+    /// Evalúa si el estudiante es promovido según la normativa MINEDUC:
+    ///
+    /// - 0 asignaturas reprobadas: promovido.
+    /// - 1 reprobada con promedio >= 3.5: promovido.
+    /// - 2 reprobadas con promedio >= 3.0 en ambas: promovido.
+    /// - 3 o más reprobadas: reprobado.
     pub fn evaluate_promotion(&self) -> PromotionResult {
         let failed: Vec<&SubjectAverage> =
             self.subjects.iter().filter(|s| s.average < 4.0).collect();
@@ -124,6 +154,8 @@ impl StudentGradeReport {
         }
     }
 
+    /// Verifica que todas las asignaturas tengan al menos
+    /// [`MIN_CALIFICACIONES_SEMESTRE`] calificaciones registradas.
     pub fn has_minimum_grades(&self) -> bool {
         self.subjects
             .iter()

@@ -21,13 +21,14 @@ COPY packages/services/notifications/Cargo.toml packages/services/notifications/
 COPY packages/services/finance/Cargo.toml packages/services/finance/Cargo.toml
 COPY packages/services/reporting/Cargo.toml packages/services/reporting/Cargo.toml
 COPY packages/services/portal/Cargo.toml packages/services/portal/Cargo.toml
+COPY packages/services/curriculum/Cargo.toml packages/services/curriculum/Cargo.toml
 
 RUN mkdir -p packages/common/src packages/proto/src && \
     touch packages/common/src/lib.rs packages/proto/src/lib.rs && \
     for pkg in gateway frontend; do \
       mkdir -p packages/$pkg/src && echo "fn main() {}" > packages/$pkg/src/main.rs; \
     done && \
-    for pkg in identity sis academic attendance notifications finance reporting portal; do \
+    for pkg in identity sis academic attendance notifications finance reporting portal curriculum; do \
       mkdir -p packages/services/$pkg/src && echo "fn main() {}" > packages/services/$pkg/src/main.rs; \
     done
 

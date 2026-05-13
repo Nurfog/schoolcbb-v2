@@ -36,6 +36,13 @@ async fn list_categories(
         &claims,
         &["Administrador", "Sostenedor", "Director", "UTP", "Profesor"],
     )?;
+    schoolccb_common::roles::require_licensed_module(
+        &state.pool,
+        claims.corporation_id.as_deref(),
+        "grades",
+    )
+    .await
+    .map_err(|e| AcademicError::Forbidden(e))?;
 
     let categories = sqlx::query_as::<_, schoolccb_common::academic::GradeCategory>(
         "SELECT id, course_subject_id, name, weight_percentage, evaluation_count FROM grade_categories ORDER BY name",

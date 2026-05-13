@@ -31,6 +31,9 @@ pub fn RolesPage() -> Element {
     };
 
     let do_delete_role = move |id: String| {
+        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) {
+            return;
+        }
         spawn(async move {
             let _ = client::delete_role(&id).await;
             selected_role_id.set(None);

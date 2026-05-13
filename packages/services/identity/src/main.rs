@@ -6,10 +6,15 @@ mod models;
 mod routes;
 mod scheduler;
 
+#[cfg(test)]
+mod tests;
+
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::Router;
 use sqlx::PgPool;
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -64,12 +69,34 @@ async fn main() {
 
     scheduler::start(pool.clone()).await;
 
-    let app = Router::new()
+    let cors = if std::env::var("CORS_ENABLED").as_deref() == Ok("true") {
+        let origins = std::env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "http://localhost:3000,http://localhost:8080".into());
+        let mut layer = CorsLayer::new()
+            .allow_methods(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any)
+            .allow_credentials(true);
+        for origin in origins.split(',') {
+            if let Ok(val) = origin.trim().parse::<axum::http::HeaderValue>() {
+                layer = layer.allow_origin(val);
+            }
+        }
+        Some(layer)
+    } else {
+        None
+    };
+
+    let mut app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(routes::router())
         .merge(admin::admin_router())
         .merge(client::client_router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
+
+    if let Some(cors) = cors {
+        app = app.layer(cors);
+    }
 
     let addr = config.addr();
     tracing::info!("Identity Service starting on {addr}");

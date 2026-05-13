@@ -1,5 +1,5 @@
 const CACHE_NAME = "schoolccb-v1";
-const ASSETS = ["/", "/index.html", "/assets/style.css", "/manifest.json", "/favicon.svg"];
+const ASSETS = ["/", "/index.html", "/assets/style.css", "/manifest.json", "/favicon.svg", "/schoolccb_frontend_bg.wasm", "/schoolccb_frontend.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

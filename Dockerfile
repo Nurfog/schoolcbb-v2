@@ -20,6 +20,7 @@ COPY packages/services/notifications/Cargo.toml packages/services/notifications/
 COPY packages/services/finance/Cargo.toml packages/services/finance/Cargo.toml
 COPY packages/services/reporting/Cargo.toml packages/services/reporting/Cargo.toml
 COPY packages/services/portal/Cargo.toml packages/services/portal/Cargo.toml
+COPY packages/services/curriculum/Cargo.toml packages/services/curriculum/Cargo.toml
 
 # Dummy sources for cargo metadata resolution
 RUN mkdir -p packages/common/src packages/proto/src && \
@@ -27,7 +28,7 @@ RUN mkdir -p packages/common/src packages/proto/src && \
     for pkg in gateway frontend; do \
       mkdir -p packages/$pkg/src && echo "fn main() {}" > packages/$pkg/src/main.rs; \
     done && \
-    for pkg in identity sis academic attendance notifications finance reporting portal; do \
+    for pkg in identity sis academic attendance notifications finance reporting portal curriculum; do \
       mkdir -p packages/services/$pkg/src && echo "fn main() {}" > packages/services/$pkg/src/main.rs; \
     done
 
@@ -49,7 +50,7 @@ RUN cargo build --release --workspace --exclude schoolccb-frontend
 # ─── Stage 3: Runtime ────────────────────────────────────────
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libssl3 ca-certificates wget && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/schoolccb-gateway /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-identity /usr/local/bin/
@@ -60,3 +61,4 @@ COPY --from=builder /app/target/release/schoolccb-notifications /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-finance /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-reporting /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-portal /usr/local/bin/
+COPY --from=builder /app/target/release/schoolccb-curriculum /usr/local/bin/

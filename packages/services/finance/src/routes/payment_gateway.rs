@@ -66,27 +66,29 @@ async fn init_payment(
         payer_email: None,
     };
 
-    match gateway.init_transaction(&req) {
-        Ok(resp) => {
-            sqlx::query(
-                "INSERT INTO payment_transactions (id, fee_id, token, amount, status, gateway_url) VALUES ($1, $2, $3, $4, 'INITIALIZED', $5)",
-            )
-            .bind(Uuid::new_v4())
-            .bind(fee.id)
-            .bind(&resp.token)
-            .bind(fee.amount)
-            .bind(&resp.url)
-            .execute(&state.pool)
-            .await?;
+    let resp = tokio::task::spawn_blocking(move || {
+        gateway.init_transaction(&req)
+    })
+    .await
+    .map_err(|e| crate::error::FinanceError::Internal(e.to_string()))?
+    .map_err(crate::error::FinanceError::Internal)?;
 
-            Ok(Json(json!({
-                "url": resp.url,
-                "token": resp.token,
-                "gateway": gateway.provider_name(),
-            })))
-        }
-        Err(e) => Err(crate::error::FinanceError::Internal(e)),
-    }
+    sqlx::query(
+        "INSERT INTO payment_transactions (id, fee_id, token, amount, status, gateway_url) VALUES ($1, $2, $3, $4, 'INITIALIZED', $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(fee.id)
+    .bind(&resp.token)
+    .bind(fee.amount)
+    .bind(&resp.url)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(json!({
+        "url": resp.url,
+        "token": resp.token,
+        "gateway": gateway.provider_name(),
+    })))
 }
 
 async fn payment_return(
@@ -113,7 +115,13 @@ async fn payment_return(
         let gateway = state.gateway.ok_or_else(|| {
             crate::error::FinanceError::Internal("Pasarela de pago no configurada".into())
         })?;
-        gateway.confirm_transaction(&token).map_err(crate::error::FinanceError::Internal)?
+        let token_clone = token.clone();
+        tokio::task::spawn_blocking(move || {
+            gateway.confirm_transaction(&token_clone)
+        })
+        .await
+        .map_err(|e| crate::error::FinanceError::Internal(e.to_string()))?
+        .map_err(crate::error::FinanceError::Internal)?
     };
 
     if result.success {

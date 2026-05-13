@@ -108,6 +108,7 @@ pub fn SubjectsPage() -> Element {
                                     button { class: "btn-icon btn-icon-danger", onclick: {
                                         let sid = sid_h.clone();
                                         move |_| {
+                                            if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) { return; }
                                             let id = sid.clone();
                                             spawn(async move { let _ = client::delete_json(&format!("/api/grades/subjects/{}", id)).await; subjects.restart(); });
                                         }

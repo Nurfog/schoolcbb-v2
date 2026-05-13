@@ -40,9 +40,6 @@ pub async fn run(pool: &PgPool) {
         "ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(255)",
         "ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20)",
         "ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_contact_relation VARCHAR(100)",
-        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS classroom_id UUID REFERENCES classrooms(id)",
-        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS plan VARCHAR(2)",
-        "ALTER TABLE courses ALTER COLUMN subject DROP NOT NULL",
         "CREATE TABLE IF NOT EXISTS courses (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name VARCHAR(255) NOT NULL,
@@ -53,6 +50,8 @@ pub async fn run(pool: &PgPool) {
             plan VARCHAR(2),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS plan VARCHAR(2)",
+        "ALTER TABLE courses ALTER COLUMN subject DROP NOT NULL",
         "CREATE TABLE IF NOT EXISTS enrollments (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             student_id UUID NOT NULL REFERENCES students(id),
@@ -71,6 +70,7 @@ pub async fn run(pool: &PgPool) {
             subject VARCHAR(255) NOT NULL,
             teacher_id UUID NOT NULL REFERENCES users(id),
             observation TEXT,
+            school_id UUID REFERENCES schools(id),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE(student_id, course_id, date, subject)
         )",
@@ -85,6 +85,7 @@ pub async fn run(pool: &PgPool) {
             date DATE NOT NULL,
             teacher_id UUID NOT NULL REFERENCES users(id),
             observation TEXT,
+            school_id UUID REFERENCES schools(id),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
         "CREATE TABLE IF NOT EXISTS agenda_events (
@@ -238,6 +239,7 @@ pub async fn run(pool: &PgPool) {
         )",
         "CREATE TABLE IF NOT EXISTS school_config (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_id UUID REFERENCES corporations(id),
             school_name VARCHAR(255) NOT NULL DEFAULT '',
             school_logo_url VARCHAR(500) NOT NULL DEFAULT '',
             primary_color VARCHAR(7) NOT NULL DEFAULT '#1A2B3C',
@@ -420,6 +422,9 @@ pub async fn run(pool: &PgPool) {
             name VARCHAR(255) NOT NULL,
             rut VARCHAR(12) UNIQUE,
             logo_url VARCHAR(500),
+            legal_representative_name VARCHAR(255),
+            legal_representative_rut VARCHAR(12),
+            legal_representative_email VARCHAR(255),
             settings JSONB DEFAULT '{}',
             active BOOLEAN NOT NULL DEFAULT true,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -436,12 +441,22 @@ pub async fn run(pool: &PgPool) {
         )",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS corporation_id UUID REFERENCES corporations(id)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_type VARCHAR(20)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE corporations ADD COLUMN IF NOT EXISTS legal_representative_name VARCHAR(255)",
+        "ALTER TABLE corporations ADD COLUMN IF NOT EXISTS legal_representative_rut VARCHAR(12)",
+        "ALTER TABLE corporations ADD COLUMN IF NOT EXISTS legal_representative_email VARCHAR(255)",
+        "ALTER TABLE license_plans ADD COLUMN IF NOT EXISTS is_custom BOOLEAN NOT NULL DEFAULT false",
+        "ALTER TABLE license_plans ADD COLUMN IF NOT EXISTS show_in_portal BOOLEAN NOT NULL DEFAULT true",
+        "ALTER TABLE plan_modules ADD COLUMN IF NOT EXISTS sub_modules JSONB DEFAULT '[]'",
         "ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
         "ALTER TABLE courses ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
         "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
         "ALTER TABLE fees ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
         "ALTER TABLE scholarships ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
-        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS category VARCHAR(30)",
+        "ALTER TABLE grades ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id)",
+        "ALTER TABLE school_config ADD COLUMN IF NOT EXISTS corporation_id UUID REFERENCES corporations(id)",
         "CREATE TABLE IF NOT EXISTS employees (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             school_id UUID REFERENCES schools(id),
@@ -460,6 +475,7 @@ pub async fn run(pool: &PgPool) {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS category VARCHAR(30)",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS supervisor_id UUID REFERENCES employees(id)",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id)",
         "CREATE TABLE IF NOT EXISTS employee_contracts (
@@ -642,6 +658,8 @@ pub async fn run(pool: &PgPool) {
             featured BOOLEAN NOT NULL DEFAULT false,
             sort_order INT NOT NULL DEFAULT 0,
             active BOOLEAN NOT NULL DEFAULT true,
+            is_custom BOOLEAN NOT NULL DEFAULT false,
+            show_in_portal BOOLEAN NOT NULL DEFAULT true,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
         "CREATE TABLE IF NOT EXISTS plan_modules (
@@ -649,7 +667,9 @@ pub async fn run(pool: &PgPool) {
             plan_id UUID NOT NULL REFERENCES license_plans(id) ON DELETE CASCADE,
             module_key VARCHAR(50) NOT NULL,
             module_name VARCHAR(100) NOT NULL,
-            included BOOLEAN NOT NULL DEFAULT true
+            included BOOLEAN NOT NULL DEFAULT true,
+            sub_modules JSONB DEFAULT '[]',
+            UNIQUE(plan_id, module_key)
         )",
         "CREATE TABLE IF NOT EXISTS corporation_licenses (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -704,6 +724,22 @@ pub async fn run(pool: &PgPool) {
             details JSONB,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
+        "CREATE TABLE IF NOT EXISTS legal_representatives (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            corporation_id UUID REFERENCES corporations(id) ON DELETE CASCADE,
+            school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+            rut VARCHAR(12) NOT NULL,
+            first_name VARCHAR(255) NOT NULL,
+            last_name VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            phone VARCHAR(20),
+            address VARCHAR(500),
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+        "ALTER TABLE legal_representatives ADD COLUMN IF NOT EXISTS corporation_id UUID REFERENCES corporations(id) ON DELETE CASCADE",
+        "ALTER TABLE legal_representatives ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id) ON DELETE CASCADE",
     ];
 
     for stmt in statements {

@@ -40,8 +40,13 @@ pub fn router() -> Router<AppState> {
             "/api/corporations",
             get(list_corporations).post(create_corporation),
         )
+        .route("/api/corporations/{id}", get(get_corporation))
+        .route("/api/corporations/{id}/modules", get(get_corporation_modules))
         .route("/api/schools", get(list_schools).post(create_school))
-        .route("/api/schools/{id}", get(get_school))
+        .route("/api/schools/{id}", get(get_school).put(update_school))
+        .route("/api/schools/{id}/toggle", put(toggle_school))
+        .route("/api/legal-representatives", get(list_legal_reps).post(create_legal_rep))
+        .route("/api/legal-representatives/{id}", put(update_legal_rep))
         .merge(roles_router())
 }
 
@@ -79,11 +84,9 @@ impl FromRequestParts<AppState> for Claims {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(AuthError::Unauthorized)?;
 
-        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "cambio-en-produccion".into());
-
         let token_data = jsonwebtoken::decode::<Claims>(
             auth_header,
-            &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+            &jsonwebtoken::DecodingKey::from_secret(_state.config.jwt_secret.as_bytes()),
             &jsonwebtoken::Validation::default(),
         )
         .map_err(|e| match e.kind() {
@@ -95,7 +98,7 @@ impl FromRequestParts<AppState> for Claims {
     }
 }
 
-fn generate_token_pair(
+pub(crate) fn generate_token_pair(
     config: &crate::config::Config,
     user_id: Uuid,
     role: &str,
@@ -103,6 +106,7 @@ fn generate_token_pair(
     email: &str,
     corporation_id: Option<Uuid>,
     school_id: Option<Uuid>,
+    admin_type: Option<String>,
 ) -> Result<(String, Claims), AuthError> {
     let now = chrono::Utc::now();
 
@@ -113,6 +117,7 @@ fn generate_token_pair(
         email: email.to_string(),
         corporation_id: corporation_id.map(|id| id.to_string()),
         school_id: school_id.map(|id| id.to_string()),
+        admin_type,
         exp: (now + chrono::Duration::hours(12)).timestamp() as usize,
         iat: now.timestamp() as usize,
     };
@@ -152,6 +157,7 @@ async fn login(
         &user.email,
         user.corporation_id,
         user.school_id,
+        user.admin_type.clone(),
     )?;
 
     let (refresh_token, _) = models::create_refresh_token(&state.pool, id, 7).await?;
@@ -168,6 +174,7 @@ async fn login(
             "rut": user.rut,
             "corporation_id": user.corporation_id,
             "school_id": user.school_id,
+            "admin_type": user.admin_type,
             "is_root": is_root
         }
     })))
@@ -204,11 +211,10 @@ async fn forgot_password(
     .execute(&state.pool)
     .await?;
 
-    tracing::info!("Password reset token for {}: {}", email, token);
+    tracing::info!("Password reset token generated for email: {}", email);
 
     Ok(Json(json!({
         "message": "Si el email está registrado, recibirás un enlace de recuperación",
-        "reset_token": token,
     })))
 }
 
@@ -381,6 +387,7 @@ async fn register(
         return Err(AuthError::Internal("Debe seleccionar una corporación para el rol Sostenedor".into()));
     }
 
+    let admin_type = payload.admin_type.as_deref();
     let user = models::insert_user(
         &state.pool,
         &payload.rut,
@@ -390,6 +397,7 @@ async fn register(
         &payload.role,
         corporation_id,
         school_id,
+        admin_type,
     )
     .await
     .map_err(|e| {
@@ -445,6 +453,7 @@ async fn refresh(
         &user.email,
         user.corporation_id,
         user.school_id,
+        user.admin_type.clone(),
     )?;
 
     let (new_refresh_token, _) = models::create_refresh_token(&state.pool, user.id, 7).await?;
@@ -461,6 +470,7 @@ async fn refresh(
             "rut": user.rut,
             "corporation_id": user.corporation_id,
             "school_id": user.school_id,
+            "admin_type": user.admin_type,
             "is_root": is_root
         }
     })))
@@ -491,6 +501,7 @@ struct UserListItem {
     active: bool,
     corporation_id: Option<Uuid>,
     school_id: Option<Uuid>,
+    admin_type: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -507,13 +518,13 @@ async fn list_users(
     let search = q.search.as_deref().unwrap_or("");
     let users = if search.is_empty() {
         sqlx::query_as::<_, UserListItem>(
-            "SELECT id, rut, name, email, role, active, corporation_id, school_id FROM users ORDER BY name",
+            "SELECT id, rut, name, email, role, active, corporation_id, school_id, admin_type FROM users ORDER BY name",
         )
         .fetch_all(&state.pool)
         .await?
     } else {
         sqlx::query_as::<_, UserListItem>(
-            "SELECT id, rut, name, email, role, active, corporation_id, school_id FROM users
+            "SELECT id, rut, name, email, role, active, corporation_id, school_id, admin_type FROM users
              WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY name",
         )
         .bind(format!("%{}%", search))
@@ -676,7 +687,8 @@ async fn update_user_preferences(
 
 async fn get_branding(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
-    let config = models::get_branding(&state.pool).await?;
+    let corp_id = claims.corporation_id.and_then(|s| s.parse::<Uuid>().ok());
+    let config = models::get_branding(&state.pool, corp_id).await?;
     if let Some(c) = config {
         Ok(Json(json!({
             "school_name": c.school_name,
@@ -699,7 +711,10 @@ async fn update_branding(
     State(state): State<AppState>,
     Json(payload): Json<Value>,
 ) -> AuthResult<Json<Value>> {
-    require_role(&claims, "Sostenedor")?;
+    if claims.role != "Root" {
+        require_role(&claims, "Sostenedor")?;
+    }
+    let corp_id = claims.corporation_id.and_then(|s| s.parse::<Uuid>().ok());
     let school_name = payload
         .get("school_name")
         .and_then(|v| v.as_str())
@@ -716,8 +731,17 @@ async fn update_branding(
         .get("secondary_color")
         .and_then(|v| v.as_str())
         .unwrap_or("#243B4F");
+
+    let is_global = claims.admin_type.as_deref() == Some("global") || claims.role == "Sostenedor";
+    if is_global {
+        tracing::info!(
+            "Global branding updated for corporation {:?} by user {} (role={}, admin_type={:?})",
+            corp_id, claims.sub, claims.role, claims.admin_type
+        );
+    }
+
     let config = models::upsert_branding(
-        &state.pool,
+        &state.pool, corp_id,
         school_name,
         school_logo_url,
         primary_color,
@@ -944,7 +968,16 @@ fn builtin_modules() -> Vec<schoolccb_common::modules::Module> {
     ]
 }
 
-async fn list_modules(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Value>> {
+#[derive(Deserialize)]
+struct ModulesQuery {
+    filter_by_license: Option<bool>,
+}
+
+async fn list_modules(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<ModulesQuery>,
+) -> AuthResult<Json<Value>> {
     let user_id =
         Uuid::parse_str(&claims.sub).map_err(|_| AuthError::TokenInvalid("Invalid user".into()))?;
     let favs: Vec<(String,)> =
@@ -957,27 +990,31 @@ async fn list_modules(claims: Claims, State(state): State<AppState>) -> AuthResu
     let all_modules = if claims.role == "Root" {
         root_modules()
     } else {
-        let corp_id = claims.corporation_id.as_ref()
-            .and_then(|s| Uuid::parse_str(s).ok());
-        let allowed: std::collections::HashSet<String> = if let Some(cid) = corp_id {
-            let keys: Vec<(String,)> = sqlx::query_as(
-                "SELECT DISTINCT pm.module_key
-                 FROM corporation_licenses cl
-                 JOIN plan_modules pm ON pm.plan_id = cl.plan_id
-                 WHERE cl.corporation_id = $1 AND cl.status = 'active'
-                   AND pm.included = true"
-            )
-            .bind(cid)
-            .fetch_all(&state.pool)
-            .await
-            .unwrap_or_default();
-            keys.into_iter().map(|(k,)| k).collect()
+        let filter = q.filter_by_license.unwrap_or(true);
+        let bm = builtin_modules();
+        if filter {
+            let corp_id = claims.corporation_id.as_ref()
+                .and_then(|s| Uuid::parse_str(s).ok());
+            let allowed: std::collections::HashSet<String> = if let Some(cid) = corp_id {
+                let keys: Vec<(String,)> = sqlx::query_as(
+                    "SELECT DISTINCT pm.module_key
+                     FROM corporation_licenses cl
+                     JOIN plan_modules pm ON pm.plan_id = cl.plan_id
+                     WHERE cl.corporation_id = $1 AND cl.status = 'active'
+                       AND pm.included = true"
+                )
+                .bind(cid)
+                .fetch_all(&state.pool)
+                .await
+                .unwrap_or_default();
+                keys.into_iter().map(|(k,)| k).collect()
+            } else {
+                bm.iter().map(|m| m.id.clone()).collect()
+            };
+            bm.into_iter().filter(|m| allowed.contains(&m.id)).collect()
         } else {
-            std::collections::HashSet::new()
-        };
-        builtin_modules().into_iter()
-            .filter(|m| allowed.contains(&m.id))
-            .collect::<Vec<_>>()
+            bm
+        }
     };
     let modules: Vec<schoolccb_common::modules::Module> = all_modules
         .into_iter()
@@ -1134,13 +1171,106 @@ async fn list_corporations(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    let corporations = sqlx::query_as::<_, schoolccb_common::school::Corporation>(
-        "SELECT id, name, rut, logo_url, settings, active, created_at FROM corporations ORDER BY name",
+    let corporations = if claims.role == "Root" {
+        sqlx::query_as::<_, schoolccb_common::school::Corporation>(
+            "SELECT id, name, rut, logo_url, legal_representative_name, legal_representative_rut, legal_representative_email, settings, active, created_at FROM corporations ORDER BY name",
+        )
+        .fetch_all(&state.pool)
+        .await?
+    } else if let Some(cid) = &claims.corporation_id {
+        let cid: Uuid = cid.parse().map_err(|_| AuthError::Internal("ID de corporación inválido".into()))?;
+        sqlx::query_as::<_, schoolccb_common::school::Corporation>(
+            "SELECT id, name, rut, logo_url, legal_representative_name, legal_representative_rut, legal_representative_email, settings, active, created_at FROM corporations WHERE id = $1 ORDER BY name",
+        )
+        .bind(cid)
+        .fetch_all(&state.pool)
+        .await?
+    } else {
+        return Err(AuthError::Forbidden("Sin corporación asignada".into()));
+    };
+
+    Ok(Json(json!({ "corporations": corporations })))
+}
+
+async fn get_corporation(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    if claims.role != "Root" {
+        if let Some(cid) = &claims.corporation_id {
+            let user_cid: Uuid = cid.parse().map_err(|_| AuthError::Internal("ID inválido".into()))?;
+            if user_cid != id {
+                return Err(AuthError::Forbidden("No tienes acceso a esta corporación".into()));
+            }
+        }
+    }
+
+    let corp = sqlx::query_as::<_, schoolccb_common::school::Corporation>(
+        "SELECT id, name, rut, logo_url, legal_representative_name, legal_representative_rut, legal_representative_email, settings, active, created_at FROM corporations WHERE id = $1",
     )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AuthError::NotFound("Corporación no encontrada".into()))?;
+
+    Ok(Json(json!({ "corporation": corp })))
+}
+
+async fn get_corporation_modules(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    if claims.role != "Root" {
+        if let Some(cid) = &claims.corporation_id {
+            let user_cid: Uuid = cid.parse().map_err(|_| AuthError::Internal("ID inválido".into()))?;
+            if user_cid != id {
+                return Err(AuthError::Forbidden("No tienes acceso a esta corporación".into()));
+            }
+        }
+    }
+
+    let plan_modules = sqlx::query_as::<_, (String, String, bool, serde_json::Value)>(
+        "SELECT pm.module_key, pm.module_name, pm.included, pm.sub_modules
+         FROM corporation_licenses cl
+         JOIN license_plans lp ON lp.id = cl.plan_id
+         JOIN plan_modules pm ON pm.plan_id = lp.id
+         WHERE cl.corporation_id = $1 AND cl.status = 'active'
+         ORDER BY pm.module_key",
+    )
+    .bind(id)
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(json!({ "corporations": corporations })))
+    let overrides: std::collections::HashMap<String, bool> = sqlx::query_as::<_, (String, bool)>(
+        "SELECT module_key, enabled FROM corporation_module_overrides WHERE corporation_id = $1",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await.unwrap_or_default()
+    .into_iter()
+    .collect();
+
+    let modules: Vec<Value> = plan_modules
+        .into_iter()
+        .map(|(key, name, included, sub)| {
+            let enabled = overrides.get(&key).copied().unwrap_or(included);
+            json!({
+                "module_key": key,
+                "module_name": name,
+                "included": included,
+                "enabled": enabled,
+                "sub_modules": sub,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({ "modules": modules })))
 }
 
 async fn create_corporation(
@@ -1152,13 +1282,17 @@ async fn create_corporation(
 
     let id = Uuid::new_v4();
     let corp = sqlx::query_as::<_, schoolccb_common::school::Corporation>(
-        "INSERT INTO corporations (id, name, rut, logo_url) VALUES ($1, $2, $3, $4)
-         RETURNING id, name, rut, logo_url, settings, active, created_at",
+        "INSERT INTO corporations (id, name, rut, logo_url, legal_representative_name, legal_representative_rut, legal_representative_email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, name, rut, logo_url, legal_representative_name, legal_representative_rut, legal_representative_email, settings, active, created_at",
     )
     .bind(id)
     .bind(&payload.name)
     .bind(&payload.rut)
     .bind(&payload.logo_url)
+    .bind(&payload.legal_representative_name)
+    .bind(&payload.legal_representative_rut)
+    .bind(&payload.legal_representative_email)
     .fetch_one(&state.pool)
     .await?;
 
@@ -1229,6 +1363,151 @@ async fn get_school(
     .ok_or(AuthError::NotFound("Colegio no encontrado".into()))?;
 
     Ok(Json(json!({ "school": school })))
+}
+
+async fn update_school(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolccb_common::school::UpdateSchoolPayload>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    sqlx::query(
+        "UPDATE schools SET
+            name = COALESCE($1, name),
+            address = COALESCE($2, address),
+            phone = COALESCE($3, phone),
+            logo_url = COALESCE($4, logo_url)
+         WHERE id = $5",
+    )
+    .bind(&payload.name)
+    .bind(&payload.address)
+    .bind(&payload.phone)
+    .bind(&payload.logo_url)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(json!({"message": "Colegio actualizado"})))
+}
+
+async fn toggle_school(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let school = sqlx::query_as::<_, schoolccb_common::school::School>(
+        "UPDATE schools SET active = NOT active WHERE id = $1 RETURNING id, corporation_id, name, address, phone, logo_url, active, created_at",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AuthError::UserNotFound)?; // not a user but same error pattern
+
+    Ok(Json(json!({ "school": school })))
+}
+
+// ─── Legal Representatives ───
+
+async fn list_legal_reps(
+    claims: Claims,
+    State(state): State<AppState>,
+    Query(q): Query<LegalRepQuery>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let corp_id = q.corporation_id.or_else(|| claims.corporation_id.as_ref().and_then(|s| s.parse::<Uuid>().ok()));
+    let school_id = q.school_id.or_else(|| claims.school_id.as_ref().and_then(|s| s.parse::<Uuid>().ok()));
+
+    let reps = if let Some(sid) = school_id {
+        sqlx::query_as::<_, schoolccb_common::school::LegalRepresentative>(
+            "SELECT id, corporation_id, school_id, rut, first_name, last_name, email, phone, address, active, created_at, updated_at
+             FROM legal_representatives WHERE school_id = $1 ORDER BY last_name, first_name",
+        )
+        .bind(sid)
+        .fetch_all(&state.pool).await.unwrap_or_default()
+    } else if let Some(cid) = corp_id {
+        sqlx::query_as::<_, schoolccb_common::school::LegalRepresentative>(
+            "SELECT id, corporation_id, school_id, rut, first_name, last_name, email, phone, address, active, created_at, updated_at
+             FROM legal_representatives WHERE corporation_id = $1 ORDER BY last_name, first_name",
+        )
+        .bind(cid)
+        .fetch_all(&state.pool).await.unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    Ok(Json(json!({"legal_representatives": reps})))
+}
+
+async fn create_legal_rep(
+    claims: Claims,
+    State(state): State<AppState>,
+    Json(payload): Json<schoolccb_common::school::CreateLegalRepPayload>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO legal_representatives (id, corporation_id, school_id, rut, first_name, last_name, email, phone, address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(id)
+    .bind(payload.corporation_id)
+    .bind(payload.school_id)
+    .bind(&payload.rut)
+    .bind(&payload.first_name)
+    .bind(&payload.last_name)
+    .bind(&payload.email)
+    .bind(&payload.phone)
+    .bind(&payload.address)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(json!({"id": id, "message": "Representante legal creado"})))
+}
+
+async fn update_legal_rep(
+    claims: Claims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<schoolccb_common::school::UpdateLegalRepPayload>,
+) -> AuthResult<Json<Value>> {
+    require_any_role(&claims, &["Sostenedor", "Administrador"])?;
+
+    sqlx::query(
+        "UPDATE legal_representatives SET
+            rut = COALESCE($1, rut),
+            first_name = COALESCE($2, first_name),
+            last_name = COALESCE($3, last_name),
+            email = COALESCE($4, email),
+            phone = COALESCE($5, phone),
+            address = COALESCE($6, address),
+            active = COALESCE($7, active),
+            updated_at = NOW()
+         WHERE id = $8",
+    )
+    .bind(&payload.rut)
+    .bind(&payload.first_name)
+    .bind(&payload.last_name)
+    .bind(&payload.email)
+    .bind(&payload.phone)
+    .bind(&payload.address)
+    .bind(payload.active)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(json!({"message": "Representante legal actualizado"})))
+}
+
+#[derive(Deserialize)]
+struct LegalRepQuery {
+    corporation_id: Option<Uuid>,
+    school_id: Option<Uuid>,
 }
 
 // ─── Roles & Permissions ───

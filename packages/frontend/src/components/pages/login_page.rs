@@ -9,7 +9,7 @@ pub fn LoginPage() -> Element {
     let mut error = use_signal(|| None::<String>);
     let mut loading = use_signal(|| false);
 
-    let do_login = move |_| {
+    let mut do_login = move |_| {
         if email().is_empty() || password().is_empty() {
             error.set(Some("Email y contraseña son obligatorios".to_string()));
             return;
@@ -49,13 +49,14 @@ pub fn LoginPage() -> Element {
                     h1 { "SchoolCBB" }
                     p { "Plataforma Escolar" }
                 }
-                div { class: "login-form",
+                form { class: "login-form", onsubmit: move |e| { e.prevent_default(); do_login(e); },
                     if let Some(ref msg) = error() {
-                        div { class: "login-error", "{msg}" }
+                        div { class: "login-error", role: "alert", aria_live: "assertive", "{msg}" }
                     }
                     div { class: "field",
-                        label { "Email" }
+                        label { r#for: "login-email", "Email" }
                         input {
+                            id: "login-email",
                             class: "login-input",
                             "type": "email",
                             placeholder: "email@colegio.cl",
@@ -64,8 +65,9 @@ pub fn LoginPage() -> Element {
                         }
                     }
                     div { class: "field",
-                        label { "Contraseña" }
+                        label { r#for: "login-password", "Contraseña" }
                         input {
+                            id: "login-password",
                             class: "login-input",
                             "type": "password",
                             placeholder: "contraseña",
@@ -75,7 +77,7 @@ pub fn LoginPage() -> Element {
                     }
                     button {
                         class: "login-btn",
-                        onclick: do_login,
+                        r#type: "submit",
                         disabled: loading(),
                         if loading() { "Ingresando..." } else { "Iniciar Sesión" }
                     }

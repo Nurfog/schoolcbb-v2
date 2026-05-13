@@ -46,6 +46,9 @@ pub fn GradeLevelsPage() -> Element {
     };
 
     let do_delete = move |id: String| {
+        if !web_sys::window().unwrap().confirm_with_message("¿Estás seguro?").unwrap_or(false) {
+            return;
+        }
         spawn(async move {
             let _ = client::delete_grade_level(&id).await;
             levels.restart();

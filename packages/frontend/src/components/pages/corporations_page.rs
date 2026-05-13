@@ -106,6 +106,13 @@ fn CorporationRow(corp: Value, is_expanded: bool, on_toggle: EventHandler<String
 
     let id_toggle = id.clone();
     let id2 = id.clone();
+    let reps_data = use_resource({
+        let cid_reps = id.clone();
+        move || {
+            let cid = cid_reps.clone();
+            async move { client::fetch_legal_reps(&cid).await }
+        }
+    });
 
     rsx! {
         tr {
@@ -129,9 +136,96 @@ fn CorporationRow(corp: Value, is_expanded: bool, on_toggle: EventHandler<String
                 td { colspan: "5",
                     div { class: "expand-content",
                         SchoolSection { corporation_id: id2.clone() }
+                        LegalRepSection { corporation_id: id.clone(), reps: reps_data() }
                     }
                 }
             }
+        }
+    }
+}
+
+#[component]
+fn LegalRepSection(corporation_id: String, reps: Option<Result<Value, String>>) -> Element {
+    let mut creating = use_signal(|| None::<String>);
+    match reps {
+        Some(Ok(ref data)) => {
+            let list: Vec<Value> = data["legal_representatives"].as_array().cloned().unwrap_or_default();
+            if list.is_empty() { return rsx! {} }
+            let cid = corporation_id;
+            let rows: Vec<_> = list.into_iter().map(|r| {
+                let rid = r["id"].as_str().unwrap_or("").to_string();
+                let rut_v = r["rut"].as_str().unwrap_or("-").to_string();
+                let first = r["first_name"].as_str().unwrap_or("").to_string();
+                let last = r["last_name"].as_str().unwrap_or("").to_string();
+                let email_v = r["email"].as_str().unwrap_or("-").to_string();
+                let phone_v = r["phone"].as_str().unwrap_or("-").to_string();
+                let rep_active = r["active"].as_bool().unwrap_or(true);
+                let has_email = !email_v.is_empty() && rep_active;
+                let rid_clone = rid.clone();
+                let cid_clone = cid.clone();
+                let r_val = r.clone();
+                rsx! {
+                    tr {
+                        td { class: "cell-mono", "{rut_v}" }
+                        td { "{first} {last}" }
+                        td { "{email_v}" }
+                        td { "{phone_v}" }
+                        td {
+                            if rep_active { span { class: "badge badge-success", "Activo" } }
+                            else { span { class: "badge badge-danger", "Inactivo" } }
+                        }
+                        td {
+                            if has_email {
+                                LegalRepCreateBtn {
+                                    corporation_id: cid_clone,
+                                    r_val: r_val,
+                                    rid: rid_clone,
+                                    creating: creating,
+                                }
+                            }
+                        }
+                    }
+                }
+            }).collect();
+            rsx! {
+                h4 { "Representantes Legales (Sostenedores)" }
+                p { class: "text-muted", "Los representantes legales pueden crear un Admin Global para gestionar todos los colegios de la corporación." }
+                table { class: "data-table mini-table",
+                    thead { tr { th { "RUT" } th { "Nombre" } th { "Email" } th { "Teléfono" } th { "Estado" } th { "Acciones" } } }
+                    tbody { {rows.into_iter()} }
+                }
+            }
+        }
+        _ => rsx! {}
+    }
+}
+
+#[component]
+fn LegalRepCreateBtn(corporation_id: String, r_val: Value, rid: String, creating: Signal<Option<String>>) -> Element {
+    let is_creating = creating() == Some(rid.clone());
+    rsx! {
+        button {
+            class: "btn btn-xs btn-primary",
+            disabled: is_creating,
+            onclick: move |_| {
+                creating.set(Some(rid.clone()));
+                let payload = serde_json::json!({
+                    "rut": r_val["rut"],
+                    "name": format!("{} {}", r_val["first_name"].as_str().unwrap_or(""), r_val["last_name"].as_str().unwrap_or("")),
+                    "email": r_val["email"],
+                    "password": r_val["rut"].as_str().unwrap_or(""),
+                    "role": "Administrador",
+                    "admin_type": "global",
+                    "corporation_id": corporation_id,
+                });
+                spawn(async move {
+                    let result = client::post_json("/api/auth/register", &payload).await;
+                    if result.is_err() {
+                        creating.set(None);
+                    }
+                });
+            },
+            { if is_creating { "Creando..." } else { "Crear Admin Global" } }
         }
     }
 }
@@ -207,9 +301,9 @@ fn SchoolSection(corporation_id: String) -> Element {
                     } else {
                         rsx! {
                             table { class: "data-table mini-table",
-                                thead { tr { th { "Nombre" } th { "Direcci\u{00f3}n" } th { "Tel\u{00e9}fono" } th { "Estado" } } }
+                                thead { tr { th { "Nombre" } th { "Direcci\u{00f3}n" } th { "Tel\u{00e9}fono" } th { "Estado" } th { "Acciones" } } }
                                 tbody { for s in &list {
-                                    SchoolRow { school: s.clone() }
+                                    SchoolRow { school: s.clone(), on_refresh: move || schools_res.restart() }
                                 }}
                             }
                         }
@@ -223,11 +317,48 @@ fn SchoolSection(corporation_id: String) -> Element {
 }
 
 #[component]
-fn SchoolRow(school: Value) -> Element {
+fn SchoolRow(school: Value, on_refresh: EventHandler<()>) -> Element {
+    let sid = school["id"].as_str().unwrap_or("").to_string();
     let name = school["name"].as_str().unwrap_or("").to_string();
-    let addr = school["address"].as_str().unwrap_or("-").to_string();
-    let phone = school["phone"].as_str().unwrap_or("-").to_string();
+    let addr = school["address"].as_str().unwrap_or("").to_string();
+    let phone = school["phone"].as_str().unwrap_or("").to_string();
     let active = school["active"].as_bool().unwrap_or(true);
+
+    let mut editing = use_signal(|| false);
+    let mut edit_name = use_signal(|| name.clone());
+    let mut edit_addr = use_signal(|| addr.clone());
+    let mut edit_phone = use_signal(|| if phone == "-" { String::new() } else { phone.clone() });
+    let mut saving_edit = use_signal(|| false);
+    let mut toggling = use_signal(|| false);
+    let toggle_class = if active { "btn btn-xs btn-warning" } else { "btn btn-xs btn-success" };
+    let sid_save = sid.clone();
+    let sid_toggle = sid.clone();
+
+    let do_save = move |_| {
+        saving_edit.set(true);
+        let id = sid_save.clone();
+        let payload = json!({
+            "name": edit_name(),
+            "address": edit_addr(),
+            "phone": edit_phone(),
+        });
+        spawn(async move {
+            let _ = client::update_school(&id, &payload).await;
+            saving_edit.set(false);
+            editing.set(false);
+            on_refresh.call(());
+        });
+    };
+
+    let do_toggle = move |_| {
+        toggling.set(true);
+        let id = sid_toggle.clone();
+        spawn(async move {
+            let _ = client::toggle_school(&id).await;
+            toggling.set(false);
+            on_refresh.call(());
+        });
+    };
 
     rsx! {
         tr {
@@ -241,6 +372,50 @@ fn SchoolRow(school: Value) -> Element {
                     span { class: "badge badge-danger", "Inactivo" }
                 }
             }
+            td {
+                button { class: "btn btn-xs", onclick: move |_| {
+                    editing.set(!editing());
+                    if !editing() {
+                        edit_name.set(name.clone());
+                        edit_addr.set(addr.clone());
+                        edit_phone.set(if phone == "-" { String::new() } else { phone.clone() });
+                    }
+                },
+                    { if editing() { "Cancelar" } else { "Editar" } }
+                }
+                button {
+                    class: "{toggle_class}",
+                    disabled: toggling(),
+                    onclick: do_toggle,
+                    { if toggling() { "..." } else if active { "Deshabilitar" } else { "Habilitar" } }
+                }
+            }
+        }
+        if editing() {
+            tr { class: "expand-row",
+                td { colspan: "5",
+                    div { class: "expand-content",
+                        div { class: "form-row inline-form",
+                            div { class: "form-group",
+                                label { "Nombre:" }
+                                input { class: "form-input", value: "{edit_name}", oninput: move |e| edit_name.set(e.value()) }
+                            }
+                            div { class: "form-group",
+                                label { "Dirección:" }
+                                input { class: "form-input", value: "{edit_addr}", oninput: move |e| edit_addr.set(e.value()) }
+                            }
+                            div { class: "form-group",
+                                label { "Teléfono:" }
+                                input { class: "form-input", value: "{edit_phone}", oninput: move |e| edit_phone.set(e.value()) }
+                            }
+                            button { class: "btn btn-sm btn-primary", disabled: saving_edit(), onclick: do_save,
+                                { if saving_edit() { "Guardando..." } else { "Guardar" } }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
+

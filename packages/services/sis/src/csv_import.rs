@@ -65,6 +65,8 @@ pub async fn import_students_csv(claims: Claims, State(state): State<AppState>, 
     let school_id = claims.school_id.as_ref().and_then(|s| Uuid::parse_str(s).ok());
     let mut result = CsvImportResult { imported: 0, errors: vec![], total: 0 };
 
+    let mut tx = state.pool.begin().await?;
+
     for (line_num, row) in reader.records().enumerate() {
         result.total += 1;
         let row = match row {
@@ -114,10 +116,10 @@ pub async fn import_students_csv(claims: Claims, State(state): State<AppState>, 
         let insert_result = sqlx::query(
             r#"INSERT INTO students (id, rut, first_name, last_name, email, phone, grade_level, section, condicion, prioritario, nee, school_id)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"#,
-        ).bind(id).bind(&rut.0).bind(&first_name).bind(&last_name)
+        ).bind(id).bind(rut.as_str()).bind(&first_name).bind(&last_name)
         .bind(&email).bind(&phone).bind(&grade_level).bind(&section)
         .bind(&condicion).bind(&prioritario).bind(&nee).bind(school_id)
-        .execute(&state.pool).await;
+        .execute(&mut *tx).await;
 
         match insert_result {
             Ok(_) => result.imported += 1,
@@ -130,6 +132,8 @@ pub async fn import_students_csv(claims: Claims, State(state): State<AppState>, 
             }
         }
     }
+
+    tx.commit().await?;
 
     Ok(Json(json!({
         "imported": result.imported,
@@ -159,6 +163,8 @@ pub async fn import_employees_csv(claims: Claims, State(state): State<AppState>,
 
     let mut result = CsvImportResult { imported: 0, errors: vec![], total: 0 };
 
+    let mut tx = state.pool.begin().await?;
+
     for (line_num, row) in reader.records().enumerate() {
         result.total += 1;
         let row = match row {
@@ -170,6 +176,10 @@ pub async fn import_employees_csv(claims: Claims, State(state): State<AppState>,
         let rut_str = match get_field(&fields, &["rut"]) {
             Some(r) => r,
             None => { result.errors.push(format!("Línea {}: RUT requerido", line_num + 2)); continue; }
+        };
+        let rut = match Rut::new(&rut_str) {
+            Ok(r) => r,
+            Err(_) => { result.errors.push(format!("Línea {}: RUT inválido: {}", line_num + 2, rut_str)); continue; }
         };
         let first_name = match get_field(&fields, &["first_name", "nombres", "nombre"]) {
             Some(v) => v,
@@ -188,9 +198,9 @@ pub async fn import_employees_csv(claims: Claims, State(state): State<AppState>,
         let insert_result = sqlx::query(
             r#"INSERT INTO employees (id, rut, first_name, last_name, email, phone, position, category)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"#,
-        ).bind(id).bind(&rut_str).bind(&first_name).bind(&last_name)
+        ).bind(id).bind(rut.as_str()).bind(&first_name).bind(&last_name)
         .bind(&email).bind(&phone).bind(&position).bind(&category)
-        .execute(&state.pool).await;
+        .execute(&mut *tx).await;
 
         match insert_result {
             Ok(_) => result.imported += 1,
@@ -203,6 +213,8 @@ pub async fn import_employees_csv(claims: Claims, State(state): State<AppState>,
             }
         }
     }
+
+    tx.commit().await?;
 
     Ok(Json(json!({
         "imported": result.imported,

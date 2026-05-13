@@ -1,11 +1,11 @@
 use axum::{
     Json, Router,
     extract::{
-        FromRequestParts, Path, State,
+        FromRequestParts, Path, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::request::Parts,
-    response::IntoResponse,
+    http::{request::Parts, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use futures_util::{SinkExt, StreamExt};
@@ -98,13 +98,59 @@ pub fn router() -> Router<AppState> {
         .route("/api/notifications/{id}/read", post(mark_notification_read))
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state.ws_hub))
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Response {
+    let token = match params.get("token") {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "Token requerido"})),
+            )
+                .into_response();
+        }
+    };
+
+    let claims = match jsonwebtoken::decode::<Claims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(state.config.jwt_secret.as_bytes()),
+        &jsonwebtoken::Validation::default(),
+    ) {
+        Ok(d) => d.claims,
+        Err(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "Token inválido"})),
+            )
+                .into_response();
+        }
+    };
+
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "Usuario inválido"})),
+            )
+                .into_response();
+        }
+    };
+
+    ws.on_upgrade(move |socket| handle_socket(socket, user_id, state.ws_hub))
+        .into_response()
 }
 
-async fn handle_socket(socket: WebSocket, hub: std::sync::Arc<crate::ws::hub::WsHub>) {
+async fn handle_socket(
+    socket: WebSocket,
+    user_id: Uuid,
+    hub: std::sync::Arc<crate::ws::hub::WsHub>,
+) {
     let (mut sender, mut receiver) = socket.split();
-    let mut rx = hub.subscribe();
+    let mut rx = hub.subscribe(user_id).await;
 
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
@@ -115,10 +161,8 @@ async fn handle_socket(socket: WebSocket, hub: std::sync::Arc<crate::ws::hub::Ws
     });
 
     let recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = receiver.next().await {
-            if let Message::Text(text) = msg {
-                hub.broadcast(&text);
-            }
+        while let Some(Ok(_msg)) = receiver.next().await {
+            // Client messages are handled via HTTP endpoints
         }
     });
 
@@ -203,14 +247,15 @@ async fn send_message(
         .fetch_one(&state.pool)
         .await?;
 
-        state.ws_hub.broadcast(
+        state.ws_hub.broadcast_to(
+            recv_id,
             &json!({
                 "type": "new_message",
                 "receiver_id": recv_id,
                 "message": &msg
             })
             .to_string(),
-        );
+        ).await;
 
         sent.push(msg);
     }
@@ -227,8 +272,9 @@ async fn resolve_recipients(
         schoolccb_common::communication::AudienceTarget::Course(course_id) => {
             let rows: Vec<(Uuid,)> = sqlx::query_as(
                 "SELECT DISTINCT u.id FROM users u \
-                 JOIN enrollments e ON e.student_id = u.id \
-                 WHERE e.course_id = $1 AND e.active = true",
+                 JOIN students s ON s.rut = u.rut \
+                 JOIN enrollments e ON e.student_id = s.id \
+                 WHERE e.course_id = $1 AND e.active = true AND u.role = 'Alumno'",
             )
             .bind(course_id)
             .fetch_all(pool)
@@ -255,6 +301,7 @@ async fn resolve_recipients(
             .await?;
             Ok(rows.into_iter().map(|r| r.0).collect())
         }
+        _ => Err(NotifError::Validation("unsupported audience target".into())),
     }
 }
 
@@ -532,7 +579,7 @@ async fn send_notification(
         "created_at": chrono::Utc::now(),
     });
 
-    state.ws_hub.broadcast(&notif.to_string());
+    state.ws_hub.broadcast_to(&payload.user_id, &notif.to_string()).await;
 
     Ok(Json(json!({"id": id, "message": "Notificación enviada"})))
 }

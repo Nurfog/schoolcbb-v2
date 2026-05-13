@@ -2,6 +2,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Asignatura o subsector del plan de estudios.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct Subject {
@@ -13,12 +14,14 @@ pub struct Subject {
     pub active: bool,
 }
 
+/// Horas pedagógicas semanales por nivel para una asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubjectHour {
     pub level: String,
     pub hours_per_week: i32,
 }
 
+/// Payload para crear una nueva asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSubjectPayload {
     pub code: String,
@@ -27,6 +30,7 @@ pub struct CreateSubjectPayload {
     pub hours_per_week: Option<i32>,
 }
 
+/// Payload para actualizar una asignatura existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateSubjectPayload {
     pub code: Option<String>,
@@ -35,6 +39,7 @@ pub struct UpdateSubjectPayload {
     pub hours_per_week: Option<i32>,
 }
 
+/// Período académico (semestre o trimestre).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct AcademicPeriod {
@@ -47,6 +52,7 @@ pub struct AcademicPeriod {
     pub is_active: bool,
 }
 
+/// Payload para crear un nuevo período académico.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePeriodPayload {
     pub name: String,
@@ -56,6 +62,7 @@ pub struct CreatePeriodPayload {
     pub end_date: NaiveDate,
 }
 
+/// Payload para actualizar un período académico.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePeriodPayload {
     pub name: Option<String>,
@@ -64,6 +71,7 @@ pub struct UpdatePeriodPayload {
     pub is_active: Option<bool>,
 }
 
+/// Asignación de una asignatura a un curso con un profesor responsable.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct CourseSubject {
@@ -75,6 +83,7 @@ pub struct CourseSubject {
     pub hours_per_week: i32,
 }
 
+/// Payload para asignar una asignatura a un curso.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateCourseSubjectPayload {
     pub course_id: Uuid,
@@ -84,12 +93,14 @@ pub struct CreateCourseSubjectPayload {
     pub hours_per_week: Option<i32>,
 }
 
+/// Payload para modificar la asignación de una asignatura a un curso.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateCourseSubjectPayload {
     pub teacher_id: Option<Uuid>,
     pub hours_per_week: Option<i32>,
 }
 
+/// Categoría de evaluación dentro de una asignatura (ej: "Tareas", "Pruebas", "Disertaciones").
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct GradeCategory {
@@ -100,6 +111,7 @@ pub struct GradeCategory {
     pub evaluation_count: i32,
 }
 
+/// Payload para crear una nueva categoría de evaluación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateCategoryPayload {
     pub course_subject_id: Uuid,
@@ -108,6 +120,7 @@ pub struct CreateCategoryPayload {
     pub evaluation_count: Option<i32>,
 }
 
+/// Payload para actualizar una categoría de evaluación.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateCategoryPayload {
     pub name: Option<String>,
@@ -115,6 +128,7 @@ pub struct UpdateCategoryPayload {
     pub evaluation_count: Option<i32>,
 }
 
+/// Payload para registrar una calificación individual.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateGradePayload {
     pub student_id: Uuid,
@@ -129,6 +143,7 @@ pub struct CreateGradePayload {
     pub observation: Option<String>,
 }
 
+/// Payload para modificar una calificación existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateGradePayload {
     pub grade: Option<f64>,
@@ -137,6 +152,7 @@ pub struct UpdateGradePayload {
     pub observation: Option<String>,
 }
 
+/// Entrada de carga masiva de calificaciones para un curso-asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BulkGradeEntry {
     pub course_subject_id: Uuid,
@@ -149,6 +165,7 @@ pub struct BulkGradeEntry {
     pub grades: Vec<StudentGradeEntry>,
 }
 
+/// Calificación individual dentro de una carga masiva.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StudentGradeEntry {
     pub student_id: Uuid,
@@ -156,6 +173,7 @@ pub struct StudentGradeEntry {
     pub observation: Option<String>,
 }
 
+/// Promedio ponderado de un estudiante en una asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeightedSubjectAverage {
     pub subject_name: String,
@@ -168,6 +186,7 @@ pub struct WeightedSubjectAverage {
     pub max_grade: f64,
 }
 
+/// Desglose de una categoría dentro del promedio ponderado de una asignatura.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryBreakdown {
     pub category_name: String,
@@ -177,6 +196,7 @@ pub struct CategoryBreakdown {
     pub weighted_contribution: f64,
 }
 
+/// Reporte anual completo de calificaciones y promoción de un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YearlyReport {
     pub student_id: Uuid,
@@ -187,6 +207,7 @@ pub struct YearlyReport {
     pub final_promotion: String,
 }
 
+/// Reporte semestral de calificaciones de un estudiante.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SemesterReport {
     pub semester: i32,
@@ -196,6 +217,7 @@ pub struct SemesterReport {
     pub has_minimum_grades: bool,
 }
 
+/// Entrada de calificaciones de un estudiante para una asignatura-curso.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CourseSubjectGradeEntry {
     pub student_id: Uuid,
@@ -205,6 +227,7 @@ pub struct CourseSubjectGradeEntry {
     pub average: f64,
 }
 
+/// Año académico o año escolar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct AcademicYear {
@@ -215,6 +238,7 @@ pub struct AcademicYear {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Payload para crear un nuevo año académico.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAcademicYearPayload {
     pub year: i32,
@@ -222,12 +246,14 @@ pub struct CreateAcademicYearPayload {
     pub is_active: Option<bool>,
 }
 
+/// Payload para actualizar un año académico existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAcademicYearPayload {
     pub name: Option<String>,
     pub is_active: Option<bool>,
 }
 
+/// Payload para clonar la estructura de un año académico a otro.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloneYearPayload {
     pub from_year: i32,
@@ -235,6 +261,7 @@ pub struct CloneYearPayload {
     pub to_year_name: Option<String>,
 }
 
+/// Nivel de enseñanza (1° Básico, 2° Medio, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "db", derive(sqlx::FromRow))]
 pub struct GradeLevel {
@@ -247,6 +274,7 @@ pub struct GradeLevel {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Payload para crear un nuevo nivel de enseñanza.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateGradeLevelPayload {
     pub code: String,
@@ -255,6 +283,7 @@ pub struct CreateGradeLevelPayload {
     pub sort_order: Option<i32>,
 }
 
+/// Payload para actualizar un nivel de enseñanza existente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateGradeLevelPayload {
     pub name: Option<String>,
