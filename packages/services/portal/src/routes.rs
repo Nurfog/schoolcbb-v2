@@ -14,6 +14,8 @@ use crate::AppState;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
+        .route("/robots.txt", get(robots_txt))
+        .route("/sitemap.xml", get(sitemap_xml))
         .route("/", get(index))
         .route("/features", get(features))
         .route("/pricing", get(pricing))
@@ -106,15 +108,41 @@ async fn render(
         tracing::error!("Template {template} not found: {e}");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let rendered = tmpl.render(ctx).map_err(|e| {
+    let mut context = ctx;
+    if let Some(obj) = context.as_object_mut() {
+        let path = template.replace(".html", "").replace("index", "");
+        obj.insert("canonical_url".to_string(), json!(format!("https://schoolccb.cl/{}", path)));
+    }
+    let rendered = tmpl.render(context).map_err(|e| {
         tracing::error!("Template {template} render error: {e}");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     Ok(Html(rendered))
 }
 
+async fn robots_txt() -> String {
+    "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /app/\nDisallow: /login\n\nSitemap: https://schoolccb.cl/sitemap.xml".to_string()
+}
+
+async fn sitemap_xml() -> ([(axum::http::header::HeaderName, &'static str); 1], String) {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/xml")],
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://schoolccb.cl/</loc><priority>1.0</priority></url>
+  <url><loc>https://schoolccb.cl/features</loc><priority>0.8</priority></url>
+  <url><loc>https://schoolccb.cl/pricing</loc><priority>0.8</priority></url>
+  <url><loc>https://schoolccb.cl/about</loc><priority>0.6</priority></url>
+  <url><loc>https://schoolccb.cl/contact</loc><priority>0.7</priority></url>
+</urlset>"#.to_string()
+    )
+}
+
 async fn index(state: State<Arc<AppState>>) -> Result<Html<String>, StatusCode> {
-    render(&state, "index.html", json!({"title": "SchoolCBB — Gestión Escolar Inteligente"})).await
+    render(&state, "index.html", json!({
+        "title": "SchoolCBB — Gestión Escolar Inteligente",
+        "is_home": true
+    })).await
 }
 
 async fn features(state: State<Arc<AppState>>) -> Result<Html<String>, StatusCode> {
@@ -178,11 +206,37 @@ async fn public_features() -> Json<Value> {
     }))
 }
 
-async fn contact_submit(Json(payload): Json<Value>) -> Json<Value> {
+async fn contact_submit(state: State<Arc<AppState>>, Json(payload): Json<Value>) -> Json<Value> {
     let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let email = payload.get("email").and_then(|v| v.as_str()).unwrap_or("");
     let company = payload.get("company").and_then(|v| v.as_str()).unwrap_or("");
     let message = payload.get("message").and_then(|v| v.as_str()).unwrap_or("");
+    
     tracing::info!("Portal contact: {name} <{email}> ({company}): {message}");
-    Json(json!({"message": "Mensaje recibido. Te contactaremos pronto."}))
+
+    // Split name into first and last
+    let mut parts = name.split_whitespace();
+    let first_name = parts.next().unwrap_or("").to_string();
+    let last_name = parts.collect::<Vec<&str>>().join(" ");
+
+    let crm_payload = json!({
+        "first_name": first_name,
+        "last_name": if last_name.is_empty() { "-" } else { &last_name },
+        "email": email,
+        "company": company,
+        "notes": message,
+        "source": "web"
+    });
+
+    let crm_url = format!("{}/api/public/sales/prospects", state.config.crm_url);
+    match state.client.post(&crm_url).json(&crm_payload).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            Json(json!({"message": "Mensaje recibido. Te contactaremos pronto."}))
+        }
+        _ => {
+            // Fallback: still log it even if CRM is down
+            tracing::error!("Failed to create prospect in CRM for {}", email);
+            Json(json!({"message": "Mensaje recibido. Te contactaremos pronto."}))
+        }
+    }
 }

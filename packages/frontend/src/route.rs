@@ -1,6 +1,5 @@
 use dioxus::prelude::*;
 
-use crate::api::client;
 use crate::seo::use_page_title;
 use crate::components::pages::academic_years_page::AcademicYearsPage;
 use crate::components::pages::admission_page::AdmissionPage;
@@ -31,13 +30,13 @@ use crate::components::pages::notifications_page::NotificationsPage;
 use crate::components::pages::payroll_page::PayrollPage;
 use crate::components::pages::reports_page::ReportsPage;
 use crate::components::pages::roles_page::RolesPage;
+use crate::components::pages::sales_page::SalesPage;
 use crate::components::pages::sige_page::SigePage;
-use crate::components::pages::student_detail_page::StudentDetailPage;
 use crate::components::pages::students_page::StudentsPage;
 use crate::components::pages::subjects_page::SubjectsPage;
 use crate::components::pages::curriculum_agent::CurriculumAgent;
 use crate::components::pages::dashboard_mosaicos_page::DashboardMosaicosPage;
-use crate::components::pages::root_page::RootDashboard;
+use crate::components::pages::root_page::RootDashboard as RootDashboardPage;
 use crate::components::pages::sostenedor_page::SostenedorPage;
 use crate::components::pages::users_page::UsersPage;
 
@@ -140,6 +139,8 @@ pub enum Route {
     Complaints {},
     #[route("/curriculum")]
     Curriculum {},
+    #[route("/sales")]
+    Sales {},
     #[route("/admin/plans")]
     AdminPlans {},
     #[route("/admin/contracts")]
@@ -151,341 +152,121 @@ pub enum Route {
 }
 
 #[component]
-pub fn Login() -> Element {
-    use_page_title("Iniciar Sesion");
-    rsx! { LoginPage {} }
-}
+pub fn Login() -> Element { use_page_title("Login"); rsx! { LoginPage {} } }
 
 #[component]
-pub fn SessionLogin() -> Element {
-    use_effect(|| {
-        let window = web_sys::window();
-        if let Some(w) = window {
-            let params = w.location().search().ok().unwrap_or_default();
-            let code = params
-                .trim_start_matches('?')
-                .split('&')
-                .find_map(|p| p.strip_prefix("code="))
-                .map(|v| urlencoding_decode(v))
-                .unwrap_or_default();
-            if !code.is_empty() {
-                spawn(async move {
-                    match crate::api::client::exchange_code(&code).await {
-                        Ok(Some(data)) => {
-                            if let Some(token) = data.get("token").and_then(|v| v.as_str()) {
-                                if let Some(doc) = w.document() {
-                                    let cookie = format!("jwt_token={}; Path=/; SameSite=Lax; Max-Age=43200", token);
-                                    let _ = js_sys::Reflect::set(&doc, &wasm_bindgen::JsValue::from_str("cookie"), &wasm_bindgen::JsValue::from_str(&cookie));
-                                }
-                                let origin = w.location().origin().ok().unwrap_or_default();
-                                let _ = w.location().set_href(&origin);
-                            }
-                        }
-                        _ => {
-                            let _ = w.location().set_href("/login?error=Ocurrió un error al iniciar sesión");
-                        }
-                    }
-                });
-            }
-        }
-    });
-    use_page_title("Iniciando sesión...");
-    rsx! { div { class: "loading-spinner", "Iniciando sesión..." } }
-}
-
-fn urlencoding_decode(s: &str) -> String {
-    let mut result = String::new();
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '%' => {
-                let hex: String = chars.by_ref().take(2).collect();
-                if let Ok(byte) = u8::from_str_radix(&hex, 16) {
-                    result.push(byte as char);
-                }
-            }
-            '+' => result.push(' '),
-            other => result.push(other),
-        }
-    }
-    result
-}
+pub fn SessionLogin() -> Element { use_page_title("Iniciando Sesión..."); rsx! { div { "Cargando sesión..." } } }
 
 #[component]
-pub fn Dashboard() -> Element {
-    require_auth();
-    use_page_title("Dashboard");
-    rsx! { DashboardMosaicosPage {} }
-}
+pub fn StudentDetailPage(student_id: String) -> Element { require_auth(); use_page_title("Detalle Estudiante"); rsx! { crate::components::pages::student_detail_page::StudentDetailPage { student_id } } }
 
 #[component]
-pub fn RootDashboardRoute() -> Element {
-    require_auth();
-    use_page_title("Panel Root");
-    rsx! { RootDashboard {} }
-}
+pub fn Dashboard() -> Element { require_auth(); use_page_title("Dashboard"); rsx! { DashboardMosaicosPage {} } }
 
 #[component]
-pub fn ModuleManagerRoot() -> Element {
-    require_auth();
-    use_page_title("Inicio");
-    let prefs = use_resource(|| async move { client::fetch_json("/api/user/preferences").await });
-    let mut redirected = use_signal(|| false);
-
-    match prefs() {
-        Some(Ok(data)) => {
-            let show = data["show_module_manager"].as_bool().unwrap_or(true);
-            if show {
-                rsx! { ModuleManager {} }
-            } else if !*redirected.peek() {
-                redirected.set(true);
-                let nav = navigator();
-                nav.replace("/dashboard");
-                rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
-            } else {
-                rsx! { div { class: "loading-spinner", "Redirigiendo..." } }
-            }
-        }
-        _ => {
-            rsx! { div { class: "loading-spinner", "Cargando..." } }
-        }
-    }
-}
+pub fn SostenedorPortal() -> Element { require_auth(); use_page_title("Portal Sostenedor"); rsx! { SostenedorPage {} } }
 
 #[component]
-pub fn SostenedorPortal() -> Element {
-    require_auth();
-    use_page_title("Panel del Sostenedor");
-    rsx! { SostenedorPage {} }
-}
+pub fn RootDashboard() -> Element { require_auth(); use_page_title("Panel Root"); rsx! { RootDashboardPage {} } }
 
 #[component]
-pub fn Students() -> Element {
-    require_auth();
-    use_page_title("Gestion de Alumnos");
-    rsx! { StudentsPage {} }
-}
+pub fn ModuleManagerRoot() -> Element { require_auth(); use_page_title("SchoolCBB v2"); rsx! { ModuleManager {} } }
 
 #[component]
-pub fn Attendance() -> Element {
-    require_auth();
-    use_page_title("Asistencia");
-    rsx! { AttendancePage {} }
-}
+pub fn Students() -> Element { require_auth(); use_page_title("Estudiantes"); rsx! { StudentsPage {} } }
 
 #[component]
-pub fn Grades() -> Element {
-    require_auth();
-    use_page_title("Calificaciones");
-    rsx! { GradesPage {} }
-}
+pub fn Attendance() -> Element { require_auth(); use_page_title("Asistencia"); rsx! { AttendancePage {} } }
 
 #[component]
-pub fn Notifications() -> Element {
-    require_auth();
-    use_page_title("Centro de Mensajeria");
-    rsx! { NotificationsPage {} }
-}
+pub fn Grades() -> Element { require_auth(); use_page_title("Calificaciones"); rsx! { GradesPage {} } }
 
 #[component]
-pub fn Reports() -> Element {
-    require_auth();
-    use_page_title("Reportes");
-    rsx! { ReportsPage {} }
-}
+pub fn Notifications() -> Element { require_auth(); use_page_title("Notificaciones"); rsx! { NotificationsPage {} } }
 
 #[component]
-pub fn Finance() -> Element {
-    require_auth();
-    use_page_title("Finanzas");
-    rsx! { FinancePage {} }
-}
+pub fn Reports() -> Element { require_auth(); use_page_title("Reportes"); rsx! { ReportsPage {} } }
 
 #[component]
-pub fn Users() -> Element {
-    require_auth();
-    use_page_title("Usuarios y Perfiles");
-    rsx! { UsersPage {} }
-}
+pub fn Finance() -> Element { require_auth(); use_page_title("Finanzas"); rsx! { FinancePage {} } }
 
 #[component]
-pub fn Courses() -> Element {
-    require_auth();
-    use_page_title("Cursos");
-    rsx! { CoursesPage {} }
-}
+pub fn Users() -> Element { require_auth(); use_page_title("Usuarios"); rsx! { UsersPage {} } }
 
 #[component]
-pub fn Enrollments() -> Element {
-    require_auth();
-    use_page_title("Matriculas");
-    rsx! { EnrollmentsPage {} }
-}
+pub fn Courses() -> Element { require_auth(); use_page_title("Cursos"); rsx! { CoursesPage {} } }
 
 #[component]
-pub fn Subjects() -> Element {
-    require_auth();
-    use_page_title("Asignaturas");
-    rsx! { SubjectsPage {} }
-}
+pub fn Enrollments() -> Element { require_auth(); use_page_title("Matrículas"); rsx! { EnrollmentsPage {} } }
 
 #[component]
-pub fn Config() -> Element {
-    require_auth();
-    use_page_title("Configuracion");
-    rsx! { ConfigPage {} }
-}
+pub fn Subjects() -> Element { require_auth(); use_page_title("Asignaturas"); rsx! { SubjectsPage {} } }
 
 #[component]
-pub fn Admission() -> Element {
-    require_auth();
-    use_page_title("Admisiones");
-    rsx! { AdmissionPage {} }
-}
+pub fn Config() -> Element { require_auth(); use_page_title("Configuración"); rsx! { ConfigPage {} } }
 
 #[component]
-pub fn Hr() -> Element {
-    require_auth();
-    use_page_title("Recursos Humanos");
-    rsx! { HrPage {} }
-}
+pub fn Admission() -> Element { require_auth(); use_page_title("Admisión"); rsx! { AdmissionPage {} } }
 
 #[component]
-pub fn HrDetail(employee_id: String) -> Element {
-    require_auth();
-    use_page_title("Detalle Empleado");
-    rsx! { HrDetailPage { employee_id: employee_id } }
-}
+pub fn Hr() -> Element { require_auth(); use_page_title("RRHH"); rsx! { HrPage {} } }
 
 #[component]
-pub fn Import() -> Element {
-    use dioxus::prelude::*;
-    use_page_title("Importacion CSV");
-    let mut entity_type = use_signal(|| "employees".to_string());
-    rsx! {
-        div { class: "page-toolbar",
-            button { class: if entity_type() == "employees" { "btn btn-primary" } else { "btn" }, onclick: move |_| entity_type.set("employees".to_string()), "Empleados" }
-            button { class: if entity_type() == "students" { "btn btn-primary" } else { "btn" }, onclick: move |_| entity_type.set("students".to_string()), "Alumnos" }
-        }
-        CsvImportPage { entity_type: entity_type() }
-    }
-}
+pub fn HrDetail(employee_id: String) -> Element { require_auth(); use_page_title("Detalle RRHH"); rsx! { HrDetailPage { employee_id } } }
 
 #[component]
-pub fn Corporations() -> Element {
-    require_auth();
-    use_page_title("Corporaciones y Colegios");
-    rsx! { CorporationsPage {} }
-}
+pub fn Import() -> Element { require_auth(); use_page_title("Importar Datos"); rsx! { CsvImportPage { entity_type: "students".to_string() } } }
 
 #[component]
-pub fn Agenda() -> Element {
-    require_auth();
-    use_page_title("Agenda Escolar");
-    rsx! { AgendaPage {} }
-}
+pub fn Corporations() -> Element { require_auth(); use_page_title("Corporaciones"); rsx! { CorporationsPage {} } }
 
 #[component]
-pub fn AcademicYears() -> Element {
-    require_auth();
-    use_page_title("Anos Academicos");
-    rsx! { AcademicYearsPage {} }
-}
+pub fn Agenda() -> Element { require_auth(); use_page_title("Agenda"); rsx! { AgendaPage {} } }
 
 #[component]
-pub fn Audit() -> Element {
-    require_auth();
-    use_page_title("Auditoria");
-    rsx! { AuditPage {} }
-}
+pub fn AcademicYears() -> Element { require_auth(); use_page_title("Años Académicos"); rsx! { AcademicYearsPage {} } }
 
 #[component]
-pub fn GradeLevels() -> Element {
-    require_auth();
-    use_page_title("Niveles");
-    rsx! { GradeLevelsPage {} }
-}
+pub fn Audit() -> Element { require_auth(); use_page_title("Auditoría"); rsx! { AuditPage {} } }
 
 #[component]
-pub fn Roles() -> Element {
-    require_auth();
-    use_page_title("Roles y Permisos");
-    rsx! { RolesPage {} }
-}
+pub fn GradeLevels() -> Element { require_auth(); use_page_title("Niveles"); rsx! { GradeLevelsPage {} } }
 
 #[component]
-pub fn Classrooms() -> Element {
-    require_auth();
-    use_page_title("Salas");
-    rsx! { ClassroomsPage {} }
-}
+pub fn Roles() -> Element { require_auth(); use_page_title("Roles"); rsx! { RolesPage {} } }
 
 #[component]
-pub fn Payroll() -> Element {
-    require_auth();
-    use_page_title("Remuneraciones");
-    rsx! { PayrollPage {} }
-}
+pub fn Classrooms() -> Element { require_auth(); use_page_title("Salas"); rsx! { ClassroomsPage {} } }
 
 #[component]
-pub fn ClientPortal() -> Element {
-    require_auth();
-    use_page_title("Portal de Licencia");
-    rsx! { ClientPortalPage {} }
-}
+pub fn Payroll() -> Element { require_auth(); use_page_title("Remuneraciones"); rsx! { PayrollPage {} } }
 
 #[component]
-pub fn EmployeePortal() -> Element {
-    require_auth();
-    use_page_title("Mi Portal");
-    rsx! { EmployeePortalPage {} }
-}
+pub fn ClientPortal() -> Element { require_auth(); use_page_title("Portal Cliente"); rsx! { ClientPortalPage {} } }
 
 #[component]
-pub fn Sige() -> Element {
-    require_auth();
-    use_page_title("SIGE - Exportacion MINEDUC");
-    rsx! { SigePage {} }
-}
+pub fn EmployeePortal() -> Element { require_auth(); use_page_title("Mi Portal"); rsx! { EmployeePortalPage {} } }
 
 #[component]
-pub fn Complaints() -> Element {
-    require_auth();
-    use_page_title("Ley Karin - Canal de Denuncias");
-    rsx! { ComplaintsPage {} }
-}
+pub fn Sige() -> Element { require_auth(); use_page_title("Sincronización SIGE"); rsx! { SigePage {} } }
 
 #[component]
-pub fn Curriculum() -> Element {
-    require_auth();
-    use_page_title("Currículum Nacional");
-    rsx! { CurriculumAgent {} }
-}
+pub fn Complaints() -> Element { require_auth(); use_page_title("Reclamos y Sugerencias"); rsx! { ComplaintsPage {} } }
 
 #[component]
-pub fn AdminPlans() -> Element {
-    require_auth();
-    use_page_title("Planes - Root");
-    rsx! { AdminPlansPage {} }
-}
+pub fn Curriculum() -> Element { use_page_title("Currículum Nacional"); rsx! { CurriculumAgent {} } }
 
 #[component]
-pub fn AdminContracts() -> Element {
-    require_auth();
-    use_page_title("Contratos - Root");
-    rsx! { AdminContractsPage {} }
-}
+pub fn Sales() -> Element { require_auth(); use_page_title("CRM Ventas"); rsx! { SalesPage {} } }
 
 #[component]
-pub fn AdminPayments() -> Element {
-    require_auth();
-    use_page_title("Pagos - Root");
-    rsx! { AdminPaymentsPage {} }
-}
+pub fn AdminPlans() -> Element { require_auth(); use_page_title("Planes - Root"); rsx! { AdminPlansPage {} } }
 
 #[component]
-pub fn AdminSystem() -> Element {
-    require_auth();
-    use_page_title("Sistema - Root");
-    rsx! { AdminSystemPage {} }
-}
+pub fn AdminContracts() -> Element { require_auth(); use_page_title("Contratos - Root"); rsx! { AdminContractsPage {} } }
+
+#[component]
+pub fn AdminPayments() -> Element { require_auth(); use_page_title("Pagos - Root"); rsx! { AdminPaymentsPage {} } }
+
+#[component]
+pub fn AdminSystem() -> Element { require_auth(); use_page_title("Sistema - Root"); rsx! { AdminSystemPage {} } }

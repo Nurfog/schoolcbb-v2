@@ -6,6 +6,7 @@ pub struct Config {
     pub port: u16,
     pub identity_url: String,
     pub frontend_url: String,
+    pub crm_url: String,
 }
 
 impl Config {
@@ -20,6 +21,8 @@ impl Config {
                 .unwrap_or_else(|_| "http://localhost:3001".into()),
             frontend_url: env::var("FRONTEND_URL")
                 .unwrap_or_else(|_| "http://localhost:8080".into()),
+            crm_url: env::var("CRM_URL")
+                .unwrap_or_else(|_| "http://localhost:3003".into()),
         }
     }
 

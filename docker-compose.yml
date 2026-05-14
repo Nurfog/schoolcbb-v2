@@ -223,6 +223,29 @@ services:
       retries: 10
       start_period: 30s
 
+  crm:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: schoolccb-crm
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3012
+      RUST_LOG: info
+      DATABASE_URL: postgres://schoolccb:schoolccb@db:5432/schoolccb
+      JWT_SECRET: cambio-en-produccion
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3012/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   gateway:
     restart: unless-stopped
     build:
@@ -246,6 +269,7 @@ services:
       REPORTING_URL: http://reporting:3007
       PORTAL_URL: http://portal:3010
       CURRICULUM_URL: http://curriculum:3011
+      CRM_URL: http://crm:3012
     depends_on:
       identity:
         condition: service_healthy
@@ -264,6 +288,8 @@ services:
       portal:
         condition: service_healthy
       curriculum:
+        condition: service_healthy
+      crm:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]

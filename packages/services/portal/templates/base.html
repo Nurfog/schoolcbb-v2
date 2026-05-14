@@ -5,6 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
     <meta name="description" content="SchoolCBB - Plataforma de gestión escolar integral para colegios chilenos. Administra alumnos, notas, asistencia, finanzas y más.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ canonical_url }}">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ canonical_url }}">
+    <meta property="og:title" content="{{ title }}">
+    <meta property="og:description" content="Gestión escolar inteligente diseñada para la educación chilena. Cumplimiento Decreto 67, SIGE y más.">
+    <meta property="og:image" content="https://schoolccb.cl/static/og-image.jpg">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ canonical_url }}">
+    <meta property="twitter:title" content="{{ title }}">
+    <meta property="twitter:description" content="Gestión escolar inteligente diseñada para la educación chilena. Cumplimiento Decreto 67, SIGE y más.">
+    <meta property="twitter:image" content="https://schoolccb.cl/static/og-image.jpg">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "SchoolCBB",
+      "url": "https://schoolccb.cl",
+      "logo": "https://schoolccb.cl/static/logo.png",
+      "description": "Plataforma de gestión escolar integral para colegios chilenos.",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Santiago",
+        "addressCountry": "CL"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "email": "hola@schoolccb.cl"
+      }
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>

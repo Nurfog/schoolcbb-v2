@@ -31,6 +31,7 @@ pub mod payroll_page;
 pub mod reports_page;
 pub mod root_page;
 pub mod roles_page;
+pub mod sales_page;
 pub mod sige_page;
 pub mod student_detail_page;
 pub mod sostenedor_page;

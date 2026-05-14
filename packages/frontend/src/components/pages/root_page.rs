@@ -178,7 +178,7 @@ fn CorporationAdminRow(corp: Value, on_edit: EventHandler<Value>, on_toggle: Eve
     let mut rep_addr = use_signal(String::new);
     let mut saving_rep = use_signal(|| false);
     let cid = id.clone();
-    let mut reps = use_resource({
+    let reps = use_resource({
         let cid = cid.clone();
         move || {
             let cid = cid.clone();

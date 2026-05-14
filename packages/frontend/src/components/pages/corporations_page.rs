@@ -146,7 +146,7 @@ fn CorporationRow(corp: Value, is_expanded: bool, on_toggle: EventHandler<String
 
 #[component]
 fn LegalRepSection(corporation_id: String, reps: Option<Result<Value, String>>) -> Element {
-    let mut creating = use_signal(|| None::<String>);
+    let creating = use_signal(|| None::<String>);
     match reps {
         Some(Ok(ref data)) => {
             let list: Vec<Value> = data["legal_representatives"].as_array().cloned().unwrap_or_default();

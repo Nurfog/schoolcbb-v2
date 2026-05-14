@@ -79,6 +79,8 @@ pub enum Module {
     Corporations,
     /// Registro de auditoría.
     Audit,
+    /// CRM de ventas (B2B).
+    Sales,
     /// Exportación de datos a plataforma SIGE.
     SIGE,
     /// Denuncias y reclamos (Ley Karin).
@@ -110,6 +112,7 @@ impl Module {
             Module::Config => "config",
             Module::Corporations => "corporations",
             Module::Audit => "audit",
+            Module::Sales => "sales",
             Module::SIGE => "sige",
             Module::Complaints => "complaints",
         }
@@ -139,6 +142,7 @@ impl Module {
             ("config", vec!["branding", "preferences", "general"]),
             ("corporations", vec!["view", "create", "edit", "toggle"]),
             ("audit", vec!["view", "export"]),
+            ("sales", vec!["view", "create", "edit", "delete", "assign", "contract", "activate"]),
             ("sige", vec!["export"]),
             ("complaints", vec!["view", "manage", "resolve"]),
         ]
@@ -278,6 +282,7 @@ pub async fn check_permission(
 /// Helper: dado un `corporation_id` opcional (del JWT), verifica que el módulo
 /// esté incluido en la licencia activa. Retorna `Ok(())` si tiene acceso,
 /// o un mensaje de error si no.
+#[cfg(feature = "db")]
 pub async fn require_licensed_module(
     pool: &sqlx::PgPool,
     corporation_id: Option<&str>,

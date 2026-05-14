@@ -115,3 +115,15 @@ pub struct CreateSchoolPayload {
     pub address: Option<String>,
     pub phone: Option<String>,
 }
+/// Payload para el proceso de onboarding (activación de licencia)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnboardingPayload {
+    pub corporation_name: String,
+    pub corporation_rut: String,
+    pub school_name: String,
+    pub admin_name: String,
+    pub admin_email: String,
+    pub admin_rut: String,
+    pub plan_id: Uuid,
+    pub modules: Option<Vec<String>>,
+}

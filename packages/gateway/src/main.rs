@@ -32,6 +32,7 @@ struct AppState {
     reporting_url: String,
     portal_url: String,
     curriculum_url: String,
+    crm_url: String,
     frontend_url: String,
 }
 
@@ -61,6 +62,7 @@ async fn main() {
         reporting_url: env::var("REPORTING_URL").unwrap_or_else(|_| "http://localhost:3007".into()),
         portal_url: env::var("PORTAL_URL").unwrap_or_else(|_| "http://localhost:3010".into()),
         curriculum_url: env::var("CURRICULUM_URL").unwrap_or_else(|_| "http://localhost:3011".into()),
+        crm_url: env::var("CRM_URL").unwrap_or_else(|_| "http://localhost:3012".into()),
     };
     let frontend_origin = state
         .frontend_url
@@ -144,6 +146,8 @@ async fn main() {
         .route("/api/legal-representatives/{*path}", any(proxy_identity))
         .route("/api/curriculum", any(proxy_curriculum))
         .route("/api/curriculum/{*path}", any(proxy_curriculum))
+        .route("/api/sales", any(proxy_crm))
+        .route("/api/sales/{*path}", any(proxy_crm))
         .route("/graphql", get(graphql_playground).post(graphql_handler))
         .layer(Extension(schema))
         .route("/ws", any(ws_proxy))
@@ -311,6 +315,7 @@ proxy_handler!(proxy_finance, "finance");
 proxy_handler!(proxy_reporting, "reporting");
 proxy_handler!(proxy_portal, "portal");
 proxy_handler!(proxy_curriculum, "curriculum");
+proxy_handler!(proxy_crm, "crm");
 
 async fn proxy_request(state: &AppState, service: &str, req: Request) -> Response {
     let base_url = match service {
@@ -323,6 +328,7 @@ async fn proxy_request(state: &AppState, service: &str, req: Request) -> Respons
         "reporting" => &state.reporting_url,
         "portal" => &state.portal_url,
         "curriculum" => &state.curriculum_url,
+        "crm" => &state.crm_url,
         _ => return (StatusCode::BAD_REQUEST, "Unknown service").into_response(),
     };
 

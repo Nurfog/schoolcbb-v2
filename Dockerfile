@@ -21,6 +21,7 @@ COPY packages/services/finance/Cargo.toml packages/services/finance/Cargo.toml
 COPY packages/services/reporting/Cargo.toml packages/services/reporting/Cargo.toml
 COPY packages/services/portal/Cargo.toml packages/services/portal/Cargo.toml
 COPY packages/services/curriculum/Cargo.toml packages/services/curriculum/Cargo.toml
+COPY packages/services/crm/Cargo.toml packages/services/crm/Cargo.toml
 
 # Dummy sources for cargo metadata resolution
 RUN mkdir -p packages/common/src packages/proto/src && \
@@ -28,7 +29,7 @@ RUN mkdir -p packages/common/src packages/proto/src && \
     for pkg in gateway frontend; do \
       mkdir -p packages/$pkg/src && echo "fn main() {}" > packages/$pkg/src/main.rs; \
     done && \
-    for pkg in identity sis academic attendance notifications finance reporting portal curriculum; do \
+    for pkg in identity sis academic attendance notifications finance reporting portal curriculum crm; do \
       mkdir -p packages/services/$pkg/src && echo "fn main() {}" > packages/services/$pkg/src/main.rs; \
     done
 
@@ -62,3 +63,4 @@ COPY --from=builder /app/target/release/schoolccb-finance /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-reporting /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-portal /usr/local/bin/
 COPY --from=builder /app/target/release/schoolccb-curriculum /usr/local/bin/
+COPY --from=builder /app/target/release/schoolccb-crm /usr/local/bin/

@@ -390,6 +390,21 @@ pub async fn seed_roles(pool: &PgPool) {
             "Equipo de admisión, gestión de postulantes",
             true,
         ),
+        (
+            "GerenteGeneral",
+            "Gerente general del área comercial",
+            true,
+        ),
+        (
+            "JefeVentas",
+            "Jefe del equipo de ventas",
+            true,
+        ),
+        (
+            "AgenteVentas",
+            "Agente de ventas comercial",
+            true,
+        ),
     ];
 
     for (name, description, is_system) in &default_roles {
