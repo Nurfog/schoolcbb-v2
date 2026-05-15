@@ -110,10 +110,14 @@ pub struct SalesContract {
     pub modules: Option<serde_json::Value>,
     pub total_value: f64,
     pub discount: f64,
+    pub tax_rate: Option<f64>,
+    pub tax_amount: Option<f64>,
+    pub subtotal: Option<f64>,
     pub status: String,
     pub signed_at: Option<DateTime<Utc>>,
     pub verified_at: Option<DateTime<Utc>>,
     pub activated_at: Option<DateTime<Utc>>,
+    pub invoices: Option<serde_json::Value>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -126,6 +130,8 @@ pub struct CreateContractPayload {
     pub modules: Option<serde_json::Value>,
     pub total_value: f64,
     pub discount: Option<f64>,
+    pub tax_id: Option<String>,
+    pub tax_rate: Option<f64>,
     pub notes: Option<String>,
 }
 
@@ -161,4 +167,98 @@ pub struct SalesProposal {
     pub notes: Option<String>,
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
+}
+
+// Sales Agent
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SalesAgent {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub quota_monthly: f64,
+    pub quota_quarterly: f64,
+    pub commission_rate: f64,
+    pub active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAgentPayload {
+    pub user_id: Uuid,
+    pub quota_monthly: Option<f64>,
+    pub quota_quarterly: Option<f64>,
+    pub commission_rate: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SalesGoal {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub goal_type: String,
+    pub target_amount: f64,
+    pub target_count: i32,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+    pub achieved_amount: f64,
+    pub achieved_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateGoalPayload {
+    pub agent_id: Uuid,
+    pub goal_type: String,
+    pub target_amount: f64,
+    pub target_count: i32,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+}
+
+// CSV Import
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SalesImport {
+    pub id: Uuid,
+    pub file_name: String,
+    pub total_rows: i32,
+    pub imported_rows: i32,
+    pub failed_rows: i32,
+    pub errors: Option<serde_json::Value>,
+    pub status: String,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CsvImportPayload {
+    pub rows: Vec<CsvProspectRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CsvProspectRow {
+    pub first_name: String,
+    pub last_name: String,
+    pub rut: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub company: Option<String>,
+    pub position: Option<String>,
+    pub source: Option<String>,
+    pub notes: Option<String>,
+}
+
+// Round-robin config
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RoundRobinConfig {
+    pub id: Uuid,
+    pub active: bool,
+    pub last_assigned_index: i32,
+    pub updated_at: DateTime<Utc>,
+}
+
+// Invoice request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateInvoicePayload {
+    pub invoice_type: Option<String>,
+    pub notes: Option<String>,
 }
