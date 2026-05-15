@@ -53,7 +53,7 @@ pub fn router() -> Router<AppState> {
 }
 
 pub fn require_role(claims: &Claims, required: &str) -> Result<(), AuthError> {
-    if claims.role == "Root" || claims.role == required {
+    if claims.role == "GerenteGeneral" || claims.role == required {
         return Ok(());
     }
     Err(AuthError::Forbidden(format!(
@@ -63,7 +63,7 @@ pub fn require_role(claims: &Claims, required: &str) -> Result<(), AuthError> {
 }
 
 fn require_any_role(claims: &Claims, roles: &[&str]) -> Result<(), AuthError> {
-    if claims.role == "Root" || roles.contains(&claims.role.as_str()) {
+    if claims.role == "GerenteGeneral" || roles.contains(&claims.role.as_str()) {
         return Ok(());
     }
     Err(AuthError::Forbidden(format!(
@@ -163,7 +163,7 @@ async fn login(
     )?;
 
     let (refresh_token, _) = models::create_refresh_token(&state.pool, id, 7).await?;
-    let is_root = user.role == "Root";
+    let is_root = user.role == "GerenteGeneral";
 
     Ok(Json(json!({
         "token": token,
@@ -265,7 +265,7 @@ async fn me(claims: Claims, State(state): State<AppState>) -> AuthResult<Json<Va
         .await?
         .ok_or(AuthError::UserNotFound)?;
 
-    let is_root = user.role == "Root";
+    let is_root = user.role == "GerenteGeneral";
 
     Ok(Json(json!({
         "user": {
@@ -295,7 +295,7 @@ async fn my_permissions(claims: Claims, State(state): State<AppState>) -> AuthRe
     .fetch_all(&state.pool)
     .await?;
 
-    let is_full_access = claims.role == "Root" || claims.role == "Sostenedor";
+    let is_full_access = claims.role == "GerenteGeneral" || claims.role == "Sostenedor";
 
     let perms: Vec<PermEntry> = if is_full_access {
         sqlx::query_as::<_, PermEntry>(
@@ -355,7 +355,7 @@ async fn register(
     State(state): State<AppState>,
     Json(payload): Json<schoolccb_common::user::RegisterPayload>,
 ) -> AuthResult<Json<Value>> {
-    let is_root = claims.role == "Root";
+    let is_root = claims.role == "GerenteGeneral";
     if !is_root {
         require_any_role(&claims, &["Administrador", "Sostenedor"])?;
         if payload.role == "Administrador" || payload.role == "Sostenedor" {
@@ -542,7 +542,7 @@ async fn refresh(
     )?;
 
     let (new_refresh_token, _) = models::create_refresh_token(&state.pool, user.id, 7).await?;
-    let is_root = user.role == "Root";
+    let is_root = user.role == "GerenteGeneral";
 
     Ok(Json(json!({
         "token": token,
@@ -796,7 +796,7 @@ async fn update_branding(
     State(state): State<AppState>,
     Json(payload): Json<Value>,
 ) -> AuthResult<Json<Value>> {
-    if claims.role != "Root" {
+    if claims.role != "GerenteGeneral" {
         require_role(&claims, "Sostenedor")?;
     }
     let corp_id = claims.corporation_id.and_then(|s| s.parse::<Uuid>().ok());
@@ -1072,8 +1072,45 @@ async fn list_modules(
             .await?;
     let fav_set: std::collections::HashSet<String> = favs.into_iter().map(|r| r.0).collect();
 
-    let all_modules = if claims.role == "Root" {
-        root_modules()
+    let all_modules = if claims.role == "GerenteGeneral" {
+        let mut modules = builtin_modules();
+        modules.push(schoolccb_common::modules::Module {
+            id: "sales".into(),
+            name: "CRM de Ventas".into(),
+            icon: "trending-up".into(),
+            category: "Gestión".into(),
+            route: "/sales".into(),
+            parent: None,
+            is_favorite: false,
+        });
+        modules.push(schoolccb_common::modules::Module {
+            id: "corporations".into(),
+            name: "Corporaciones".into(),
+            icon: "home".into(),
+            category: "Configuración".into(),
+            route: "/corporations".into(),
+            parent: None,
+            is_favorite: false,
+        });
+        modules.push(schoolccb_common::modules::Module {
+            id: "plans".into(),
+            name: "Planes".into(),
+            icon: "key".into(),
+            category: "Configuración".into(),
+            route: "/admin/plans".into(),
+            parent: None,
+            is_favorite: false,
+        });
+        modules.push(schoolccb_common::modules::Module {
+            id: "licenses".into(),
+            name: "Contratos".into(),
+            icon: "file-text".into(),
+            category: "Configuración".into(),
+            route: "/admin/contracts".into(),
+            parent: None,
+            is_favorite: false,
+        });
+        modules
     } else {
         let filter = q.filter_by_license.unwrap_or(true);
         let bm = builtin_modules();
@@ -1152,74 +1189,6 @@ async fn my_plan(claims: Claims, State(state): State<AppState>) -> AuthResult<Js
     }
 }
 
-fn root_modules() -> Vec<schoolccb_common::modules::Module> {
-    vec![
-        schoolccb_common::modules::Module {
-            id: "root-dashboard".into(),
-            name: "Panel Root".into(),
-            icon: "shield".into(),
-            category: "Root".into(),
-            route: "/root".into(),
-            parent: None,
-            is_favorite: false,
-        },
-        schoolccb_common::modules::Module {
-            id: "corporations".into(),
-            name: "Corporaciones y Colegios".into(),
-            icon: "home".into(),
-            category: "Root".into(),
-            route: "/corporations".into(),
-            parent: None,
-            is_favorite: false,
-        },
-        schoolccb_common::modules::Module {
-            id: "plans".into(),
-            name: "Planes".into(),
-            icon: "key".into(),
-            category: "Root".into(),
-            route: "/admin/plans".into(),
-            parent: None,
-            is_favorite: false,
-        },
-        schoolccb_common::modules::Module {
-            id: "licenses".into(),
-            name: "Contratos".into(),
-            icon: "file-text".into(),
-            category: "Root".into(),
-            route: "/admin/contracts".into(),
-            parent: None,
-            is_favorite: false,
-        },
-        schoolccb_common::modules::Module {
-            id: "payments".into(),
-            name: "Pagos".into(),
-            icon: "dollar".into(),
-            category: "Root".into(),
-            route: "/admin/payments".into(),
-            parent: None,
-            is_favorite: false,
-        },
-        schoolccb_common::modules::Module {
-            id: "audit".into(),
-            name: "Auditoría".into(),
-            icon: "file-text".into(),
-            category: "Root".into(),
-            route: "/audit".into(),
-            parent: None,
-            is_favorite: false,
-        },
-        schoolccb_common::modules::Module {
-            id: "system".into(),
-            name: "Sistema".into(),
-            icon: "settings".into(),
-            category: "Root".into(),
-            route: "/admin/system".into(),
-            parent: None,
-            is_favorite: false,
-        },
-    ]
-}
-
 async fn toggle_favorite(
     claims: Claims,
     State(state): State<AppState>,
@@ -1256,7 +1225,7 @@ async fn list_corporations(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    let corporations = if claims.role == "Root" {
+    let corporations = if claims.role == "GerenteGeneral" {
         sqlx::query_as::<_, schoolccb_common::school::Corporation>(
             "SELECT id, name, rut, logo_url, legal_representative_name, legal_representative_rut, legal_representative_email, settings, active, created_at FROM corporations ORDER BY name",
         )
@@ -1284,7 +1253,7 @@ async fn get_corporation(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    if claims.role != "Root" {
+    if claims.role != "GerenteGeneral" {
         if let Some(cid) = &claims.corporation_id {
             let user_cid: Uuid = cid.parse().map_err(|_| AuthError::Internal("ID inválido".into()))?;
             if user_cid != id {
@@ -1311,7 +1280,7 @@ async fn get_corporation_modules(
 ) -> AuthResult<Json<Value>> {
     require_any_role(&claims, &["Sostenedor", "Administrador"])?;
 
-    if claims.role != "Root" {
+    if claims.role != "GerenteGeneral" {
         if let Some(cid) = &claims.corporation_id {
             let user_cid: Uuid = cid.parse().map_err(|_| AuthError::Internal("ID inválido".into()))?;
             if user_cid != id {

@@ -1,4 +1,3 @@
-mod admin;
 mod client;
 mod config;
 mod error;
@@ -57,7 +56,7 @@ async fn main() {
     models::seed_permission_definitions(&pool).await;
     tracing::info!("Roles and permissions seeded");
 
-    models::seed_root_admin(&pool).await;
+    models::seed_gerente_general(&pool).await;
     models::seed_license_plans(&pool).await;
 
     models::seed_default_school(&pool).await;
@@ -89,7 +88,6 @@ async fn main() {
     let mut app = Router::new()
         .route("/health", get(|| async { "ok" }))
         .merge(routes::router())
-        .merge(admin::admin_router())
         .merge(client::client_router())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

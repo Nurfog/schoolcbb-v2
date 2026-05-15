@@ -35,7 +35,7 @@ fn current_user_is_root() -> bool {
     let payload_b64 = match parts.get(1) { Some(p) => p, None => return false };
     let decoded = match window.atob(payload_b64).ok() { Some(d) => d, None => return false };
     let claims: serde_json::Value = match serde_json::from_str(&decoded) { Ok(c) => c, Err(_) => return false };
-    claims["role"].as_str() == Some("Root")
+    claims["role"].as_str() == Some("GerenteGeneral")
 }
 
 #[component]

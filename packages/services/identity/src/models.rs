@@ -483,14 +483,12 @@ pub async fn update_preferences(
     .await
 }
 
-pub async fn seed_root_admin(pool: &PgPool) {
-    let root_email =
-        std::env::var("ROOT_EMAIL").unwrap_or_else(|_| "root@schoolccb.cl".into());
-    let root_password =
-        std::env::var("ROOT_PASSWORD").unwrap_or_else(|_| "root123".into());
+pub async fn seed_gerente_general(pool: &PgPool) {
+    let email = std::env::var("GERENTE_EMAIL").unwrap_or_else(|_| "juan.allende@gmail.com".into());
+    let password = std::env::var("GERENTE_PASSWORD").unwrap_or_else(|_| "admin123".into());
 
     let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = $1")
-        .bind(&root_email)
+        .bind(&email)
         .fetch_one(pool)
         .await
         .unwrap_or((0,));
@@ -499,22 +497,22 @@ pub async fn seed_root_admin(pool: &PgPool) {
         return;
     }
 
-    let hash = hash_password(&root_password);
+    let hash = hash_password(&password);
     sqlx::query(
         "INSERT INTO users (id, rut, name, email, password_hash, role, active)
-         VALUES ($1, '0.0.0.0-0', 'Root Admin', $2, $3, 'Root', true)",
+         VALUES ($1, '22.222.222-2', 'Juan Allende', $2, $3, 'GerenteGeneral', true)",
     )
     .bind(Uuid::new_v4())
-    .bind(&root_email)
+    .bind(&email)
     .bind(&hash)
     .execute(pool)
     .await
     .unwrap_or_else(|_| {
-        tracing::warn!("Could not seed root admin");
+        tracing::warn!("Could not seed gerente general");
         Default::default()
     });
 
-    tracing::info!("Root admin created: {root_email}");
+    tracing::info!("Gerente General created: {email}");
 }
 
 pub async fn seed_license_plans(pool: &PgPool) {

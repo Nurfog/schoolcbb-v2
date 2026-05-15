@@ -75,17 +75,17 @@ fi
 ok "App URL: $APP_URL"
 ok "Portal URL: $PORTAL_URL"
 
-# -- Root admin
+# -- Gerente General (superadmin)
 echo ""
-info "Cuenta de administrador global (Root)"
-echo "Esta cuenta tiene acceso completo a todas las corporaciones."
-read -r -p "$(echo -e "${CYAN}Email del Root${NC} [admin@${COMPANY_NAME,,}.cl]: ")" ROOT_EMAIL
-ROOT_EMAIL="${ROOT_EMAIL:-admin@${COMPANY_NAME,,}.cl}"
+info "Cuenta de administrador global (Gerente General)"
+echo "Esta cuenta reemplaza al antiguo Root. Tiene acceso completo al CRM, configuración global y gestión de licencias."
+read -r -p "$(echo -e "${CYAN}Email del Gerente General${NC} [juan.allende@gmail.com]: ")" GERENTE_EMAIL
+GERENTE_EMAIL="${GERENTE_EMAIL:-juan.allende@gmail.com}"
 
-read -r -s -p "$(echo -e "${CYAN}Contraseña del Root${NC} [admin123]: ")" ROOT_PASSWORD
-ROOT_PASSWORD="${ROOT_PASSWORD:-admin123}"
+read -r -s -p "$(echo -e "${CYAN}Contraseña del Gerente General${NC} [admin123]: ")" GERENTE_PASSWORD
+GERENTE_PASSWORD="${GERENTE_PASSWORD:-admin123}"
 echo ""
-ok "Root: $ROOT_EMAIL"
+ok "Gerente General: $GERENTE_EMAIL"
 
 # -- Puerto de la app
 read -r -p "$(echo -e "${CYAN}Puerto de la app (frontend)${NC} [8080]: ")" APP_PORT
@@ -132,9 +132,9 @@ DOMAIN="${DOMAIN}"
 APP_URL="${APP_URL}"
 PORTAL_URL="${PORTAL_URL}"
 
-# ─── Root Admin ───────────────────────────────────────────
-ROOT_EMAIL="${ROOT_EMAIL}"
-ROOT_PASSWORD="${ROOT_PASSWORD}"
+# ─── Gerente General (Superadmin) ─────────────────────────
+GERENTE_EMAIL="${GERENTE_EMAIL}"
+GERENTE_PASSWORD="${GERENTE_PASSWORD}"
 
 # ─── Base de Datos ────────────────────────────────────────
 DATABASE_URL=${DB_URL}
@@ -212,7 +212,7 @@ if [ "$DOMAIN" == "localhost" ]; then
     echo ""
     echo "  Frontend:  http://localhost:${APP_PORT}"
     echo "  API:       http://localhost:3000"
-    echo "  Root login: ${ROOT_EMAIL} / ${ROOT_PASSWORD}"
+    echo "  Gerente General:  ${GERENTE_EMAIL} / ${GERENTE_PASSWORD}"
 else
     echo ""
     info "Configuración para producción detectada."
@@ -231,7 +231,7 @@ echo "╔═══════════════════════�
 echo "║           Setup completado                     ║"
 echo "╠═══════════════════════════════════════════════╣"
 printf "║ %-20s %-25s ║\n" "Empresa" "$COMPANY_NAME"
-printf "║ %-20s %-25s ║\n" "Root email" "$ROOT_EMAIL"
+printf "║ %-20s %-25s ║\n" "Gerente email" "$GERENTE_EMAIL"
 printf "║ %-20s %-25s ║\n" "App URL" "$APP_URL"
 printf "║ %-20s %-25s ║\n" "Portal URL" "$PORTAL_URL"
 printf "║ %-20s %-25s ║\n" "JWT Secret" "${JWT_SECRET:0:16}..."

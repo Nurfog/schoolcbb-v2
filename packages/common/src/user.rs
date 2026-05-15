@@ -33,8 +33,12 @@ impl AdminType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[non_exhaustive]
 pub enum UserRole {
-    /// Superadministrador con acceso total.
-    Root,
+    /// Gerente General — superadministrador (reemplaza Root).
+    GerenteGeneral,
+    /// Jefe de Ventas — supervisa equipo comercial.
+    JefeVentas,
+    /// Agente de Ventas — ejecutivo comercial.
+    AgenteVentas,
     /// Sostenedor o administrador de corporación.
     Sostenedor,
     /// Director del establecimiento.
@@ -64,7 +68,9 @@ impl UserRole {
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            UserRole::Root => "Root",
+            UserRole::GerenteGeneral => "GerenteGeneral",
+            UserRole::JefeVentas => "JefeVentas",
+            UserRole::AgenteVentas => "AgenteVentas",
             UserRole::Sostenedor => "Sostenedor",
             UserRole::Director => "Director",
             UserRole::UTP => "UTP",
@@ -79,7 +85,9 @@ impl UserRole {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "Root" => Some(UserRole::Root),
+            "GerenteGeneral" => Some(UserRole::GerenteGeneral),
+            "JefeVentas" => Some(UserRole::JefeVentas),
+            "AgenteVentas" => Some(UserRole::AgenteVentas),
             "Sostenedor" => Some(UserRole::Sostenedor),
             "Director" => Some(UserRole::Director),
             "UTP" => Some(UserRole::UTP),
