@@ -443,23 +443,6 @@ pub async fn save_custom_field_values(entity_id: &str, payload: &Value) -> Resul
 pub async fn init_online_payment(fee_id: &str) -> Result<Value, String> {
     fetch_json(&format!("/api/finance/payment/init/{}", fee_id)).await
 }
-pub async fn exchange_code(code: &str) -> Result<Option<Value>, String> {
-    let resp = client()
-        .post(&abs_url("/api/auth/exchange"))
-        .json(&json!({"code": code}))
-        .send()
-        .await
-        .map_err(|e| format!("Error: {e}"))?;
-    let data: Value = resp.json().await.map_err(|e| format!("Parse: {e}"))?;
-    if data.get("token").is_some() {
-        Ok(Some(data))
-    } else if let Some(err) = data.get("error").and_then(|v| v.as_str()) {
-        Err(err.to_string())
-    } else {
-        Ok(None)
-    }
-}
-
 // ─── Admin / Root ───
 pub async fn admin_list_plans() -> Result<Value, String> {
     fetch_json("/api/admin/license-plans").await

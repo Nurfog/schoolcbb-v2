@@ -38,6 +38,7 @@ fn test_generate_token_pair_creates_valid_jwt() {
         host: "0.0.0.0".into(),
         port: 3001,
         jwt_secret: "test-secret-key-for-testing".into(),
+        internal_api_secret: "test-secret".into(),
     };
     let user_id = Uuid::new_v4();
     let (token, claims) =

@@ -4,6 +4,38 @@ use crate::api::client;
 
 #[component]
 pub fn SalesPage() -> Element {
+    let mut active_tab = use_signal(|| "pipeline".to_string());
+
+    let tab_pipeline = if active_tab() == "pipeline" { "tab active" } else { "tab" };
+    let tab_dashboard = if active_tab() == "dashboard" { "tab active" } else { "tab" };
+    let tab_team = if active_tab() == "team" { "tab active" } else { "tab" };
+
+    rsx! {
+        div { class: "page-header",
+            h1 { "CRM de Ventas" }
+            p { "Pipeline comercial — gesti\u{00f3}n de prospectos, propuestas, contratos y equipo" }
+        }
+        div { class: "tabs sales-tabs",
+            button { class: "{tab_pipeline}", onclick: move |_| active_tab.set("pipeline".to_string()), "Pipeline" }
+            button { class: "{tab_dashboard}", onclick: move |_| active_tab.set("dashboard".to_string()), "Dashboard" }
+            button { class: "{tab_team}", onclick: move |_| active_tab.set("team".to_string()), "Equipo" }
+        }
+        div { class: "tab-content",
+            if active_tab() == "pipeline" {
+                SalesPipeline {}
+            } else if active_tab() == "dashboard" {
+                SalesDashboard {}
+            } else {
+                SalesTeam {}
+            }
+        }
+    }
+}
+
+// ─── Pipeline Tab ───
+
+#[component]
+fn SalesPipeline() -> Element {
     let stages = use_resource(|| client::fetch_json("/api/sales/stages"));
     let mut prospects = use_resource(|| client::fetch_json("/api/sales/prospects"));
     let mut selected_id = use_signal(|| None::<String>);
@@ -32,6 +64,9 @@ pub fn SalesPage() -> Element {
     let mut notes = use_signal(String::new);
     let mut saving = use_signal(|| false);
 
+    let kanban_btn_class = if view_mode() == "kanban" { "btn btn-active" } else { "btn" };
+    let table_btn_class = if view_mode() == "table" { "btn btn-active" } else { "btn" };
+
     let do_create = move |_| {
         saving.set(true);
         let payload = json!({
@@ -50,20 +85,13 @@ pub fn SalesPage() -> Element {
         });
     };
 
-    let kanban_active = view_mode() == "kanban";
-    let table_active = view_mode() == "table";
-
     rsx! {
-        div { class: "page-header",
-            h1 { "CRM de Ventas" }
-            p { "Pipeline comercial — gesti\u{00f3}n de prospectos, propuestas y contratos" }
-        }
         div { class: "page-toolbar",
             button { class: "btn btn-primary", onclick: move |_| show_new.set(!show_new()),
                 if show_new() { "Cancelar" } else { "Nuevo Prospecto" }
             }
-            button { class: "btn {kanban_active}", onclick: move |_| view_mode.set("kanban".to_string()), "Kanban" }
-            button { class: "btn {table_active}", onclick: move |_| view_mode.set("table".to_string()), "Tabla" }
+            button { class: "{kanban_btn_class}", onclick: move |_| view_mode.set("kanban".to_string()), "Kanban" }
+            button { class: "{table_btn_class}", onclick: move |_| view_mode.set("table".to_string()), "Tabla" }
             input { class: "search-input", placeholder: "Buscar prospecto...", value: "{search_term}", oninput: move |e| search_term.set(e.value()) }
         }
         if show_new() {
@@ -82,8 +110,6 @@ pub fn SalesPage() -> Element {
                 }
                 div { class: "form-row",
                     div { class: "form-group", label { "Cargo" } input { class: "form-input", value: "{position}", oninput: move |e| position.set(e.value()) } }
-                }
-                div { class: "form-row",
                     div { class: "form-group",
                         label { "Fuente" }
                         select { class: "form-input", value: "{source}", oninput: move |e| source.set(e.value()),
@@ -156,7 +182,7 @@ fn SalesKanbanBoard(stages: Vec<Value>, prospects: Resource<Result<Value, String
             .map(|p| p["company"].as_str().unwrap_or("").to_string())
             .collect();
         StageInfo {
-            id: stage_id,
+            _id: stage_id,
             name: s["name"].as_str().unwrap_or("").to_string(),
             color: s["color"].as_str().unwrap_or("#6B7280").to_string(),
             prospect_ids,
@@ -214,7 +240,7 @@ fn SalesTableView(prospects: Vec<Value>, stages_map: std::collections::HashMap<S
     rsx! {
         div { class: "data-table-container",
             table { class: "data-table",
-                thead { tr { th { "Nombre" } th { "RUT" } th { "Email" } th { "Colegio" } th { "Etapa" } th { "Valor" } th { "Acciones" } } }
+                thead { tr { th { "Nombre" } th { "RUT" } th { "Email" } th { "Colegio" } th { "Etapa" } th { "Valor" } } }
                 tbody {
                     for p in &prospects {
                         SalesTableRow { prospect: p.clone(), stages_map: stages_map.clone() }
@@ -230,7 +256,6 @@ fn SalesTableRow(prospect: Value, stages_map: std::collections::HashMap<String, 
     let first = prospect["first_name"].as_str().unwrap_or("").to_string();
     let last = prospect["last_name"].as_str().unwrap_or("").to_string();
     let email = prospect["email"].as_str().unwrap_or("-").to_string();
-    let _phone = prospect["phone"].as_str().unwrap_or("-").to_string();
     let company = prospect["company"].as_str().unwrap_or("-").to_string();
     let stage_id = prospect["current_stage_id"].as_str().unwrap_or("").to_string();
     let stage_name = stages_map.get(&stage_id).cloned().unwrap_or_else(|| "-".to_string());
@@ -244,7 +269,6 @@ fn SalesTableRow(prospect: Value, stages_map: std::collections::HashMap<String, 
             td { "{company}" }
             td { span { class: "stage-badge", "{stage_name}" } }
             td { "{val}" }
-            td { button { class: "btn btn-sm", "Ver" } }
         }
     }
 }
@@ -263,124 +287,136 @@ fn ProspectDetailModal(
         _ => None,
     };
 
-    let (header_el, body_el, _pid) = match detail_data {
-        Some(ref data) => {
-            let p = &data["prospect"];
-            let stage = &data["stage"];
-            let assigned = &data["assigned_user"];
-            let contracts = data["contracts"].as_array().cloned().unwrap_or_default();
-            let prospect_id = p["id"].as_str().unwrap_or("").to_string();
-            let first_name = p["first_name"].as_str().unwrap_or("").to_string();
-            let last_name = p["last_name"].as_str().unwrap_or("").to_string();
-            let stage_color = stage["color"].as_str().unwrap_or("#6B7280").to_string();
-            let stage_name = stage["name"].as_str().unwrap_or("Sin etapa").to_string();
-            let email_val = p["email"].as_str().unwrap_or("-").to_string();
-            let phone_val = p["phone"].as_str().unwrap_or("-").to_string();
-            let company_val = p["company"].as_str().unwrap_or("-").to_string();
-            let source_val = p["source"].as_str().unwrap_or("-").to_string();
-            let value_val = p["estimated_value"].as_f64().map(|v| format!("${:.0}", v)).unwrap_or_else(|| "-".to_string());
-            let assigned_name = assigned["name"].as_str().unwrap_or("-").to_string();
-            let contract_cards: Vec<_> = contracts.iter().map(|c| {
-                let cs = c["status"].as_str().unwrap_or("draft").to_string();
-                let cv = c["total_value"].as_f64().unwrap_or(0.0);
-                let cid = c["id"].as_str().unwrap_or("").to_string();
-                rsx! { 
-                    div { class: "contract-card", 
-                        div { class: "contract-status-{cs}", "{cs}" } 
-                        div { "Valor: ${cv}" } 
-                        if cs == "verified" {
-                            button { 
-                                class: "btn btn-sm btn-success", 
-                                disabled: is_activating(),
-                                onclick: move |_| {
-                                    let id = cid.clone();
-                                    spawn(async move {
-                                        is_activating.set(true);
-                                        match client::post_json(&format!("/api/sales/contracts/{}/activate", id), &json!({})).await {
-                                            Ok(resp) => {
-                                                activation_result.set(Some(resp));
-                                                detail.restart(); // Auto-refresh data
-                                            }
-                                            Err(_e) => {
-                                                // Handle error (maybe another signal for error message)
-                                                // console log error
-                                            }
-                                        }
-                                        is_activating.set(false);
-                                    });
-                                },
-                                if is_activating() { "Activando..." } else { "Activar Licencia" }
-                            }
-                        }
-                    } 
-                }
-            }).collect();
+    let first_name;
+    let last_name;
+    let stage_color;
+    let stage_name;
+    let email_val;
+    let phone_val;
+    let company_val;
+    let source_val;
+    let value_val;
+    let assigned_name;
+    let prospect_id;
+    let p_rut;
+    let contract_cards: Vec<_>;
 
-            let h = rsx! {
-                h2 { "{first_name} {last_name}" }
-                span { class: "stage-badge", style: "background: {stage_color}", "{stage_name}" }
-            };
-
-            (h, rsx! {
-                div { class: "detail-tabs",
-                    button { class: "tab", onclick: move |_| show_timeline.set(true), "Actividad" }
-                    button { class: "tab", onclick: move |_| show_timeline.set(false), "Info" }
-                }
-                if show_timeline() {
-                    ContactTimeline { prospect_id: prospect_id.clone() }
-                } else {
-                    div { class: "detail-grid",
-                        div { class: "detail-section",
-                            h3 { "Informaci\u{00f3}n" }
-                            div { class: "detail-row", label { "Email:" }, span { "{email_val}" } }
-                            div { class: "detail-row", label { "RUT:" }, span { "{p[\"rut\"].as_str().unwrap_or(\"-\")}" } }
-                            div { class: "detail-row", label { "Tel\u{00e9}fono:" }, span { "{phone_val}" } }
-                            div { class: "detail-row", label { "Colegio:" }, span { "{company_val}" } }
-                            div { class: "detail-row", label { "Fuente:" }, span { "{source_val}" } }
-                            div { class: "detail-row", label { "Valor est.:" }, span { "{value_val}" } }
-                            div { class: "detail-row", label { "Asignado:" }, span { "{assigned_name}" } }
+    if let Some(ref data) = detail_data {
+        let p = &data["prospect"];
+        let stage = &data["stage"];
+        let assigned = &data["assigned_user"];
+        let contracts = data["contracts"].as_array().cloned().unwrap_or_default();
+        prospect_id = p["id"].as_str().unwrap_or("").to_string();
+        first_name = p["first_name"].as_str().unwrap_or("").to_string();
+        last_name = p["last_name"].as_str().unwrap_or("").to_string();
+        stage_color = stage["color"].as_str().unwrap_or("#6B7280").to_string();
+        stage_name = stage["name"].as_str().unwrap_or("Sin etapa").to_string();
+        email_val = p["email"].as_str().unwrap_or("-").to_string();
+        phone_val = p["phone"].as_str().unwrap_or("-").to_string();
+        company_val = p["company"].as_str().unwrap_or("-").to_string();
+        source_val = p["source"].as_str().unwrap_or("-").to_string();
+        value_val = p["estimated_value"].as_f64().map(|v| format!("${:.0}", v)).unwrap_or_else(|| "-".to_string());
+        assigned_name = assigned["name"].as_str().unwrap_or("-").to_string();
+        p_rut = p["rut"].as_str().unwrap_or("-").to_string();
+        contract_cards = contracts.iter().map(|c| {
+            let cs = c["status"].as_str().unwrap_or("draft").to_string();
+            let cv = c["total_value"].as_f64().unwrap_or(0.0);
+            let cid = c["id"].as_str().unwrap_or("").to_string();
+            let cid_clone = cid.clone();
+            let is_verified = cs == "verified";
+            let act_label = if is_activating() { "Activando..." } else { "Activar Licencia" };
+            rsx! {
+                div { key: "{cid}", class: "contract-card",
+                    div { class: "contract-status-{cs}", "{cs}" }
+                    div { "Valor: ${cv}" }
+                    if is_verified {
+                        button {
+                            class: "btn btn-sm btn-success",
+                            disabled: is_activating(),
+                            onclick: move |_| {
+                                let id = cid_clone.clone();
+                                spawn(async move {
+                                    is_activating.set(true);
+                                    if let Ok(resp) = client::post_json(&format!("/api/sales/contracts/{}/activate", id), &json!({})).await {
+                                        activation_result.set(Some(resp));
+                                    }
+                                    is_activating.set(false);
+                                });
+                            },
+                            "{act_label}"
                         }
                     }
                 }
-                div { class: "detail-actions",
-                    button { class: "btn btn-primary", onclick: move |_| {}, "Crear Propuesta" }
-                    button { class: "btn", onclick: move |_| {}, "Crear Contrato" }
-                }
-                if !contract_cards.is_empty() {
-                    div { class: "detail-section",
-                        h3 { "Contratos" }
-                        {contract_cards.into_iter()}
-                    }
-                }
-            }, prospect_id)
-        }
-        None => (rsx! { h2 { "Cargando..." } }, rsx! { div { class: "loading-spinner", "Cargando..." } }, String::new()),
-    };
+            }
+        }).collect();
+    } else {
+        first_name = String::new(); last_name = String::new(); stage_color = String::new(); stage_name = String::new();
+        email_val = String::new(); phone_val = String::new(); company_val = String::new();
+        source_val = String::new(); value_val = String::new(); assigned_name = String::new();
+        prospect_id = String::new(); p_rut = String::new(); contract_cards = Vec::new();
+    }
+
+    let loading = detail_data.is_none();
+    let activation_data = activation_result();
+    let activation_email = activation_data.as_ref().and_then(|d| d["admin_email"].as_str()).unwrap_or("").to_string();
+    let activation_password = activation_data.as_ref().and_then(|d| d["temp_password"].as_str()).unwrap_or("").to_string();
+    let tab_activity_class = if show_timeline() { "tab active" } else { "tab" };
+    let tab_info_class = if !show_timeline() { "tab active" } else { "tab" };
 
     rsx! {
         div { class: "modal-overlay", onclick: move |_| on_close.call(()),
             div { class: "modal-content modal-lg", onclick: move |e| e.stop_propagation(),
-                if let Some(res) = activation_result() {
+                if activation_data.is_some() {
                     div { class: "p-8 text-center",
-                        h3 { class: "text-2xl font-bold text-success mb-4", "✅ Licencia Activada" }
-                        p { class: "mb-6", "La corporación y el colegio han sido creados exitosamente." }
+                        h3 { class: "text-2xl font-bold text-success mb-4", "Licencia Activada" }
+                        p { class: "mb-6", "La corporaci\u{00f3}n y el colegio han sido creados exitosamente." }
                         div { class: "bg-gray-50 p-6 rounded-lg mb-6 text-left border border-gray-200",
-                            div { class: "mb-2", b { "Email: " } "{res[\"admin_email\"].as_str().unwrap_or(\"-\")}" }
-                            div { class: "mb-2", b { "Contraseña Temporal: " } span { class: "font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded", "{res[\"temp_password\"].as_str().unwrap_or(\"-\")}" } }
+                            div { class: "mb-2", b { "Email: " } "{activation_email}" }
+                            div { class: "mb-2", b { "Contrase\u{00f1}a Temporal: " } span { class: "font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded", "{activation_password}" } }
                         }
-                        p { class: "text-sm text-gray-500 mb-6", "Por favor, comparte estas credenciales con el sostenedor. Se recomienda cambiarlas tras el primer ingreso." }
-                        button { 
-                            class: "btn btn-primary w-full", 
-                            onclick: move |_| activation_result.set(None), 
-                            "Entendido" 
-                        }
+                        p { class: "text-sm text-gray-500 mb-6", "Por favor, comparte estas credenciales con el sostenedor." }
+                        button { class: "btn btn-primary w-full", onclick: move |_| activation_result.set(None), "Entendido" }
                     }
+                } else if loading {
+                    div { class: "modal-header",
+                        h2 { "Cargando..." }
+                        button { class: "btn-close", onclick: move |_| on_close.call(()) }
+                    }
+                    div { class: "modal-body", div { class: "loading-spinner", "Cargando..." } }
                 } else {
-                    div { class: "modal-header", 
-                        {header_el} 
-                        button { class: "btn-close", onclick: move |_| on_close.call(()) } 
+                    div { class: "modal-header",
+                        h2 { "{first_name} {last_name}" }
+                        span { class: "stage-badge", style: "background: {stage_color}", "{stage_name}" }
+                        button { class: "btn-close", onclick: move |_| on_close.call(()) }
                     }
-                    div { class: "modal-body", {body_el} }
+                    div { class: "modal-body",
+                        div { class: "detail-tabs",
+                            button { class: "{tab_activity_class}", onclick: move |_| show_timeline.set(true), "Actividad" }
+                            button { class: "{tab_info_class}", onclick: move |_| show_timeline.set(false), "Info" }
+                        }
+                        if show_timeline() {
+                            ContactTimeline { prospect_id: prospect_id.clone() }
+                        } else {
+                            div { class: "detail-grid",
+                                div { class: "detail-section",
+                                    h3 { "Informaci\u{00f3}n" }
+                                    div { class: "detail-row", label { "Email:" }, span { "{email_val}" } }
+                                    div { class: "detail-row", label { "RUT:" }, span { "{p_rut}" } }
+                                    div { class: "detail-row", label { "Tel\u{00e9}fono:" }, span { "{phone_val}" } }
+                                    div { class: "detail-row", label { "Colegio:" }, span { "{company_val}" } }
+                                    div { class: "detail-row", label { "Fuente:" }, span { "{source_val}" } }
+                                    div { class: "detail-row", label { "Valor est.:" }, span { "{value_val}" } }
+                                    div { class: "detail-row", label { "Asignado:" }, span { "{assigned_name}" } }
+                                }
+                            }
+                        }
+                        if !contract_cards.is_empty() {
+                            div { class: "detail-section",
+                                h3 { "Contratos" }
+                                {contract_cards.into_iter()}
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -434,6 +470,173 @@ fn ContactTimeline(prospect_id: String) -> Element {
         div { class: "timeline-container",
             h3 { "Historial de Actividad" }
             {items}
+        }
+    }
+}
+
+// ─── Dashboard Tab ───
+
+#[component]
+fn SalesDashboard() -> Element {
+    let dashboard = use_resource(|| client::fetch_json("/api/sales/dashboard/summary"));
+    let agents = use_resource(|| client::fetch_json("/api/sales/agents"));
+
+    let data = match dashboard() {
+        Some(Ok(ref d)) => Some(d.clone()),
+        _ => None,
+    };
+
+    let total_prospects = data.as_ref().and_then(|d| d["total_prospects"].as_i64()).unwrap_or(0);
+    let my_prospects = data.as_ref().and_then(|d| d["my_prospects"].as_i64()).unwrap_or(0);
+    let total_contracts = data.as_ref().and_then(|d| d["total_contracts"].as_i64()).unwrap_or(0);
+    let total_value = data.as_ref().and_then(|d| d["total_value"].as_f64()).unwrap_or(0.0);
+    let pipeline = data.as_ref().and_then(|d| d["pipeline"].as_array()).cloned().unwrap_or_default();
+
+    let total_agents = agents().and_then(|r| r.ok())
+        .and_then(|d| d["agents"].as_array().map(|a| a.len() as i64)).unwrap_or(0);
+
+    let pipeline_total: f64 = pipeline.iter().filter_map(|s| s["count"].as_i64()).map(|c| c as f64).sum();
+    let projected_revenue = if pipeline_total > 0.0 && total_prospects > 0 {
+        pipeline_total * (total_value / total_prospects as f64) * 0.3
+    } else {
+        0.0
+    };
+    let has_pipeline = !pipeline.is_empty();
+
+    rsx! {
+        div { class: "dashboard-grid",
+            div { class: "kpi-grid",
+                div { class: "kpi-card",
+                    div { class: "kpi-value", "{total_prospects}" }
+                    div { class: "kpi-label", "Total Prospectos" }
+                }
+                div { class: "kpi-card",
+                    div { class: "kpi-value", "{my_prospects}" }
+                    div { class: "kpi-label", "Mis Prospectos" }
+                }
+                div { class: "kpi-card",
+                    div { class: "kpi-value", "{total_contracts}" }
+                    div { class: "kpi-label", "Contratos Activos" }
+                }
+                div { class: "kpi-card",
+                    div { class: "kpi-value", "${total_value}" }
+                    div { class: "kpi-label", "Valor Total" }
+                }
+                div { class: "kpi-card",
+                    div { class: "kpi-value", "{total_agents}" }
+                    div { class: "kpi-label", "Agentes" }
+                }
+            }
+            div { class: "dashboard-section",
+                h3 { "Pipeline (embudo de ventas)" }
+                if has_pipeline {
+                    SalesFunnelChart { data: pipeline.clone() }
+                } else {
+                    div { class: "empty-state", "Sin datos de pipeline" }
+                }
+            }
+            if has_pipeline {
+                div { class: "dashboard-section",
+                    h3 { "Proyecci\u{00f3}n de Ingresos" }
+                    div { class: "kpi-card kpi-lg",
+                        div { class: "kpi-value", "${projected_revenue}" }
+                        div { class: "kpi-label", "Ingresos Proyectados (basado en pipeline actual)" }
+                    }
+                }
+            }
+        }
+    }
+}
+#[component]
+fn SalesFunnelChart(data: Vec<Value>) -> Element {
+    let max_count = data.iter()
+        .filter_map(|s| s["count"].as_i64())
+        .max()
+        .unwrap_or(1)
+        .max(1) as f64;
+
+    let bars: Vec<_> = data.iter().enumerate().map(|(i, s)| {
+        let name = s["name"].as_str().unwrap_or("").to_string();
+        let count = s["count"].as_i64().unwrap_or(0);
+        let pct = (count as f64 / max_count * 100.0).max(5.0);
+        let colors = ["#6B7280", "#3B82F6", "#8B5CF6", "#F59E0B", "#F97316", "#10B981", "#059669", "#EF4444"];
+        let color = colors[i % colors.len()];
+        rsx! {
+            div { class: "funnel-row", key: "f{i}",
+                div { class: "funnel-label", "{name}" }
+                div { class: "funnel-bar-container",
+                    div { class: "funnel-bar", style: "width: {pct}%; background: {color};",
+                        "{count}"
+                    }
+                }
+            }
+        }
+    }).collect();
+
+    rsx! {
+        div { class: "funnel-chart",
+            {bars.into_iter()}
+        }
+    }
+}
+
+// ─── Team Tab ───
+
+#[component]
+fn SalesTeam() -> Element {
+    let agents_data = use_resource(|| client::fetch_json("/api/sales/agents"));
+    let rr_status = use_resource(|| client::fetch_json("/api/sales/round-robin/status"));
+
+    let agents_list: Vec<Value> = match agents_data() {
+        Some(Ok(d)) => d["agents"].as_array().cloned().unwrap_or_default(),
+        _ => vec![],
+    };
+
+    let rr_active = match rr_status() {
+        Some(Ok(d)) => d["active"].as_bool().unwrap_or(false),
+        _ => false,
+    };
+
+    rsx! {
+        div { class: "page-toolbar",
+            h3 { "Equipo de Ventas" }
+        }
+        div { class: "dashboard-section",
+            h3 { "Asignaci\u{00f3}n Autom\u{00e1}tica (Round-Robin)" }
+            div { class: "kpi-card",
+                div { class: "kpi-value", if rr_active { "Activado" } else { "Desactivado" } }
+                div { class: "kpi-label", "Round-Robin" }
+            }
+        }
+        div { class: "data-table-container",
+            table { class: "data-table",
+                thead {
+                    tr { th { "Agente" } th { "Email" } th { "Meta Mensual" } th { "Meta Trimestral" } th { "Comisi\u{00f3}n" } th { "Activo" } }
+                }
+                tbody {
+                    {agents_list.iter().map(|agent_entry| {
+                        let agent = &agent_entry["agent"];
+                        let user = &agent_entry["user"];
+                        let name = user["name"].as_str().unwrap_or("-").to_string();
+                        let email = user["email"].as_str().unwrap_or("-").to_string();
+                        let monthly = agent["quota_monthly"].as_f64().unwrap_or(0.0);
+                        let quarterly = agent["quota_quarterly"].as_f64().unwrap_or(0.0);
+                        let commission = agent["commission_rate"].as_f64().unwrap_or(0.0);
+                        let active = agent["active"].as_bool().unwrap_or(false);
+                        rsx! {
+                            tr {
+                                key: "{name}",
+                                td { "{name}" }
+                                td { "{email}" }
+                                td { "${monthly}" }
+                                td { "${quarterly}" }
+                                td { "{commission}%" }
+                                td { if active { span { class: "badge badge-success", "Activo" } } else { span { class: "badge badge-error", "Inactivo" } } }
+                            }
+                        }
+                    })}
+                }
+            }
         }
     }
 }

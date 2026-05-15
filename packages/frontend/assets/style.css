@@ -2704,6 +2704,103 @@ tr.selected td:first-child { border-left: 3px solid var(--primary); }
     60%, 100% { content: "..."; }
 }
 
+/* ─── Sales Tabs ─── */
+.sales-tabs {
+    margin-bottom: 1rem;
+}
+.sales-tabs .tab.active {
+    background: var(--primary, #1A2B3C);
+    color: white;
+}
+
+/* ─── Sales Dashboard ─── */
+.dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.kpi-card {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: var(--radius-sm, 8px);
+    padding: 1.25rem;
+    box-shadow: var(--shadow, none);
+}
+.kpi-card .kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary, #0F172A);
+}
+.kpi-card .kpi-label {
+    font-size: 0.8125rem;
+    color: var(--text-muted, #94A3B8);
+    margin-top: 0.25rem;
+}
+.kpi-lg .kpi-value {
+    font-size: 2rem;
+    color: var(--success, #16a34a);
+}
+
+.dashboard-section {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: var(--radius-sm, 8px);
+    padding: 1.25rem;
+    box-shadow: var(--shadow, none);
+}
+.dashboard-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, #0F172A);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+/* ─── Funnel Chart ─── */
+.funnel-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.funnel-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.funnel-label {
+    width: 140px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary, #475569);
+    text-align: right;
+    flex-shrink: 0;
+}
+.funnel-bar-container {
+    flex: 1;
+    background: var(--bg, #f8f9fa);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.funnel-bar {
+    padding: 0.5rem 1rem;
+    color: white;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 6px;
+    white-space: nowrap;
+    min-width: 2rem;
+    text-align: right;
+    transition: width 0.5s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
